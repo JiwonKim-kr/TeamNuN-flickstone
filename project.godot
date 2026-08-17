@@ -1,0 +1,21 @@
+; Engine configuration file.
+; Flickstone — TeamNuN의 물리 전술 로그라이트 프로젝트.
+;
+; 정식 타이틀은 미정이며 config/name 은 프로젝트 코드명을 사용한다.
+;
+; Godot 4.6.x 고정 (CLAUDE.md 코딩 규칙). config_version=5 는 Godot 4.x 형식.
+; 메인 씬(main_scene)은 중립 빈 씬(scenes/main.tscn)이며, 승인된 spec 을 받아
+; play build 가 채운다.
+
+config_version=5
+
+[application]
+
+config/name="Flickstone"
+config/description="원형 기물 충돌과 CTB 전술을 결합한 TeamNuN의 로그라이트 프로젝트. 정식 타이틀 미정."
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.6")
+
+[debug]
+
+gdscript/warnings/untyped_declaration=1
