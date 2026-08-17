@@ -34,9 +34,15 @@
 - `src/core/sim/fix_math.gd`
 - `src/core/sim/fix_vec2.gd`
 - `src/core/sim/fix_trig_lut.gd`
+- `src/core/sim/sim_status.gd`
+- `src/core/sim/sim_limits.gd`
+- `src/core/sim/uint32_math.gd`
 - `src/core/sim/sim_rng.gd`
 - `src/tools/generate_fix_trig_lut.py`
 - `pipeline/tests/p0_math_rng_test.gd`
+- `pipeline/tests/p0_rng_reference.py`
+- `pipeline/tests/fixtures/p0_rng_vectors.json`
+- `pipeline/tests/godot_test_support.py`
 - `pipeline/tests/run_p0_math_rng.py`
 
 ## 수용 기준
@@ -78,6 +84,18 @@
 - Q47.16의 이론상 전체 범위가 아니라 승인된 안전 영역만 물리 연산에 사용한다.
 
 P0-1의 사전 기술 결정과 명세 전체가 승인되었다. 승인된 대상 파일과 수용 기준 범위에서 구현할 수 있다.
+
+## 구현 호환 계약
+
+아래 항목은 승인된 결정을 구현하면서 고정한 리플레이·골든 벡터 호환 계약이다. 게임 규칙을 추가하지 않으며, 변경하려면 알고리즘 버전과 골든 픽스처를 함께 올린다.
+
+- PRNG 전이는 `xoshiro128** 1.1`로 버전 고정한다.
+- FSR1 파생 키는 `[0x31525346, seed_lo, seed_hi, purpose_id, owner_id, ordinal]` 여섯 `uint32` 워드를 이 순서의 little-endian 24바이트로 직렬화한다.
+- 키는 seed 0의 `MurmurHash3_x86_128`로 혼합한다. 결과 4워드가 전부 0일 때만 hash seed를 1씩 올려 다시 시도하고, `uint32` seed 공간을 소진하면 실패한다.
+- purpose 0은 루트 스트림 전용이며, 파생 스트림은 purpose 1~65,535만 허용한다.
+- 기본 생성 객체와 실패한 factory의 반환 객체는 미초기화 상태라 소비할 수 없다. 상태만 복원한 keyless 스트림은 값을 소비할 수 있지만 서브스트림을 파생할 수 없다.
+- U-23 RNG 소비 순서가 승인되기 전에는 단일값 범위와 0%·100% 확률 호출을 상태 변경 없이 실패시킨다.
+- `SimStatus.Code`와 `SimStatus.Operation` 숫자는 append-only다. 기존 번호를 재사용하거나 재정렬하지 않는다.
 
 ## 범위 밖
 

@@ -495,6 +495,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[i] --full: 테스트 러너 {len(runners)}종 실행")
             child_env = dict(os.environ)
             child_env[IN_FULL_ENV] = "1"
+            child_env["GODOT_BIN"] = args.godot
+            if args.skip_godot:
+                child_env["ARTIFICER_SKIP_GODOT_TESTS"] = "1"
+            else:
+                # A stale parent-shell value must not silently weaken a run
+                # that did not request --skip-godot.
+                child_env.pop("ARTIFICER_SKIP_GODOT_TESTS", None)
             for rp in runners:
                 proc = subprocess.run(
                     [sys.executable, str(rp)],

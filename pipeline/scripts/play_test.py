@@ -61,13 +61,35 @@ class Stage:
         self.detail = ""
 
 
+def _headless_log_path(project_dir: Path) -> Path:
+    """Keep Godot logs inside the ignored project artifact directory.
+
+    This also makes headless tests work in sandboxes where the OS user-data
+    directory is intentionally read-only.
+    """
+    log_dir = project_dir / "pipeline" / "artifacts"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    return log_dir / "godot-headless.log"
+
+
 def run_godot_import(godot: str, project_dir: Path) -> Stage:
     st = Stage("Godot headless 임포트")
+    log_path = _headless_log_path(project_dir)
     try:
         proc = subprocess.run(
-            [godot, "--headless", "--path", str(project_dir), "--import"],
+            [
+                godot,
+                "--headless",
+                "--path",
+                str(project_dir),
+                "--log-file",
+                str(log_path),
+                "--import",
+            ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=300,
         )
     except FileNotFoundError:
@@ -87,11 +109,23 @@ def run_godot_import(godot: str, project_dir: Path) -> Stage:
 
 def run_smoke(godot: str, project_dir: Path) -> Stage:
     st = Stage("스모크 테스트")
+    log_path = _headless_log_path(project_dir)
     try:
         proc = subprocess.run(
-            [godot, "--headless", "--path", str(project_dir), "--script", SMOKE_SCRIPT],
+            [
+                godot,
+                "--headless",
+                "--path",
+                str(project_dir),
+                "--log-file",
+                str(log_path),
+                "--script",
+                SMOKE_SCRIPT,
+            ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=300,
         )
     except FileNotFoundError:
