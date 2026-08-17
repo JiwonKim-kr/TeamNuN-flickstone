@@ -89,7 +89,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"[PASS] GODOT-VERSION {version_text}")
 
     try:
-        imported = godot_test_support.run_godot(godot, project, "--import")
+        imported = godot_test_support.run_godot(
+            godot,
+            project,
+            "--import",
+            log_name="godot-p0-math-rng-import.log",
+        )
     except subprocess.TimeoutExpired:
         print("[FAIL] GODOT-IMPORT timeout", file=sys.stderr)
         return 2
@@ -100,7 +105,13 @@ def main(argv: list[str] | None = None) -> int:
     print("[PASS] GODOT-IMPORT")
 
     try:
-        result = godot_test_support.run_godot(godot, project, "--script", TEST_SCRIPT)
+        result = godot_test_support.run_godot(
+            godot,
+            project,
+            "--script",
+            TEST_SCRIPT,
+            log_name="godot-p0-math-rng-test.log",
+        )
     except subprocess.TimeoutExpired:
         print("[FAIL] GODOT-P0-1 timeout", file=sys.stderr)
         return 2

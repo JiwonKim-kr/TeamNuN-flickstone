@@ -9,6 +9,8 @@ Phase 1 의 run_lore_roundtrip.py 와 같은 스타일(단일 파일·번호 섹
                               중복 ID·잘못된 ID 는 검증 실패로 '쓰이지 않음' 확인.
   [3] play_test 정합성 로직 : run_manifest_integrity 가 파일 누락을 잡고,
                               파일이 존재하면 통과하는지 확인.
+  [3b] Godot 프로세스 경계 : Windows 실행 파일 정규화, 절대 로그,
+                              격리 프로필, 타임아웃 정리 계약 검증.
   [4] play_test 엔드투엔드   : play_test.py 를 실제 프로젝트에 실행 →
                               임포트 + 스모크 + 매니페스트 정합성 전체 통과.
   [5] 스크린샷 스테이지      : 순수 파이썬 헬퍼(PNG 디코드/빈 렌더 감지, 플랫폼별
@@ -40,6 +42,7 @@ SCHEMA = REPO_ROOT / "pipeline" / "schemas" / "asset-manifest.schema.json"
 
 # play_test 모듈을 직접 import (정합성 로직 단위 검증용)
 sys.path.insert(0, str(SCRIPTS))
+import godot_process  # noqa: E402
 import play_test as play_test_mod  # noqa: E402
 import manifest as manifest_mod  # noqa: E402
 
@@ -186,21 +189,102 @@ def section_integrity_logic() -> None:
         check("참조 파일 존재하면 정합성 PASS", st.ok is True)
 
 
+def section_godot_process_boundary() -> None:
+    print("\n[3b] Godot 프로세스 안전 경계 (실행 파일·로그·환경·종료 코드)")
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        console = root / "Godot_test_console.exe"
+        direct = root / "Godot_test.exe"
+        console.touch()
+        direct.touch()
+        preferred = godot_process._prefer_direct_windows_editor(
+            console, platform="nt"
+        )
+        check("Windows console launcher → direct editor", preferred == direct)
+        direct.unlink()
+        fallback = godot_process._prefer_direct_windows_editor(
+            console, platform="nt"
+        )
+        check("direct sibling 부재 시 console fallback", fallback == console)
+        check(
+            "비-Windows에서는 실행 파일 유지",
+            godot_process._prefer_direct_windows_editor(
+                console, platform="posix"
+            ) == console,
+        )
+
+        project = root / "project"
+        project.mkdir()
+        cmd = godot_process.build_headless_command(
+            "godot", project, "--import", log_name="godot-contract.log"
+        )
+        path_value = Path(cmd[cmd.index("--path") + 1])
+        log_value = Path(cmd[cmd.index("--log-file") + 1])
+        check("headless 명령에 --headless", "--headless" in cmd)
+        check("--path는 절대 경로", path_value.is_absolute())
+        check("--log-file은 절대 경로", log_value.is_absolute())
+        check(
+            "로그는 프로젝트 pipeline/artifacts/godot 아래",
+            log_value.parent == (
+                project.resolve() / "pipeline" / "artifacts" / "godot"
+            ),
+        )
+        check("Godot 작업 인자 순서 보존", cmd[-1] == "--import")
+
+        rejected = []
+        for bad_name in ("", "..", "../escape.log", "NUL.log", "x.txt", "bad:name.log"):
+            try:
+                godot_process.artifact_log_path(project, bad_name)
+            except ValueError:
+                rejected.append(bad_name)
+        check("위험하거나 비-log인 로그명 전부 거부", len(rejected) == 6)
+
+        parent_env = {
+            "APPDATA": "parent-appdata",
+            "LOCALAPPDATA": "parent-localappdata",
+            "KEEP": "unchanged",
+        }
+        parent_before = dict(parent_env)
+        with godot_process.isolated_project_environment(
+            project, parent_env, platform="nt"
+        ) as child_env:
+            runtime_dir = Path(child_env["APPDATA"]).parent
+            check("APPDATA는 호출별 runtime으로 격리", runtime_dir.name.startswith("run-"))
+            check("격리 APPDATA 사전 생성", Path(child_env["APPDATA"]).is_dir())
+            check(
+                "격리 LOCALAPPDATA 사전 생성",
+                Path(child_env["LOCALAPPDATA"]).is_dir(),
+            )
+            check("기타 환경은 보존", child_env["KEEP"] == "unchanged")
+            check("부모 환경은 실행 중에도 불변", parent_env == parent_before)
+        check("호출 종료 후 runtime 정리", not runtime_dir.exists())
+        check("부모 환경은 종료 후에도 불변", parent_env == parent_before)
+
+    signed = godot_process.describe_returncode(-1073741819)
+    unsigned = godot_process.describe_returncode(0xC0000005)
+    check("signed 0xC0000005 진단", "0xC0000005" in signed)
+    check("unsigned 0xC0000005 진단", "0xC0000005" in unsigned)
+
+
 def section_play_test_e2e() -> None:
     print("\n[4] play_test.py 엔드투엔드 (실제 프로젝트: 임포트 + 스모크 + 정합성)")
     godot = os.environ.get("GODOT_BIN", "godot")
     have_godot = shutil.which(godot) is not None or Path(godot).exists()
+    child_env = dict(os.environ)
+    child_env["PYTHONUTF8"] = "1"
     if not have_godot:
         print("  [SKIP] godot 실행 파일을 찾을 수 없어 Godot 스테이지를 건너뜁니다.")
         r = subprocess.run(
             [sys.executable, str(SCRIPTS / "play_test.py"), "--skip-godot"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            env=child_env,
         )
         check("play_test --skip-godot 통과 (exit 0)", r.returncode == 0)
         return
     r = subprocess.run(
         [sys.executable, str(SCRIPTS / "play_test.py")],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=child_env,
     )
     check("play_test.py 전체 통과 (exit 0)", r.returncode == 0)
     check("출력에 '전체 통과'", "전체 통과" in r.stdout)
@@ -251,6 +335,14 @@ def section_screenshot_helpers() -> None:
         "godot", proj, Path("/tmp/shot.png"), "res://scenes/x.tscn", 5, "darwin")
     check("--scene 인자 전달됨", "res://scenes/x.tscn" in scene_cmd)
     check("--frames 인자 전달됨", "5" in scene_cmd)
+    for label, command in (("macOS", mac_cmd), ("Linux", lin_cmd)):
+        log_path = Path(command[command.index("--log-file") + 1])
+        check(f"{label} 스크린샷 로그 절대 경로", log_path.is_absolute())
+
+    rc, _out, _err, timed_out = play_test_mod._run_process_group(
+        [sys.executable, "-c", "import time; time.sleep(5)"], timeout=0.1
+    )
+    check("프로세스 타임아웃이 예외·잔존 없이 반환", timed_out and rc == -1)
 
     with tempfile.TemporaryDirectory() as td:
         tdp = Path(td)
@@ -314,6 +406,7 @@ def main() -> int:
     section_schema_validation()
     section_write_gateway()
     section_integrity_logic()
+    section_godot_process_boundary()
     section_play_test_e2e()
     section_screenshot_helpers()
     section_screenshot_render()

@@ -33,7 +33,6 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
-import signal
 import subprocess
 import sys
 import zlib
@@ -41,6 +40,7 @@ from pathlib import Path
 
 # 같은 디렉토리의 manifest 모듈 재사용 (검증 로직 단일화)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import godot_process  # noqa: E402
 import manifest as manifest_mod  # noqa: E402
 
 
@@ -61,36 +61,15 @@ class Stage:
         self.detail = ""
 
 
-def _headless_log_path(project_dir: Path) -> Path:
-    """Keep Godot logs inside the ignored project artifact directory.
-
-    This also makes headless tests work in sandboxes where the OS user-data
-    directory is intentionally read-only.
-    """
-    log_dir = project_dir / "pipeline" / "artifacts"
-    log_dir.mkdir(parents=True, exist_ok=True)
-    return log_dir / "godot-headless.log"
-
-
 def run_godot_import(godot: str, project_dir: Path) -> Stage:
     st = Stage("Godot headless 임포트")
-    log_path = _headless_log_path(project_dir)
     try:
-        proc = subprocess.run(
-            [
-                godot,
-                "--headless",
-                "--path",
-                str(project_dir),
-                "--log-file",
-                str(log_path),
-                "--import",
-            ],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
+        proc = godot_process.run_headless(
+            godot,
+            project_dir,
+            "--import",
             timeout=300,
+            log_name="godot-play-import.log",
         )
     except FileNotFoundError:
         st.detail = f"godot 실행 파일을 찾을 수 없음: {godot!r}"
@@ -102,31 +81,24 @@ def run_godot_import(godot: str, project_dir: Path) -> Stage:
     st.detail = (
         "임포트 성공"
         if st.ok
-        else f"임포트 실패 (exit={proc.returncode})\n{proc.stderr.strip()}"
+        else "임포트 실패 (exit=%s)\n%s" % (
+            godot_process.describe_returncode(proc.returncode),
+            (proc.stdout + proc.stderr).strip(),
+        )
     )
     return st
 
 
 def run_smoke(godot: str, project_dir: Path) -> Stage:
     st = Stage("스모크 테스트")
-    log_path = _headless_log_path(project_dir)
     try:
-        proc = subprocess.run(
-            [
-                godot,
-                "--headless",
-                "--path",
-                str(project_dir),
-                "--log-file",
-                str(log_path),
-                "--script",
-                SMOKE_SCRIPT,
-            ],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
+        proc = godot_process.run_headless(
+            godot,
+            project_dir,
+            "--script",
+            SMOKE_SCRIPT,
             timeout=300,
+            log_name="godot-play-smoke.log",
         )
     except FileNotFoundError:
         st.detail = f"godot 실행 파일을 찾을 수 없음: {godot!r}"
@@ -202,7 +174,10 @@ def build_screenshot_cmd(
     plat 은 `sys.platform` 형식 문자열('darwin'|'linux'|...). 테스트에서 주입 가능.
     """
     godot_cmd = [
-        godot, "--path", str(project_dir),
+        godot, "--path", str(project_dir.resolve()),
+        "--log-file", str(godot_process.artifact_log_path(
+            project_dir, "godot-screenshot.log"
+        )),
         "--rendering-driver", "opengl3",
         "--script", SCREENSHOT_SCRIPT,
         "--", "--output", str(output_path), "--frames", str(frames),
@@ -215,47 +190,31 @@ def build_screenshot_cmd(
     return godot_cmd
 
 
-def _signal_group(proc: subprocess.Popen, sig: int) -> None:
-    """자식(그리고 그 자식들: xvfb-run→Xvfb/godot)까지 프로세스 그룹 단위로 시그널."""
-    try:
-        os.killpg(os.getpgid(proc.pid), sig)
-    except (ProcessLookupError, OSError):
-        try:
-            proc.send_signal(sig)  # 그룹 조회 실패 시 직접 프로세스에 폴백
-        except (ProcessLookupError, OSError):
-            pass
-
-
 def _run_process_group(
     cmd: list[str], timeout: int, env: dict[str, str] | None = None
 ) -> tuple[int, str, str, bool]:
-    """새 세션(프로세스 그룹)으로 실행하고 타임아웃 시 그룹 전체를 정리한다.
+    """공통 프로세스 경계로 실행하고 타임아웃 시 전체 트리를 정리한다.
 
     macOS 에는 `timeout` 명령이 없고, xvfb-run 은 자식(Xvfb/godot)을 남기므로
-    셸 timeout 대신 파이썬에서 프로세스 그룹째 종료한다(좀비/창 잔존 금지).
+    셸 timeout 대신 공통 헬퍼가 POSIX 프로세스 그룹/Windows PID 트리를
+    종료한다(좀비/창 잔존 금지).
     반환: (returncode, stdout, stderr, timed_out).
     """
-    proc = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        text=True, env=env, start_new_session=True,
-    )
     try:
-        out, err = proc.communicate(timeout=timeout)
-        return proc.returncode, out, err, False
-    except subprocess.TimeoutExpired:
-        pass
-    # 타임아웃 → 그룹 전체 종료(SIGTERM → 안 죽으면 SIGKILL)
-    _signal_group(proc, signal.SIGTERM)
-    try:
-        out, err = proc.communicate(timeout=8)
-    except subprocess.TimeoutExpired:
-        _signal_group(proc, signal.SIGKILL)
-        try:
-            out, err = proc.communicate(timeout=8)
-        except subprocess.TimeoutExpired:
-            out, err = "", ""
-    rc = proc.returncode if proc.returncode is not None else -1
-    return rc, out or "", err or "", True
+        result = godot_process.run_captured(
+            cmd,
+            timeout=timeout,
+            env=env,
+            process_group=True,
+        )
+        return result.returncode, result.stdout, result.stderr, False
+    except subprocess.TimeoutExpired as exc:
+        def as_text(value) -> str:
+            if isinstance(value, bytes):
+                return value.decode("utf-8", errors="replace")
+            return value or ""
+
+        return -1, as_text(exc.stdout), as_text(exc.stderr), True
 
 
 def _find_marker(text: str, prefix: str) -> str | None:
@@ -447,7 +406,10 @@ def run_screenshot(
 
     cmd = build_screenshot_cmd(godot, project_dir, out, scene, frames, plat)
     try:
-        rc, stdout, stderr, timed_out = _run_process_group(cmd, timeout)
+        with godot_process.isolated_project_environment(project_dir) as child_env:
+            rc, stdout, stderr, timed_out = _run_process_group(
+                cmd, timeout, child_env
+            )
     except FileNotFoundError:
         st.detail = f"실행 파일을 찾을 수 없음: {cmd[0]!r}"
         return st
@@ -555,17 +517,18 @@ def main(argv: list[str] | None = None) -> int:
         if args.screenshot:
             print("[i] --screenshot 은 Godot 렌더가 필요하므로 --skip-godot 과 함께 무시됩니다.")
     else:
-        if shutil.which(args.godot) is None and not Path(args.godot).exists():
+        resolved_godot = godot_process.resolve_executable(args.godot)
+        if resolved_godot is None:
             print(f"오류: godot 실행 파일을 찾을 수 없습니다 ({args.godot!r}). "
                   f"--godot 로 경로를 지정하거나 --skip-godot 을 사용하세요.", file=sys.stderr)
             return 2
-        stages.append(run_godot_import(args.godot, project_dir))
-        stages.append(run_smoke(args.godot, project_dir))
+        stages.append(run_godot_import(resolved_godot, project_dir))
+        stages.append(run_smoke(resolved_godot, project_dir))
         if args.screenshot:
             print("[i] --screenshot: 실제 렌더 스테이지 실행 "
                   "(macOS 는 창이 잠깐 뜸 / Linux 는 xvfb 필요)")
             stages.append(run_screenshot(
-                args.godot, project_dir, args.shot_output,
+                resolved_godot, project_dir, args.shot_output,
                 scene=args.shot_scene, frames=args.shot_frames,
                 timeout=args.shot_timeout,
             ))

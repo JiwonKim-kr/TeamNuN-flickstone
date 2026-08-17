@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -28,6 +27,10 @@ from pathlib import Path
 # 이 수용 스크립트를 res://pipeline/tests/acceptance_player_movement.gd 로 깔아 둔다.
 FIXTURE_DIR = Path(__file__).resolve().parent
 REPO_ROOT = FIXTURE_DIR.parents[3]  # fixtures/sample_game -> fixtures -> tests -> pipeline -> repo
+SCRIPTS_DIR = REPO_ROOT / "pipeline" / "scripts"
+sys.path.insert(0, str(SCRIPTS_DIR))
+import godot_process  # noqa: E402
+
 ACCEPT_SCRIPT = "res://pipeline/tests/acceptance_player_movement.gd"
 
 # 각 수용 기준을 검증하는 체크 라벨 접두사 (리포트 매핑용)
@@ -39,10 +42,18 @@ CRITERIA = {
 }
 
 
-def _run_godot(godot: str, project: Path, *args: str) -> subprocess.CompletedProcess[str]:
-	return subprocess.run(
-		[godot, "--headless", "--path", str(project), *args],
-		capture_output=True, text=True, timeout=300,
+def _run_godot(
+	godot: str,
+	project: Path,
+	*args: str,
+	log_name: str,
+) -> subprocess.CompletedProcess[str]:
+	return godot_process.run_headless(
+		godot,
+		project,
+		*args,
+		timeout=300,
+		log_name=log_name,
 	)
 
 
@@ -63,14 +74,20 @@ def main(argv: list[str] | None = None) -> int:
 	print(f"프로젝트: {project}")
 	print("=" * 64)
 
-	if shutil.which(godot) is None and not Path(godot).exists():
+	resolved_godot = godot_process.resolve_executable(godot)
+	if resolved_godot is None:
 		print(f"오류: godot 실행 파일을 찾을 수 없습니다 ({godot!r}). "
 			  f"--godot 로 경로를 지정하세요.", file=sys.stderr)
 		return 2
 
 	# 1) import — 전역 클래스(Grid/Player) 캐시 보장 (멱등)
 	try:
-		imp = _run_godot(godot, project, "--import")
+		imp = _run_godot(
+			resolved_godot,
+			project,
+			"--import",
+			log_name="godot-sample-acceptance-import.log",
+		)
 	except subprocess.TimeoutExpired:
 		print("오류: 임포트 타임아웃 (300s)", file=sys.stderr)
 		return 2
@@ -81,7 +98,13 @@ def main(argv: list[str] | None = None) -> int:
 
 	# 2) 수용 테스트 스크립트 실행
 	try:
-		res = _run_godot(godot, project, "--script", ACCEPT_SCRIPT)
+		res = _run_godot(
+			resolved_godot,
+			project,
+			"--script",
+			ACCEPT_SCRIPT,
+			log_name="godot-sample-acceptance-test.log",
+		)
 	except subprocess.TimeoutExpired:
 		print("오류: 수용 테스트 타임아웃 (300s)", file=sys.stderr)
 		return 2

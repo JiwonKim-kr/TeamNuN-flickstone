@@ -29,6 +29,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import godot_process  # noqa: E402
 import manifest as manifest_mod  # noqa: E402
 import env_config  # noqa: E402
 
@@ -119,8 +120,15 @@ def _tool_version(cmd: list[str]) -> str | None:
 
 def collect_tools() -> dict:
     godot = os.environ.get("GODOT_BIN", "godot")
+    try:
+        godot_proc = godot_process.run_version(godot, timeout=15)
+    except (OSError, subprocess.TimeoutExpired):
+        godot_version = None
+    else:
+        godot_lines = (godot_proc.stdout or godot_proc.stderr).strip().splitlines()
+        godot_version = godot_lines[0].strip() if godot_lines else None
     return {
-        "godot": _tool_version([godot, "--version"]),
+        "godot": godot_version,
         "ffmpeg": _tool_version([os.environ.get("FFMPEG_BIN", "ffmpeg"), "-version"]),
         "node": _tool_version([os.environ.get("NODE_BIN", "node"), "--version"]),
     }

@@ -43,6 +43,7 @@ REPO_ROOT = TESTS_DIR.parent.parent
 SCRIPTS = TESTS_DIR.parent / "scripts"
 
 sys.path.insert(0, str(SCRIPTS))
+import godot_process  # noqa: E402
 import placeholder_gen as pg  # noqa: E402
 import verify as verify_mod  # noqa: E402
 
@@ -73,7 +74,7 @@ def _gen(*args: str) -> subprocess.CompletedProcess[str]:
 
 def _have_godot() -> bool:
     godot = os.environ.get("GODOT_BIN", "godot")
-    return shutil.which(godot) is not None or Path(godot).exists()
+    return godot_process.resolve_executable(godot) is not None
 
 
 def _have_ffmpeg() -> bool:
@@ -516,7 +517,13 @@ def section_godot_import() -> None:
             r = _gen(*extra, "--output", str(out))
             assert r.returncode == 0, r.stderr
 
-        r = _run([godot, "--headless", "--path", str(clone), "--import"], timeout=300)
+        r = godot_process.run_headless(
+            godot,
+            clone,
+            "--import",
+            timeout=300,
+            log_name="godot-placeholder-import.log",
+        )
         check("godot --headless --import 종료 0", r.returncode == 0)
         imported = list((clone / ".godot" / "imported").glob("PLACEHOLDER_slime_idle.png-*.ctex"))
         check("생성물이 .ctex 로 임포트됨", bool(imported))

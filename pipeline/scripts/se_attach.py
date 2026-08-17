@@ -45,6 +45,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import godot_process  # noqa: E402
 import manifest as manifest_mod  # noqa: E402
 from art_reskin import derive_paths, run_godot_import  # noqa: E402  (경로 규약·재임포트 재사용)
 
@@ -536,18 +537,24 @@ def main(argv: list[str] | None = None) -> int:
     if args.skip_import:
         print("[i] --skip-import: Godot 재임포트 생략")
     else:
-        from shutil import which
-        if which(args.godot) is None and not Path(args.godot).exists():
+        resolved_godot = godot_process.resolve_executable(args.godot)
+        if resolved_godot is None:
             print(f"[i] godot 실행 파일 없음({args.godot!r}) — 재임포트 생략. "
                   f"이후 `godot --headless --import` 를 직접 실행하세요.")
         else:
             try:
-                imp = run_godot_import(args.godot, project_dir)
+                imp = run_godot_import(
+                    resolved_godot,
+                    project_dir,
+                    log_name="godot-se-attach-import.log",
+                )
             except subprocess.TimeoutExpired:
                 print("[FAIL] 재임포트 타임아웃(300s)")
                 return 1
             if imp.returncode != 0:
-                print(f"[FAIL] 재임포트 실패(exit={imp.returncode})\n{imp.stderr.strip()[-800:]}")
+                exit_text = godot_process.describe_returncode(imp.returncode)
+                detail = (imp.stdout + imp.stderr).strip()[-800:]
+                print(f"[FAIL] 재임포트 실패(exit={exit_text})\n{detail}")
                 return 1
             print("[OK] Godot 재임포트 완료")
 

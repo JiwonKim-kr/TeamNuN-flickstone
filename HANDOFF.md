@@ -55,6 +55,7 @@
 - [x] P0-4 `결정론 / 상태 해시 / 회귀 테스트` 명세 승인
 - [x] P0-1 `FixMath / FixVec2 / FixTrigLut / SimRng` 구현 및 골든 회귀 테스트 통과
 - [x] Godot 4.6.3 headless import·스모크·P0-1 수용 테스트 실행 확인
+- [x] Windows Godot 4.6.x 자동 실행을 전용 로그·격리 프로필·오류창 억제 경계로 통합
 - [ ] P0 결정론 회귀 테스트 통과
 
 ## 4. 구현 우선순위

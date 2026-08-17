@@ -36,7 +36,6 @@ from __future__ import annotations
 import argparse
 import os
 import re
-import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -44,6 +43,7 @@ from pathlib import Path
 
 # 같은 디렉토리의 보조 모듈 재사용 (검증 로직 단일화)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import godot_process  # noqa: E402
 import manifest as manifest_mod  # noqa: E402
 import play_test as play_test_mod  # noqa: E402
 
@@ -406,18 +406,20 @@ def run_gates(
         g2.status = "SKIP"
         g2.lines = ["--skip-godot: Godot 스테이지 생략"]
         gates.extend([g1, g2])
-    elif shutil.which(godot) is None and not Path(godot).exists():
-        g1 = Gate(1, "Godot headless 임포트")
-        g1.status = "FAIL"
-        g1.lines = [f"godot 실행 파일을 찾을 수 없음: {godot!r} "
-                    "(--godot 로 지정하거나 --skip-godot 사용)"]
-        gates.append(g1)
-        exec_errors += 1
     else:
-        s1 = play_test_mod.run_godot_import(godot, project_dir)
-        gates.append(_stage_to_gate(1, "Godot headless 임포트", s1))
-        s2 = play_test_mod.run_smoke(godot, project_dir)
-        gates.append(_stage_to_gate(2, "스모크 테스트", s2))
+        resolved_godot = godot_process.resolve_executable(godot)
+        if resolved_godot is None:
+            g1 = Gate(1, "Godot headless 임포트")
+            g1.status = "FAIL"
+            g1.lines = [f"godot 실행 파일을 찾을 수 없음: {godot!r} "
+                        "(--godot 로 지정하거나 --skip-godot 사용)"]
+            gates.append(g1)
+            exec_errors += 1
+        else:
+            s1 = play_test_mod.run_godot_import(resolved_godot, project_dir)
+            gates.append(_stage_to_gate(1, "Godot headless 임포트", s1))
+            s2 = play_test_mod.run_smoke(resolved_godot, project_dir)
+            gates.append(_stage_to_gate(2, "스모크 테스트", s2))
 
     # 게이트 #3 — 네이밍/디렉토리
     gates.append(gate_naming(project_dir, manifest_path, schema_path))
@@ -495,7 +497,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[i] --full: 테스트 러너 {len(runners)}종 실행")
             child_env = dict(os.environ)
             child_env[IN_FULL_ENV] = "1"
-            child_env["GODOT_BIN"] = args.godot
+            child_env["GODOT_BIN"] = (
+                godot_process.resolve_executable(args.godot) or args.godot
+            )
             if args.skip_godot:
                 child_env["ARTIFICER_SKIP_GODOT_TESTS"] = "1"
             else:
