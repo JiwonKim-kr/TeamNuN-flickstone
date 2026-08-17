@@ -2,7 +2,8 @@
 
 | 항목 | 값 |
 |---|---|
-| status | **draft** |
+| status | **approved** |
+| approved | 2026-08-18 · 사용자 승인 |
 | phase | P0 · 결정론적 시뮬레이션 코어 |
 | 선행 명세 | `p0_fix_math_rng.md` 승인·구현 |
 | 후속 명세 | `p0_collision_boundaries.md` |
@@ -53,16 +54,38 @@ P0의 `SimBody`가 시뮬레이션에 저장하는 핵심 물리 상태는 `id`,
 7. 0개·1개·다수 본체와 존 중첩 상태를 headless 테스트로 검증한다.
 8. 정지 임계 아래의 속도는 정확히 0이 되어 무한 미끄러짐을 만들지 않는다.
 9. `run_p0_sim_world.py`가 `verify --full`에서 자동 발견되고 실패한 스텝과 본체 ID를 출력한다.
+10. `SimEvent`는 고정 필드만 가진 불변 레코드이며 Dictionary·Variant·문자열 payload를 사용하지 않는다.
+11. 이벤트 sequence·소비 cursor·다음 sequence가 월드 복제에서 보존되고 원본과 복제본의 소비 상태가 서로 영향을 주지 않는다.
+12. type/cause enum 골든 테이블 검사로 기존 번호의 변경·재사용을 탐지한다.
 
-## 승인 전 결정 필요
+## 확정된 결정
 
-- 고정 스텝 주기
-- 기본 마찰과 정지 임계의 P0 회색상자용 임시값
-- 동일 위치에 여러 존이 겹칠 때 마찰 배율·가속도를 합성하는 순서
-- 본체 ID 발급·재사용 정책
-- P0 이벤트 레코드의 최소 필드
+- 기본 시뮬레이션 120Hz
+- `DT_NUM=1` / `DT_DEN=120`의 정확한 유리수
+- 모든 시간·입력 시점은 정수 틱
+- 권위 시뮬레이션 틱 폐기 금지. 렌더 accumulator와 보간은 시뮬레이션 밖에서 처리
+- 기본 마찰 `5/2초⁻¹`, 기본 기물·지형 마찰 배율 1, 기본 틱당 감쇠율 `47/48`
+- 정지 임계 `1/2 논리 단위/초`. 속도 제곱을 `1/4`과 비교하고 현재 틱 외부 가속도가 0일 때만 정지 처리
+- 위 값은 P0 회색상자 초기값이며 이후 `balance.json`에서 조정
+- 포함된 존을 `zone_id` 오름차순으로 정렬
+- 마찰은 기본→기물→정렬된 존 배율 순서로 곱하고, 가속도는 같은 존 순서로 벡터 합산
+- 마찰 배율 0 허용, P0 우선순위·override 미지원
+- 최종 `유효마찰 × DT`는 `0 이상 1 미만`. 가속도 합산도 안전 범위를 넘어서는 안 되며 위반 시 실패
+- 가속도 합이 정확히 0일 때만 정지 임계 판정. `KILL` 존은 P0-3 정산에서 우선 처리
+- `body_id`와 `zone_id`는 별도 uint32 네임스페이스, 0은 무효
+- 각 월드에서 1부터 단조 증가하고 제거 후 재사용하지 않음
+- 초기 요청은 안정 `spawn_key`, 런타임 요청은 `(틱, 원인 body_id, event_type_id, 이벤트 내 순번)`으로 정렬 후 할당
+- 복제·스냅샷은 다음 ID 카운터까지 보존. 외부 ID 지정은 복원·테스트 전용
+- 콘텐츠 문자열 ID와 숫자 시뮬레이션 ID를 분리하고 uint32 초과는 실패
+- `SimEvent` 순서 필드: `tick:int64`, `substep:uint16`, `sequence:uint32`, `type_id:uint16`
+- 관계 필드: `source_body_id:uint32`, `target_body_id:uint32`, `zone_id:uint32`, `cause_id:uint16`; 대상 없음은 0
+- payload 슬롯: `position:FixVec2`, `vector:FixVec2`, `value_a:int64`, `value_b:int64`, `flags:uint32`; 미사용 값은 0
+- Dictionary·Variant·문자열 payload 금지, append 후 수정 금지
+- sequence가 큐 순서의 정본이며 소비자는 cursor만 이동. 스냅샷은 큐·cursor·다음 sequence를 보존
+- type/cause enum은 append-only, sequence 초과는 실패
+- P0-2 타입: `BODY_ADDED`, `BODY_REMOVED`, `BODY_STOPPED`; P0-3에서 충돌·벽·파괴 타입 추가
 
-마찰과 정지 임계는 밸런스 확정값이 아니라 회색상자 검증용 초기값으로 승인할 수 있다. `balance.json`으로 이동 가능한 구조를 유지한다.
+P0-2의 사전 기술 결정과 명세 전체가 승인되었다. 승인된 대상 파일과 수용 기준 범위에서 구현할 수 있다.
 
 ## 범위 밖
 

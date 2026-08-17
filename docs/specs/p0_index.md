@@ -4,10 +4,10 @@ P0의 구현 순서와 승인 상태를 관리한다. 각 명세는 독립 승�
 
 | 순서 | 명세 | 상태 | 완료 조건 |
 |---|---|---|---|
-| 1 | [`p0_fix_math_rng.md`](p0_fix_math_rng.md) | draft | 고정소수점·벡터·PRNG 골든 벡터 통과 |
-| 2 | [`p0_sim_world.md`](p0_sim_world.md) | draft | 순수 데이터 월드의 고정 스텝 통과 |
-| 3 | [`p0_collision_boundaries.md`](p0_collision_boundaries.md) | draft | 원 충돌·벽·소멸·관통 검사 통과 |
-| 4 | [`p0_determinism_hash_regression.md`](p0_determinism_hash_regression.md) | draft | 반복·삽입 순서·플랫폼 교차 해시 일치 |
+| 1 | [`p0_fix_math_rng.md`](p0_fix_math_rng.md) | **approved** (2026-08-18) | 고정소수점·벡터·PRNG 골든 벡터 통과 |
+| 2 | [`p0_sim_world.md`](p0_sim_world.md) | **approved** (2026-08-18) | 순수 데이터 월드의 고정 스텝 통과 |
+| 3 | [`p0_collision_boundaries.md`](p0_collision_boundaries.md) | **approved** (2026-08-18) | 원 충돌·벽·소멸·관통 검사 통과 |
+| 4 | [`p0_determinism_hash_regression.md`](p0_determinism_hash_regression.md) | **approved** (2026-08-18) | 반복·삽입 순서·플랫폼 교차 해시 일치 |
 
 ```text
 P0-1 FixMath·SimRng
