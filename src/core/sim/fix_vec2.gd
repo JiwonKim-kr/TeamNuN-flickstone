@@ -151,3 +151,29 @@ func is_length_at_most_raw(limit_raw: int, status: SimStatus) -> bool:
 	if not status.is_ok():
 		return false
 	return wide <= limit_squared_wide
+
+
+func is_length_below_raw(limit_raw: int, status: SimStatus) -> bool:
+	if not status.is_ok():
+		return false
+	if limit_raw < 0:
+		status.fail(
+			SimStatus.Code.INVALID_RANGE,
+			SimStatus.Operation.VEC_LENGTH_COMPARE,
+			limit_raw,
+			0
+		)
+		return false
+	if not FixMath.can_mul_int(limit_raw, limit_raw):
+		status.fail(
+			SimStatus.Code.INT64_OVERFLOW,
+			SimStatus.Operation.VEC_LENGTH_COMPARE,
+			limit_raw,
+			limit_raw
+		)
+		return false
+	var limit_squared_wide: int = limit_raw * limit_raw
+	var wide: int = _wide_dot(self, status, SimStatus.Operation.VEC_LENGTH_COMPARE)
+	if not status.is_ok():
+		return false
+	return wide < limit_squared_wide
