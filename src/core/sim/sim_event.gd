@@ -10,10 +10,15 @@ enum TypeId {
 	BODY_ADDED = 1,
 	BODY_REMOVED = 2,
 	BODY_STOPPED = 3,
+	BODY_COLLIDED = 4,
+	BODY_HIT_WALL = 5,
+	BODY_DESTROYED = 6,
 }
 
 enum CauseId {
 	NONE = 0,
+	KILL_BOUNDARY = 1,
+	KILL_ZONE = 2,
 }
 
 var _tick: int = 0
@@ -36,11 +41,18 @@ static func _is_known_type(type_id: int) -> bool:
 		type_id == TypeId.BODY_ADDED
 		or type_id == TypeId.BODY_REMOVED
 		or type_id == TypeId.BODY_STOPPED
+		or type_id == TypeId.BODY_COLLIDED
+		or type_id == TypeId.BODY_HIT_WALL
+		or type_id == TypeId.BODY_DESTROYED
 	)
 
 
 static func _is_known_cause(cause_id: int) -> bool:
-	return cause_id == CauseId.NONE
+	return (
+		cause_id == CauseId.NONE
+		or cause_id == CauseId.KILL_BOUNDARY
+		or cause_id == CauseId.KILL_ZONE
+	)
 
 
 static func create(

@@ -12,6 +12,13 @@ const DT_NUM: int = 1
 const DT_DEN: int = 120
 const DEFAULT_BASE_FRICTION_RAW: int = 163840 # Q(5/2)
 const DEFAULT_STOP_SPEED_RAW: int = FixMath.HALF_RAW # Q(1/2)
+const DEFAULT_RESTITUTION_RAW: int = SimCollision.DEFAULT_RESTITUTION_RAW
+
+enum BoundaryType {
+	NONE = 0,
+	WALL = 1,
+	KILL = 2,
+}
 
 
 class BodySpawnRequest:
@@ -75,11 +82,42 @@ class ZoneEffects:
 		acceleration = p_acceleration.copy()
 
 
+class PreparedBody:
+	var body: SimBody
+	var acceleration: FixVec2
+
+	func _init(p_body: SimBody, p_acceleration: FixVec2) -> void:
+		body = p_body.copy()
+		acceleration = p_acceleration.copy()
+
+
+class KillCandidate:
+	var t_raw: int
+	var cause_id: int
+	var zone_id: int
+	var position: FixVec2
+
+	func _init(
+			p_t_raw: int,
+			p_cause_id: int,
+			p_zone_id: int,
+			p_position: FixVec2
+	) -> void:
+		t_raw = p_t_raw
+		cause_id = p_cause_id
+		zone_id = p_zone_id
+		position = p_position.copy()
+
+
 var _initialized: bool = false
 var _tick: int = 0
 var _base_friction_raw: int = DEFAULT_BASE_FRICTION_RAW
 var _stop_speed_raw: int = DEFAULT_STOP_SPEED_RAW
+var _restitution_raw: int = DEFAULT_RESTITUTION_RAW
 var _rng: SimRng = SimRng.new()
+var _boundary_type: int = BoundaryType.NONE
+var _boundary: SimPolygon = SimPolygon.new()
+var _last_substep_count: int = 1
 
 var _bodies: Array[SimBody] = []
 var _zones: Array[SimZone] = []
@@ -101,12 +139,17 @@ static func create(
 		seed_lo: int,
 		status: SimStatus,
 		base_friction_raw: int = DEFAULT_BASE_FRICTION_RAW,
-		stop_speed_raw: int = DEFAULT_STOP_SPEED_RAW
+		stop_speed_raw: int = DEFAULT_STOP_SPEED_RAW,
+		restitution_raw: int = DEFAULT_RESTITUTION_RAW
 ) -> SimWorld:
 	var world: SimWorld = SimWorld.new()
 	if not status.is_ok():
 		return world
-	if base_friction_raw < 0 or stop_speed_raw < 0:
+	if (
+		base_friction_raw < 0
+		or stop_speed_raw < 0
+		or not SimCollision.is_restitution_valid(restitution_raw)
+	):
 		status.fail(
 			SimStatus.Code.INVALID_RANGE,
 			SimStatus.Operation.WORLD_CREATE,
@@ -145,6 +188,7 @@ static func create(
 		return world
 	world._base_friction_raw = base_friction_raw
 	world._stop_speed_raw = stop_speed_raw
+	world._restitution_raw = restitution_raw
 	world._rng = rng
 	world._initialized = true
 	return world
@@ -288,10 +332,18 @@ func _find_zone_index(zone_id: int) -> int:
 	return -1
 
 
-func _append_body_event(
+func _append_event(
 		type_id: int,
-		body: SimBody,
+		substep: int,
+		source_body_id: int,
+		target_body_id: int,
+		zone_id: int,
+		cause_id: int,
+		position: FixVec2,
 		vector: FixVec2,
+		value_a: int,
+		value_b: int,
+		flags: int,
 		status: SimStatus
 ) -> void:
 	if not status.is_ok():
@@ -307,9 +359,36 @@ func _append_body_event(
 	var sequence: int = _next_event_sequence
 	var event: SimEvent = SimEvent.create(
 		_tick,
-		0,
+		substep,
 		sequence,
 		type_id,
+		source_body_id,
+		target_body_id,
+		zone_id,
+		cause_id,
+		position,
+		vector,
+		value_a,
+		value_b,
+		flags,
+		status
+	)
+	if not status.is_ok():
+		return
+	_events.append(event)
+	_next_event_sequence = _advance_u32_counter(sequence)
+
+
+func _append_body_event(
+		type_id: int,
+		body: SimBody,
+		vector: FixVec2,
+		status: SimStatus,
+		substep: int = 0
+) -> void:
+	_append_event(
+		type_id,
+		substep,
 		body.id(),
 		0,
 		0,
@@ -321,10 +400,72 @@ func _append_body_event(
 		0,
 		status
 	)
+
+
+func _initial_position_is_safe(
+		position: FixVec2, status: SimStatus
+) -> bool:
+	if _boundary_type != BoundaryType.NONE:
+		var boundary_class: int = _boundary.classify_point(position, status)
+		if not status.is_ok():
+			return false
+		if boundary_class == SimPolygon.PointClass.OUTSIDE:
+			return false
+	for zone: SimZone in _zones:
+		if zone.is_kill_zone() and zone.contains_point_strict(position, status):
+			return false
+		if not status.is_ok():
+			return false
+	return true
+
+
+func configure_boundary(
+		vertices: Array[FixVec2],
+		boundary_type: int,
+		status: SimStatus
+) -> void:
+	if not _require_initialized(
+		status, SimStatus.Operation.WORLD_BOUNDARY_CONFIG
+	):
+		return
+	if _tick != 0 or _boundary_type != BoundaryType.NONE:
+		status.fail(
+			SimStatus.Code.INVALID_SIM_STATE,
+			SimStatus.Operation.WORLD_BOUNDARY_CONFIG,
+			_tick,
+			_boundary_type
+		)
+		return
+	if (
+		boundary_type != BoundaryType.WALL
+		and boundary_type != BoundaryType.KILL
+	):
+		status.fail(
+			SimStatus.Code.INVALID_ARGUMENT,
+			SimStatus.Operation.WORLD_BOUNDARY_CONFIG,
+			boundary_type,
+			0
+		)
+		return
+	var polygon: SimPolygon = SimPolygon.create(vertices, true, status)
 	if not status.is_ok():
 		return
-	_events.append(event)
-	_next_event_sequence = _advance_u32_counter(sequence)
+	for body: SimBody in _bodies:
+		if (
+			polygon.classify_point(body.position(), status)
+			== SimPolygon.PointClass.OUTSIDE
+		):
+			status.fail(
+				SimStatus.Code.INVALID_SIM_STATE,
+				SimStatus.Operation.WORLD_BOUNDARY_CONFIG,
+				body.id(),
+				boundary_type
+			)
+			return
+		if not status.is_ok():
+			return
+	_boundary = polygon
+	_boundary_type = boundary_type
 
 
 func add_initial_bodies(
@@ -359,6 +500,17 @@ func add_initial_bodies(
 				spawn_keys[index],
 				index
 			)
+			return
+		if not _initial_position_is_safe(
+			body_templates[index].position(), status
+		):
+			if status.is_ok():
+				status.fail(
+					SimStatus.Code.INVALID_SIM_STATE,
+					SimStatus.Operation.WORLD_ADD_BODY,
+					spawn_keys[index],
+					index
+				)
 			return
 
 	var order: Array[int] = _sorted_key_indices(spawn_keys)
@@ -467,6 +619,20 @@ func add_initial_zones(
 		if not status.is_ok():
 			break
 		_next_zone_id = _advance_u32_counter(_next_zone_id)
+		if assigned.is_kill_zone():
+			for body: SimBody in _bodies:
+				if assigned.contains_point_strict(body.position(), status):
+					status.fail(
+						SimStatus.Code.INVALID_SIM_STATE,
+						SimStatus.Operation.WORLD_ADD_ZONE,
+						body.id(),
+						assigned.id()
+					)
+					break
+				if not status.is_ok():
+					break
+		if not status.is_ok():
+			break
 		_zones.append(assigned)
 	if not status.is_ok():
 		_zones = zones_before
@@ -727,18 +893,12 @@ func _compose_zone_effects(
 	return ZoneEffects.new(effective_friction_raw, acceleration)
 
 
-func _step_body(
-		body: SimBody,
-		stopped_vectors: Array[FixVec2],
-		status: SimStatus
-) -> SimBody:
+func _prepare_body(body: SimBody, status: SimStatus) -> PreparedBody:
 	if not body.alive():
-		stopped_vectors.append(FixVec2.zero())
-		return body.copy()
+		return PreparedBody.new(body, FixVec2.zero())
 	var effects: ZoneEffects = _compose_zone_effects(body, status)
 	if not status.is_ok():
-		stopped_vectors.append(FixVec2.zero())
-		return SimBody.new()
+		return PreparedBody.new(SimBody.new(), FixVec2.zero())
 	var effective_friction_raw: int = effects.friction_raw
 	var acceleration: FixVec2 = effects.acceleration
 
@@ -749,8 +909,7 @@ func _step_body(
 		effective_friction_raw, DT_NUM, status
 	)
 	if not status.is_ok():
-		stopped_vectors.append(FixVec2.zero())
-		return SimBody.new()
+		return PreparedBody.new(SimBody.new(), acceleration)
 	if friction_numerator < 0 or friction_numerator >= damping_denominator:
 		status.fail(
 			SimStatus.Code.INVALID_RANGE,
@@ -758,8 +917,7 @@ func _step_body(
 			body.id(),
 			effective_friction_raw
 		)
-		stopped_vectors.append(FixVec2.zero())
-		return SimBody.new()
+		return PreparedBody.new(SimBody.new(), acceleration)
 	var damping_numerator: int = FixMath.sub_raw(
 		damping_denominator, friction_numerator, status
 	)
@@ -791,41 +949,313 @@ func _step_body(
 				body.id(),
 				next_velocity.length_raw(SimStatus.new())
 			)
-		stopped_vectors.append(FixVec2.zero())
-		return SimBody.new()
+		return PreparedBody.new(SimBody.new(), acceleration)
 
-	var position_delta: FixVec2 = FixVec2.from_raw(
-		FixMath.mul_ratio_raw(
-			next_velocity.x_raw(), DT_NUM, DT_DEN, status
-		),
-		FixMath.mul_ratio_raw(
-			next_velocity.y_raw(), DT_NUM, DT_DEN, status
-		)
+	return PreparedBody.new(
+		body.with_velocity(next_velocity, status), acceleration
 	)
-	var next_position: FixVec2 = body.position().add(position_delta, status)
-	if not status.is_ok():
-		stopped_vectors.append(FixVec2.zero())
-		return SimBody.new()
-	if not SimLimits.is_position_valid(next_position):
-		status.fail(
-			SimStatus.Code.INVALID_RANGE,
-			SimStatus.Operation.WORLD_STEP,
-			body.id(),
-			next_position.x_raw()
-		)
-		stopped_vectors.append(FixVec2.zero())
-		return SimBody.new()
 
-	var stopped_vector: FixVec2 = FixVec2.zero()
-	if (
-		acceleration.is_zero()
-		and not next_velocity.is_zero()
-		and next_velocity.is_length_below_raw(_stop_speed_raw, status)
-	):
-		stopped_vector = next_velocity.copy()
-		next_velocity = FixVec2.zero()
-	stopped_vectors.append(stopped_vector)
-	return body.with_motion(next_position, next_velocity, status)
+
+func _required_substep_count(status: SimStatus) -> int:
+	var max_speed_raw: int = 0
+	var min_radius_raw: int = 0
+	for body: SimBody in _bodies:
+		if not body.alive():
+			continue
+		var speed_raw: int = body.velocity().length_raw(status)
+		if not status.is_ok():
+			return 0
+		if speed_raw > max_speed_raw:
+			max_speed_raw = speed_raw
+		if min_radius_raw == 0 or body.radius_raw() < min_radius_raw:
+			min_radius_raw = body.radius_raw()
+	if min_radius_raw == 0:
+		return 1
+	return SimCollision.required_substeps(
+		max_speed_raw, min_radius_raw, status
+	)
+
+
+func _move_bodies(
+		substeps: int,
+		previous_positions: Array[FixVec2],
+		status: SimStatus
+) -> void:
+	previous_positions.clear()
+	var denominator: int = FixMath.multiply_int(
+		DT_DEN, substeps, status
+	)
+	for index: int in range(_bodies.size()):
+		var body: SimBody = _bodies[index]
+		previous_positions.append(body.position())
+		if not body.alive():
+			continue
+		var velocity: FixVec2 = body.velocity()
+		var delta: FixVec2 = FixVec2.from_raw(
+			FixMath.mul_ratio_raw(
+				velocity.x_raw(), DT_NUM, denominator, status
+			),
+			FixMath.mul_ratio_raw(
+				velocity.y_raw(), DT_NUM, denominator, status
+			)
+		)
+		var position: FixVec2 = body.position().add(delta, status)
+		var moved: SimBody = body.with_motion(position, velocity, status)
+		if not status.is_ok():
+			return
+		_bodies[index] = moved
+
+
+func _position_on_segment(
+		start: FixVec2, finish: FixVec2, t_raw: int, status: SimStatus
+) -> FixVec2:
+	return start.add(
+		finish.sub(start, status).scaled(t_raw, status),
+		status
+	)
+
+
+func _kill_candidate_for(
+		start: FixVec2,
+		finish: FixVec2,
+		status: SimStatus
+) -> KillCandidate:
+	var best: KillCandidate = null
+	if _boundary_type == BoundaryType.KILL:
+		var boundary_t_raw: int = _boundary.first_strict_exit_t_raw(
+			start, finish, status
+		)
+		if boundary_t_raw >= 0:
+			best = KillCandidate.new(
+				boundary_t_raw,
+				SimEvent.CauseId.KILL_BOUNDARY,
+				0,
+				_position_on_segment(
+					start, finish, boundary_t_raw, status
+				)
+			)
+	for zone: SimZone in _zones:
+		if not zone.is_kill_zone():
+			continue
+		var zone_t_raw: int = zone.first_strict_entry_t_raw(
+			start, finish, status
+		)
+		if not status.is_ok():
+			return null
+		if (
+			zone_t_raw >= 0
+			and (
+				best == null
+				or zone_t_raw < best.t_raw
+				or (
+					zone_t_raw == best.t_raw
+					and (
+						best.cause_id != SimEvent.CauseId.KILL_BOUNDARY
+						and zone.id() < best.zone_id
+					)
+				)
+			)
+		):
+			best = KillCandidate.new(
+				zone_t_raw,
+				SimEvent.CauseId.KILL_ZONE,
+				zone.id(),
+				_position_on_segment(
+					start, finish, zone_t_raw, status
+				)
+			)
+	return best
+
+
+func _settle_segment_kills(
+		previous_positions: Array[FixVec2],
+		substep: int,
+		status: SimStatus
+) -> void:
+	var survivors: Array[SimBody] = []
+	for index: int in range(_bodies.size()):
+		var body: SimBody = _bodies[index]
+		if not body.alive():
+			survivors.append(body.copy())
+			continue
+		var candidate: KillCandidate = _kill_candidate_for(
+			previous_positions[index],
+			body.position(),
+			status
+		)
+		if not status.is_ok():
+			return
+		if candidate == null:
+			survivors.append(body.copy())
+			continue
+		_append_event(
+			SimEvent.TypeId.BODY_DESTROYED,
+			substep,
+			body.id(),
+			0,
+			candidate.zone_id,
+			candidate.cause_id,
+			candidate.position,
+			body.velocity(),
+			0,
+			0,
+			0,
+			status
+		)
+		if not status.is_ok():
+			return
+	_bodies = survivors
+
+
+func _settle_point_kills(substep: int, status: SimStatus) -> void:
+	var positions: Array[FixVec2] = []
+	for body: SimBody in _bodies:
+		positions.append(body.position())
+	_settle_segment_kills(positions, substep, status)
+
+
+func _resolve_walls(substep: int, status: SimStatus) -> void:
+	if _boundary_type != BoundaryType.WALL:
+		return
+	for index: int in range(_bodies.size()):
+		if not _bodies[index].alive():
+			continue
+		var result: SimCollision.WallResult = SimCollision.resolve_wall(
+			_bodies[index], _boundary, _restitution_raw, status
+		)
+		if not status.is_ok():
+			return
+		_bodies[index] = result.body
+		for hit: SimCollision.WallHit in result.hits:
+			_append_event(
+				SimEvent.TypeId.BODY_HIT_WALL,
+				substep,
+				result.body.id(),
+				0,
+				0,
+				SimEvent.CauseId.NONE,
+				hit.position,
+				hit.normal,
+				hit.edge_index,
+				hit.approach_speed_raw,
+				0,
+				status
+			)
+			if not status.is_ok():
+				return
+
+
+static func _pair_was_emitted(
+		low_ids: Array[int],
+		high_ids: Array[int],
+		low_id: int,
+		high_id: int
+) -> bool:
+	for index: int in range(low_ids.size()):
+		if low_ids[index] == low_id and high_ids[index] == high_id:
+			return true
+	return false
+
+
+func _resolve_circle_contacts(substep: int, status: SimStatus) -> void:
+	var emitted_low_ids: Array[int] = []
+	var emitted_high_ids: Array[int] = []
+	for pass_index: int in range(SimCollision.MAX_CONTACT_PASSES + 1):
+		var had_overlap: bool = false
+		for low_index: int in range(_bodies.size()):
+			if not _bodies[low_index].alive():
+				continue
+			for high_index: int in range(low_index + 1, _bodies.size()):
+				if not _bodies[high_index].alive():
+					continue
+				var result: SimCollision.CircleResult = (
+					SimCollision.resolve_circle_pair(
+						_bodies[low_index],
+						_bodies[high_index],
+						_restitution_raw,
+						status
+					)
+				)
+				if not status.is_ok():
+					return
+				_bodies[low_index] = result.body_a
+				_bodies[high_index] = result.body_b
+				had_overlap = had_overlap or result.had_overlap
+				if (
+					result.impulse_applied
+					and not _pair_was_emitted(
+						emitted_low_ids,
+						emitted_high_ids,
+						result.body_a.id(),
+						result.body_b.id()
+					)
+				):
+					emitted_low_ids.append(result.body_a.id())
+					emitted_high_ids.append(result.body_b.id())
+					_append_event(
+						SimEvent.TypeId.BODY_COLLIDED,
+						substep,
+						result.body_a.id(),
+						result.body_b.id(),
+						0,
+						SimEvent.CauseId.NONE,
+						result.contact_position,
+						result.normal,
+						result.approach_speed_raw,
+						0,
+						0,
+						status
+					)
+					if not status.is_ok():
+						return
+		if not had_overlap:
+			return
+		if pass_index == SimCollision.MAX_CONTACT_PASSES:
+			status.fail(
+				SimStatus.Code.UNRESOLVED_CONTACT,
+				SimStatus.Operation.COLLISION_CIRCLE,
+				_bodies[0].id() if not _bodies.is_empty() else 0,
+				pass_index
+			)
+			return
+
+
+func _acceleration_for_body(
+		body_id: int, prepared: Array[PreparedBody]
+) -> FixVec2:
+	for item: PreparedBody in prepared:
+		if item.body.id() == body_id:
+			return item.acceleration.copy()
+	return FixVec2.zero()
+
+
+func _apply_stop_threshold(
+		prepared: Array[PreparedBody],
+		substep: int,
+		status: SimStatus
+) -> void:
+	for index: int in range(_bodies.size()):
+		var body: SimBody = _bodies[index]
+		var acceleration: FixVec2 = _acceleration_for_body(
+			body.id(), prepared
+		)
+		var velocity: FixVec2 = body.velocity()
+		if (
+			body.alive()
+			and acceleration.is_zero()
+			and not velocity.is_zero()
+			and velocity.is_length_below_raw(_stop_speed_raw, status)
+		):
+			_bodies[index] = body.with_velocity(FixVec2.zero(), status)
+			_append_body_event(
+				SimEvent.TypeId.BODY_STOPPED,
+				_bodies[index],
+				velocity,
+				status,
+				substep
+			)
+		if not status.is_ok():
+			return
 
 
 func step(status: SimStatus) -> bool:
@@ -853,27 +1283,44 @@ func step(status: SimStatus) -> bool:
 	var next_body_before: int = _next_body_id
 	var next_zone_before: int = _next_zone_id
 	var next_sequence_before: int = _next_event_sequence
+	var last_substeps_before: int = _last_substep_count
 
 	_flush_pending_spawns(status)
-	var next_bodies: Array[SimBody] = []
-	var stopped_vectors: Array[FixVec2] = []
 	if status.is_ok():
+		_settle_point_kills(0, status)
+	var prepared: Array[PreparedBody] = []
+	if status.is_ok():
+		var prepared_bodies: Array[SimBody] = []
 		for body: SimBody in _bodies:
-			next_bodies.append(_step_body(body, stopped_vectors, status))
+			var item: PreparedBody = _prepare_body(body, status)
+			if not status.is_ok():
+				break
+			prepared.append(item)
+			prepared_bodies.append(item.body)
+		_bodies = prepared_bodies
+	var substeps: int = 0
+	if status.is_ok():
+		substeps = _required_substep_count(status)
+		_last_substep_count = substeps
+	if status.is_ok():
+		for substep: int in range(substeps):
+			var previous_positions: Array[FixVec2] = []
+			_move_bodies(substeps, previous_positions, status)
+			if not status.is_ok():
+				break
+			_settle_segment_kills(
+				previous_positions, substep, status
+			)
+			_resolve_walls(substep, status)
+			_resolve_circle_contacts(substep, status)
+			_resolve_walls(substep, status)
+			_settle_point_kills(substep, status)
 			if not status.is_ok():
 				break
 	if status.is_ok():
-		_bodies = next_bodies
-		for index: int in range(_bodies.size()):
-			if not stopped_vectors[index].is_zero():
-				_append_body_event(
-					SimEvent.TypeId.BODY_STOPPED,
-					_bodies[index],
-					stopped_vectors[index],
-					status
-				)
-				if not status.is_ok():
-					break
+		_apply_stop_threshold(
+			prepared, maxi(0, substeps - 1), status
+		)
 	if status.is_ok():
 		_tick += 1
 		return true
@@ -887,6 +1334,7 @@ func step(status: SimStatus) -> bool:
 	_next_body_id = next_body_before
 	_next_zone_id = next_zone_before
 	_next_event_sequence = next_sequence_before
+	_last_substep_count = last_substeps_before
 	return false
 
 
@@ -917,7 +1365,11 @@ func copy(status: SimStatus) -> SimWorld:
 	result._tick = _tick
 	result._base_friction_raw = _base_friction_raw
 	result._stop_speed_raw = _stop_speed_raw
+	result._restitution_raw = _restitution_raw
 	result._rng = rng_copy
+	result._boundary_type = _boundary_type
+	result._boundary = _boundary.copy()
+	result._last_substep_count = _last_substep_count
 	result._bodies = _copy_body_array(_bodies)
 	result._zones = _copy_zone_array(_zones)
 	result._next_body_id = _next_body_id
@@ -948,6 +1400,34 @@ func base_friction_raw() -> int:
 
 func stop_speed_raw() -> int:
 	return _stop_speed_raw
+
+
+func restitution_raw() -> int:
+	return _restitution_raw
+
+
+func boundary_type() -> int:
+	return _boundary_type
+
+
+func boundary_polygon(status: SimStatus) -> SimPolygon:
+	if not _require_initialized(
+		status, SimStatus.Operation.WORLD_BOUNDARY_CONFIG
+	):
+		return SimPolygon.new()
+	if _boundary_type == BoundaryType.NONE:
+		status.fail(
+			SimStatus.Code.NOT_FOUND,
+			SimStatus.Operation.WORLD_BOUNDARY_CONFIG,
+			0,
+			0
+		)
+		return SimPolygon.new()
+	return _boundary.copy()
+
+
+func last_substep_count() -> int:
+	return _last_substep_count
 
 
 func root_seed_hi() -> int:

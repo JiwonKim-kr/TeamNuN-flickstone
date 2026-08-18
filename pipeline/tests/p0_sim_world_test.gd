@@ -156,15 +156,15 @@ func _test_stable_initial_ids() -> void:
 	var world_b: SimWorld = SimWorld.create(0, 11, status_b)
 	var keys_a: Array[int] = [30, 10, 20]
 	var bodies_a: Array[SimBody] = [
-		_body_units(30, 0, 0, 0, status_a),
-		_body_units(10, 0, 0, 0, status_a),
-		_body_units(20, 0, 0, 0, status_a),
+		_body_units(300, 0, 0, 0, status_a),
+		_body_units(100, 0, 0, 0, status_a),
+		_body_units(200, 0, 0, 0, status_a),
 	]
 	var keys_b: Array[int] = [20, 30, 10]
 	var bodies_b: Array[SimBody] = [
-		_body_units(20, 0, 0, 0, status_b),
-		_body_units(30, 0, 0, 0, status_b),
-		_body_units(10, 0, 0, 0, status_b),
+		_body_units(200, 0, 0, 0, status_b),
+		_body_units(300, 0, 0, 0, status_b),
+		_body_units(100, 0, 0, 0, status_b),
 	]
 	world_a.add_initial_bodies(keys_a, bodies_a, status_a)
 	world_b.add_initial_bodies(keys_b, bodies_b, status_b)
@@ -179,9 +179,9 @@ func _test_stable_initial_ids() -> void:
 		"SW-ID-ORDER-001",
 		status_a.is_ok()
 		and status_b.is_ok()
-		and first.id() == 1 and first.position().x_raw() == _q(10)
-		and second.id() == 2 and second.position().x_raw() == _q(20)
-		and third.id() == 3 and third.position().x_raw() == _q(30)
+		and first.id() == 1 and first.position().x_raw() == _q(100)
+		and second.id() == 2 and second.position().x_raw() == _q(200)
+		and third.id() == 3 and third.position().x_raw() == _q(300)
 		and _worlds_match(world_a, world_b, inspect_status),
 		_status_detail(status_a)
 	)
@@ -261,7 +261,7 @@ func _test_stop_threshold_and_acceleration_guard() -> void:
 	var keys: Array[int] = [1, 2]
 	var bodies: Array[SimBody] = [
 		_body_raw(0, 0, FixMath.HALF_RAW - 1, 0, status),
-		_body_raw(_q(10), 0, FixMath.HALF_RAW, 0, status),
+		_body_raw(_q(100), 0, FixMath.HALF_RAW, 0, status),
 	]
 	world.add_initial_bodies(keys, bodies, status)
 	world.step(status)
@@ -482,7 +482,7 @@ func _test_deep_clone_and_event_cursor() -> void:
 	var body_keys: Array[int] = [1, 2]
 	var bodies: Array[SimBody] = [
 		_body_units(0, 0, 0, 0, status),
-		_body_units(10, 0, 0, 0, status),
+		_body_units(100, 0, 0, 0, status),
 	]
 	original.add_initial_bodies(body_keys, bodies, status)
 	var zone: SimZone = SimZone.create_unassigned(
