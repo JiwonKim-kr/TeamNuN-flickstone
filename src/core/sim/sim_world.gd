@@ -1390,6 +1390,92 @@ func next_random_u32(status: SimStatus) -> int:
 	return _rng.next_u32(status)
 
 
+func root_rng_copy(status: SimStatus) -> SimRng:
+	if not _require_initialized(status, SimStatus.Operation.RNG_COPY):
+		return SimRng.new()
+	return _rng.copy(status)
+
+
+func restore_authoritative_state(
+		p_tick: int,
+		p_next_body_id: int,
+		p_next_zone_id: int,
+		p_events: Array[SimEvent],
+		p_event_cursor: int,
+		p_next_event_sequence: int,
+		p_rng_s0: int,
+		p_rng_s1: int,
+		p_rng_s2: int,
+		p_rng_s3: int,
+		p_rng_draw_hi: int,
+		p_rng_draw_lo: int,
+		status: SimStatus
+) -> void:
+	if not _require_initialized(status, SimStatus.Operation.WORLD_RESTORE):
+		return
+	if (
+		_tick != 0
+		or not _events.is_empty()
+		or has_pending_requests()
+		or p_tick < 0
+		or not UInt32Math.is_u32(p_next_body_id)
+		or not UInt32Math.is_u32(p_next_zone_id)
+		or p_event_cursor < 0
+		or p_event_cursor > p_events.size()
+		or not UInt32Math.is_u32(p_next_event_sequence)
+	):
+		status.fail(
+			SimStatus.Code.INVALID_SNAPSHOT,
+			SimStatus.Operation.WORLD_RESTORE,
+			p_tick,
+			p_event_cursor
+		)
+		return
+	var previous_sequence: int = 0
+	for event: SimEvent in p_events:
+		if event == null or event.sequence() <= previous_sequence:
+			status.fail(
+				SimStatus.Code.INVALID_SNAPSHOT,
+				SimStatus.Operation.WORLD_RESTORE,
+				previous_sequence,
+				0 if event == null else event.sequence()
+			)
+			return
+		previous_sequence = event.sequence()
+	var expected_next_sequence: int = 1
+	if not p_events.is_empty():
+		expected_next_sequence = _advance_u32_counter(p_events[-1].sequence())
+	if p_next_event_sequence != expected_next_sequence:
+		status.fail(
+			SimStatus.Code.INVALID_SNAPSHOT,
+			SimStatus.Operation.WORLD_RESTORE,
+			p_next_event_sequence,
+			expected_next_sequence
+		)
+		return
+	_rng.restore_state(
+		p_rng_s0,
+		p_rng_s1,
+		p_rng_s2,
+		p_rng_s3,
+		p_rng_draw_hi,
+		p_rng_draw_lo,
+		status
+	)
+	if not status.is_ok():
+		return
+	_tick = p_tick
+	_next_body_id = p_next_body_id
+	_next_zone_id = p_next_zone_id
+	_events = _copy_event_array(p_events)
+	_event_cursor = p_event_cursor
+	_next_event_sequence = p_next_event_sequence
+	_pending_body_spawns.clear()
+	_pending_zone_spawns.clear()
+	_initial_bodies_committed = true
+	_initial_zones_committed = true
+
+
 func tick() -> int:
 	return _tick
 

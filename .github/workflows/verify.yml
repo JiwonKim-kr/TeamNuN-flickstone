@@ -92,6 +92,61 @@ jobs:
       - name: Run verify --full
         run: python3 pipeline/scripts/verify.py --full
 
+  # P0-4 cross-platform determinism gate. Keep this intentionally small:
+  # checkout + Python + the pinned Godot build only.
+  determinism-windows:
+    runs-on: windows-latest
+    env:
+      GODOT_VERSION: "4.6.3"
+      PYTHONUTF8: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache Godot
+        id: cache-godot-windows
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}\godot-bin
+          key: godot-${{ env.GODOT_VERSION }}-windows-x86_64
+
+      - name: Download Godot (cache miss)
+        if: steps.cache-godot-windows.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $target = Join-Path $env:RUNNER_TEMP "godot-bin"
+          New-Item -ItemType Directory -Force -Path $target | Out-Null
+          $zipName = "Godot_v${env:GODOT_VERSION}-stable_win64.exe.zip"
+          $uri = "https://github.com/godotengine/godot-builds/releases/download/${env:GODOT_VERSION}-stable/$zipName"
+          $archive = Join-Path $env:RUNNER_TEMP "godot.zip"
+          Invoke-WebRequest -Uri $uri -OutFile $archive
+          Expand-Archive -LiteralPath $archive -DestinationPath $target -Force
+
+      - name: Register Godot
+        shell: pwsh
+        run: |
+          $binary = Join-Path $env:RUNNER_TEMP "godot-bin\Godot_v${env:GODOT_VERSION}-stable_win64_console.exe"
+          if (-not (Test-Path -LiteralPath $binary)) { throw "Godot binary missing: $binary" }
+          "GODOT_BIN=$binary" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          & $binary --version
+
+      - name: Run P0 determinism gate
+        run: python pipeline/tests/run_p0_determinism.py
+
+      - name: Upload determinism failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: determinism-windows-failure
+          path: pipeline/artifacts/determinism_failure/
+          if-no-files-found: ignore
+
   # ---------------------------------------------------------------------------
   # visual — play test 스크린샷(시각) 스테이지 전용 job.
   #

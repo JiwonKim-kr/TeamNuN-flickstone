@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "scenarios": [
+    {
+      "scenario_id": "circle_head_on",
+      "seed": "0123456789abcdef",
+      "ticks": 240,
+      "world": {
+        "base_friction_raw": 163840,
+        "stop_speed_raw": 32768,
+        "restitution_raw": 55706,
+        "boundary_type": 1,
+        "boundary_vertices": [[-33554432, -33554432], [33554432, -33554432], [33554432, 33554432], [-33554432, 33554432]],
+        "zones": [],
+        "bodies": [
+          {"spawn_key": 10, "position": [-16777216, 0], "velocity": [0, 0], "radius_raw": 2097152, "mass_raw": 4194304, "friction_raw": 65536, "destructible": true},
+          {"spawn_key": 20, "position": [16777216, 0], "velocity": [0, 0], "radius_raw": 2097152, "mass_raw": 4194304, "friction_raw": 65536, "destructible": true}
+        ]
+      },
+      "inputs": [
+        {"tick": 0, "sequence": 1, "body_id": 1, "angle": 0, "power_raw": 32768},
+        {"tick": 0, "sequence": 2, "body_id": 2, "angle": 32768, "power_raw": 16384}
+      ]
+    },
+    {
+      "scenario_id": "circle_chain",
+      "seed": "0123456789abcdef",
+      "ticks": 240,
+      "world": {
+        "base_friction_raw": 163840,
+        "stop_speed_raw": 32768,
+        "restitution_raw": 55706,
+        "boundary_type": 1,
+        "boundary_vertices": [[-33554432, -33554432], [33554432, -33554432], [33554432, 33554432], [-33554432, 33554432]],
+        "zones": [],
+        "bodies": [
+          {"spawn_key": 10, "position": [-20971520, 0], "velocity": [0, 0], "radius_raw": 2097152, "mass_raw": 4194304, "friction_raw": 65536, "destructible": true},
+          {"spawn_key": 20, "position": [-6291456, 0], "velocity": [0, 0], "radius_raw": 2097152, "mass_raw": 4194304, "friction_raw": 65536, "destructible": true},
+          {"spawn_key": 30, "position": [8388608, 0], "velocity": [0, 0], "radius_raw": 2097152, "mass_raw": 4194304, "friction_raw": 65536, "destructible": true}
+        ]
+      },
+      "inputs": [
+        {"tick": 0, "sequence": 1, "body_id": 1, "angle": 0, "power_raw": 65536}
+      ]
+    },
+    {
+      "scenario_id": "wall_corner",
+      "seed": "0123456789abcdef",
+      "ticks": 240,
+      "world": {
+        "base_friction_raw": 163840,
+        "stop_speed_raw": 32768,
+        "restitution_raw": 55706,
+        "boundary_type": 1,
+        "boundary_vertices": [[-33554432, -33554432], [33554432, -33554432], [33554432, 33554432], [-33554432, 33554432]],
+        "zones": [],
+        "bodies": [
+          {"spawn_key": 10, "position": [0, 0], "velocity": [0, 0], "radius_raw": 2097152, "mass_raw": 4194304, "friction_raw": 65536, "destructible": true}
+        ]
+      },
+      "inputs": [
+        {"tick": 0, "sequence": 1, "body_id": 1, "angle": 8192, "power_raw": 65536}
+      ]
+    },
+    {
+      "scenario_id": "kill_boundary",
+      "seed": "0123456789abcdef",
+      "ticks": 120,
+      "world": {
+        "base_friction_raw": 163840,
+        "stop_speed_raw": 32768,
+        "restitution_raw": 55706,
+        "boundary_type": 2,
+        "boundary_vertices": [[-33554432, -33554432], [33554432, -33554432], [33554432, 33554432], [-33554432, 33554432]],
+        "zones": [],
+        "bodies": [
+          {"spawn_key": 10, "position": [16777216, 0], "velocity": [0, 0], "radius_raw": 2097152, "mass_raw": 4194304, "friction_raw": 65536, "destructible": true}
+        ]
+      },
+      "inputs": [
+        {"tick": 0, "sequence": 1, "body_id": 1, "angle": 0, "power_raw": 32768}
+      ]
+    },
+    {
+      "scenario_id": "kill_zone",
+      "seed": "0123456789abcdef",
+      "ticks": 120,
+      "world": {
+        "base_friction_raw": 163840,
+        "stop_speed_raw": 32768,
+        "restitution_raw": 55706,
+        "boundary_type": 1,
+        "boundary_vertices": [[-33554432, -33554432], [33554432, -33554432], [33554432, 33554432], [-33554432, 33554432]],
+        "zones": [
+          {"spawn_key": 10, "flags": 1, "friction_raw": 65536, "acceleration": [0, 0], "vertices": [[-4194304, -6291456], [4194304, -6291456], [4194304, 6291456], [-4194304, 6291456]]}
+        ],
+        "bodies": [
+          {"spawn_key": 10, "position": [-16777216, 0], "velocity": [0, 0], "radius_raw": 2097152, "mass_raw": 4194304, "friction_raw": 65536, "destructible": true}
+        ]
+      },
+      "inputs": [
+        {"tick": 0, "sequence": 1, "body_id": 1, "angle": 0, "power_raw": 32768}
+      ]
+    },
+    {
+      "scenario_id": "substep_tunnel",
+      "seed": "0123456789abcdef",
+      "ticks": 120,
+      "world": {
+        "base_friction_raw": 163840,
+        "stop_speed_raw": 32768,
+        "restitution_raw": 55706,
+        "boundary_type": 1,
+        "boundary_vertices": [[-67108864, -33554432], [67108864, -33554432], [67108864, 33554432], [-67108864, 33554432]],
+        "zones": [],
+        "bodies": [
+          {"spawn_key": 10, "position": [-33554432, 0], "velocity": [268435456, 0], "radius_raw": 524288, "mass_raw": 4194304, "friction_raw": 65536, "destructible": true},
+          {"spawn_key": 20, "position": [0, 0], "velocity": [0, 0], "radius_raw": 524288, "mass_raw": 4194304, "friction_raw": 65536, "destructible": true}
+        ]
+      },
+      "inputs": []
+    }
+  ]
+}
