@@ -8,11 +8,13 @@ These instructions apply to the entire repository.
 2. Read the relevant `docs/specs/*.md` before implementation.
 3. Only implement core code from a spec whose `status` is `approved`.
 4. Never invent values or behavior marked `⬜ 미정`; surface them as approval decisions.
+5. Treat approved decisions as baselines, not untouchable conclusions. If new evidence suggests a better direction, surface the conflict, impact, migration cost, and regression scope, then request human re-approval before changing it. Never revise an approved decision silently.
 
 ## Current phase
 
-- The project is in P0 specification work.
-- P0 order: FixMath/SimRng → SimWorld → collision/wall/kill zones → state-hash regression.
+- P0 deterministic simulation core is complete.
+- P1-1 CTB/BattleState is approved but not yet implemented. Start implementation only on an explicit user request and stay within the approved spec.
+- P0 order was: FixMath/SimRng → SimWorld → collision/wall/kill zones → state-hash regression.
 - P0 and P1 use manifest-registered placeholders only.
 - Do not run art lock/generation/reskin or SE generation/attachment until combat feel is approved.
 
