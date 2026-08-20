@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P1-1 CTB/BattleState 구현·검증 완료 — P1-2 발사/조준 명세 착수 대기** |
+| 현재 단계 | **P1-2 발사/조준 구현·narrow 회귀 완료 — `verify --full` 재개 대기** |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -65,6 +65,40 @@
 - [x] P1 전투 루프를 5개 하위 명세로 분리한 인덱스 승인 (`docs/specs/p1_index.md`)
 - [x] P1-1 CTB/BattleState C-01~09와 전체 명세 승인 (`docs/specs/p1_ctb_battle_state.md`)
 - [x] P1-1 CTB/BattleState 구현, 독립 Python KAT·Godot 수용 테스트·P0 회귀·`verify --full` 통과
+- [x] P1-2 발사/조준/입력 양자화/궤적 예측 L-01~09와 전체 명세 승인 (`docs/specs/p1_launch_aim_prediction.md`)
+- [x] P1-2 `LaunchCommand` 6바이트 codec, 정수 조준 양자화, 무게 보정 발사 속도 구현
+- [x] P1-2 권위 발사 커밋과 `BattleState` 깊은 복제 기반 순수 궤적 예측 구현
+- [x] P1-2 Godot 입력·궤적선 UI 브리지 구현. 코어 상태 직접 수정 경로 없음
+- [x] P1-2 독립 Python KAT·fixture와 Godot 수용 테스트 15개 통과
+- [x] P1-1, P0-1~4 narrow 회귀 통과. P0-4는 1,000회 반복·입력 순열 포함
+- [ ] P1-2 반영 상태의 `verify --full` 5게이트 — 장시간 실행 중 사용자 요청으로 중단, 다음 작업에서 재개
+
+### 3.1 P1-2 현재 작업 기록
+
+구현된 코어:
+
+- `LaunchLimits`: 승인된 각도·파워·속도·예측 상수
+- `LaunchCommand`: `schema_version:uint16 + angle:uint16 + power_step:uint16` little-endian codec
+- `AimQuantizer`: 256개 LUT 방향 후보의 정수 내적 비교, 256단계 파워 양자화
+- `LaunchVelocitySolver`: 기준 속도 1,024, 절대상한 2,048, `sqrt(64 / mass)` 보정
+- `TrajectoryPredictor`: 원본 `BattleState`를 바꾸지 않는 사본 시뮬레이션, 첫 기물 충돌·두 번째 벽 반사·정지·소멸·240틱 잘림 처리
+- `TrajectoryPoint`·`TrajectoryPrediction`: 최대 64개 값 사본과 사건 marker
+- `SimStatus`: Code 22~24, Operation 83~89 append-only 추가
+
+구현된 UI·검증 경계:
+
+- `AimInputAdapter`: 카메라 변환 결과를 Q47.16 최근접·절반은 0에서 먼 방향으로 정수화하고 immutable command signal만 방출
+- `TrajectoryLineAdapter`: 코어 예측을 renderer용 위치·marker 값 사본으로 변환
+- `run_p1_launch_aim_prediction.py`: `verify --full` 자동 발견 narrow runner
+- `p1_launch_reference.py`·`p1_launch_vectors.json`: codec·파워·무게별 속도의 독립 기준값
+
+남은 작업:
+
+1. `verify --full`을 Godot 4.6.3 활성 상태로 다시 실행한다.
+2. 전체 5게이트가 통과하면 P1-2를 `implemented · verified`로 문서화한다.
+3. `git diff --check`와 최종 변경 파일 목록을 확인하고 관련 없는 변경이 섞이지 않았는지 점검한다.
+4. 사용자 검수 결과를 보고한다. 커밋은 사용자가 요청하거나 구현 결과를 승인한 경우에만 수행한다.
+5. 다음 단계는 P1-3 피해 해결 명세 초안이다. U-32·U-33 피해 수치와 재충돌 규칙의 별도 승인이 필요하며 승인 전 구현하지 않는다.
 
 ## 4. 구현 우선순위
 

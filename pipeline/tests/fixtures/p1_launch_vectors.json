@@ -1,0 +1,23 @@
+{
+  "commands": [
+    {"angle": 0, "power_step": 0, "hex": "010000000000"},
+    {"angle": 0, "power_step": 256, "hex": "010000000001"},
+    {"angle": 8192, "power_step": 32, "hex": "010000202000"},
+    {"angle": 65280, "power_step": 255, "hex": "010000ffff00"}
+  ],
+  "powers": [
+    {"drag_raw": 0, "power_step": 0},
+    {"drag_raw": 1507328, "power_step": 31},
+    {"drag_raw": 1572864, "power_step": 32},
+    {"drag_raw": 12582912, "power_step": 256},
+    {"drag_raw": 25165824, "power_step": 256}
+  ],
+  "speeds": [
+    {"mass_units": 1, "power_step": 256, "speed_raw": 134217728},
+    {"mass_units": 16, "power_step": 256, "speed_raw": 134217728},
+    {"mass_units": 64, "power_step": 32, "speed_raw": 8388608},
+    {"mass_units": 64, "power_step": 128, "speed_raw": 33554432},
+    {"mass_units": 64, "power_step": 256, "speed_raw": 67108864},
+    {"mass_units": 256, "power_step": 256, "speed_raw": 33554432}
+  ]
+}
