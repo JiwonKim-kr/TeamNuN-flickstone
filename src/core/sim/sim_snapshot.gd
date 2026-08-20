@@ -32,6 +32,48 @@ class ByteWriter:
 		i64(value.y_raw())
 
 
+class ByteReader:
+	var data: PackedByteArray
+	var offset: int = 0
+	var valid: bool = true
+
+	func _init(source: PackedByteArray) -> void:
+		data = source
+
+	func remaining() -> int:
+		return data.size() - offset
+
+	func require(count: int) -> bool:
+		if count < 0 or remaining() < count:
+			valid = false
+			return false
+		return true
+
+	func u8() -> int:
+		if not require(1): return 0
+		var value: int = data[offset]
+		offset += 1
+		return value
+
+	func u16() -> int:
+		var value: int = 0
+		for shift: int in range(0, 16, 8): value |= u8() << shift
+		return value
+
+	func u32() -> int:
+		var value: int = 0
+		for shift: int in range(0, 32, 8): value |= u8() << shift
+		return value
+
+	func i64() -> int:
+		var value: int = 0
+		for shift: int in range(0, 64, 8): value |= u8() << shift
+		return value
+
+	func vec2() -> FixVec2:
+		return FixVec2.from_raw(i64(), i64())
+
+
 var _schema_version: int = SCHEMA_VERSION
 var _tick: int = 0
 var _root_seed_hi: int = 0
@@ -109,6 +151,79 @@ static func capture(world: SimWorld, status: SimStatus) -> SimSnapshot:
 	if not status.is_ok() or not snapshot._validate(status):
 		return SimSnapshot.new()
 	snapshot._initialized = true
+	return snapshot
+
+
+static func decode(bytes: PackedByteArray, status: SimStatus) -> SimSnapshot:
+	var snapshot := SimSnapshot.new()
+	if not status.is_ok(): return snapshot
+	var reader := ByteReader.new(bytes)
+	if not reader.require(MAGIC.size() + 2):
+		status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.SNAPSHOT_DECODE, bytes.size(), 0)
+		return snapshot
+	for expected: int in MAGIC:
+		if reader.u8() != expected:
+			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.SNAPSHOT_DECODE, reader.offset - 1, 0)
+			return snapshot
+	snapshot._schema_version = reader.u16()
+	if snapshot._schema_version != SCHEMA_VERSION:
+		status.fail(SimStatus.Code.UNSUPPORTED_SCHEMA, SimStatus.Operation.SNAPSHOT_DECODE, snapshot._schema_version, SCHEMA_VERSION)
+		return snapshot
+	snapshot._tick = reader.i64()
+	snapshot._root_seed_lo = reader.u32(); snapshot._root_seed_hi = reader.u32()
+	snapshot._base_friction_raw = reader.i64(); snapshot._stop_speed_raw = reader.i64(); snapshot._restitution_raw = reader.i64()
+	snapshot._next_body_id = reader.u32(); snapshot._next_zone_id = reader.u32()
+	var rng_count: int = reader.u32()
+	if rng_count != 1:
+		status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.SNAPSHOT_DECODE, rng_count, 1); return SimSnapshot.new()
+	snapshot._rng_purpose_id = reader.u16(); snapshot._rng_owner_id = reader.u32(); snapshot._rng_ordinal = reader.u32()
+	for index: int in range(4): snapshot._rng_state[index] = reader.u32()
+	snapshot._rng_draw_lo = reader.u32(); snapshot._rng_draw_hi = reader.u32()
+	var has_boundary: int = reader.u8()
+	if has_boundary > 1:
+		status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.SNAPSHOT_DECODE, has_boundary, 0); return SimSnapshot.new()
+	if has_boundary == 1:
+		snapshot._boundary_type = reader.u16()
+		var vertex_count: int = reader.u32()
+		if vertex_count < SimPolygon.MIN_VERTEX_COUNT or vertex_count > SimPolygon.MAX_VERTEX_COUNT or not reader.require(vertex_count * 16):
+			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.SNAPSHOT_DECODE, vertex_count, 0); return SimSnapshot.new()
+		for index: int in range(vertex_count): snapshot._boundary_vertices.append(reader.vec2())
+	var zone_count: int = reader.u32()
+	if zone_count > reader.remaining() / 32:
+		status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.SNAPSHOT_DECODE, zone_count, reader.remaining()); return SimSnapshot.new()
+	for index: int in range(zone_count):
+		var zone_id: int = reader.u32(); var flags: int = reader.u32(); var friction: int = reader.i64(); var acceleration: FixVec2 = reader.vec2()
+		var zone_vertices_count: int = reader.u32()
+		if zone_vertices_count < SimPolygon.MIN_VERTEX_COUNT or zone_vertices_count > SimPolygon.MAX_VERTEX_COUNT or not reader.require(zone_vertices_count * 16):
+			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.SNAPSHOT_DECODE, zone_vertices_count, index); return SimSnapshot.new()
+		var vertices: Array[FixVec2] = []
+		for vertex_index: int in range(zone_vertices_count): vertices.append(reader.vec2())
+		snapshot._zones.append(SimZone.restore(zone_id, flags, friction, acceleration, vertices, status))
+		if not status.is_ok(): return SimSnapshot.new()
+	var body_count: int = reader.u32()
+	if body_count > reader.remaining() / 58:
+		status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.SNAPSHOT_DECODE, body_count, reader.remaining()); return SimSnapshot.new()
+	for index: int in range(body_count):
+		var body_id: int = reader.u32(); var alive: int = reader.u8(); var destructible: int = reader.u8()
+		if alive > 1 or destructible > 1:
+			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.SNAPSHOT_DECODE, alive, destructible); return SimSnapshot.new()
+		var position: FixVec2 = reader.vec2(); var velocity: FixVec2 = reader.vec2()
+		snapshot._bodies.append(SimBody.restore(body_id, alive == 1, destructible == 1, position, velocity, reader.i64(), reader.i64(), reader.i64(), status))
+		if not status.is_ok(): return SimSnapshot.new()
+	snapshot._event_cursor = reader.u32(); snapshot._next_event_sequence = reader.u32()
+	var event_count: int = reader.u32()
+	if event_count > reader.remaining() / 80:
+		status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.SNAPSHOT_DECODE, event_count, reader.remaining()); return SimSnapshot.new()
+	for index: int in range(event_count):
+		var event_tick: int = reader.i64(); var substep: int = reader.u16(); var sequence: int = reader.u32(); var type_id: int = reader.u16()
+		var source: int = reader.u32(); var target: int = reader.u32(); var zone_id: int = reader.u32(); var cause: int = reader.u16()
+		var position: FixVec2 = reader.vec2(); var vector: FixVec2 = reader.vec2(); var value_a: int = reader.i64(); var value_b: int = reader.i64(); var flags: int = reader.u32()
+		snapshot._events.append(SimEvent.create(event_tick, substep, sequence, type_id, source, target, zone_id, cause, position, vector, value_a, value_b, flags, status))
+		if not status.is_ok(): return SimSnapshot.new()
+	if not reader.valid or reader.offset != bytes.size():
+		status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.SNAPSHOT_DECODE, reader.offset, bytes.size()); return SimSnapshot.new()
+	snapshot._initialized = true
+	if not snapshot._validate(status): return SimSnapshot.new()
 	return snapshot
 
 

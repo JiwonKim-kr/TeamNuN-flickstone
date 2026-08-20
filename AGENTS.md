@@ -13,7 +13,7 @@ These instructions apply to the entire repository.
 ## Current phase
 
 - P0 deterministic simulation core is complete.
-- P1-1 CTB/BattleState is approved but not yet implemented. Start implementation only on an explicit user request and stay within the approved spec.
+- P1-1 CTB/BattleState is approved, implemented, and verified. P1-2 launch/aim/prediction is the next specification step and is not yet approved.
 - P0 order was: FixMath/SimRng → SimWorld → collision/wall/kill zones → state-hash regression.
 - P0 and P1 use manifest-registered placeholders only.
 - Do not run art lock/generation/reskin or SE generation/attachment until combat feel is approved.

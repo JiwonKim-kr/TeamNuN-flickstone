@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "ct_threshold": 10000,
+  "complete_tie_3v3": [1, 4, 2, 5, 3, 6],
+  "overshoot": {"ct": 9990, "speed": 64, "ready_ct": 10054, "after_action_ct": 54},
+  "forced_damping": {"numerator": 3, "denominator": 4, "max_speed_raw": 268435456, "damped_raw": 201326592}
+}

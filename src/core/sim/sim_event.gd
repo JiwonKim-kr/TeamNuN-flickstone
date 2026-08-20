@@ -5,6 +5,8 @@ extends RefCounted
 ## Type/cause numbers are replay data. Existing values are append-only and
 ## must never be reordered or reused.
 
+const FLAG_RUNTIME_SPAWN_KEY_PRESENT: int = 1
+
 enum TypeId {
 	NONE = 0,
 	BODY_ADDED = 1,

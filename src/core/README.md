@@ -2,3 +2,7 @@
 
 사람이 승인한 spec 없이 수정 금지 영역.
 변경 커밋에는 승인된 spec 문서 경로를 명시한다 (docs/conventions.md 참조).
+
+- `sim/`: 엔진 독립 고정소수점 물리, PRNG, 이벤트, P0 스냅샷.
+- `battle/`: `sim/` 공개 API만 사용하는 CTB와 전투 상태·전투 스냅샷.
+- 의존 방향은 `battle -> sim` 단방향이며 두 계층 모두 Node·SceneTree·입력·렌더 API를 사용하지 않는다.

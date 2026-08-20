@@ -20,6 +20,12 @@ enum BoundaryType {
 	KILL = 2,
 }
 
+enum ContinuousAccelerationMode {
+	INVALID = 0,
+	APPLY = 1,
+	SUPPRESS = 2,
+}
+
 
 class BodySpawnRequest:
 	var tick: int
@@ -785,8 +791,19 @@ func _flush_pending_spawns(status: SimStatus) -> void:
 			return
 		_next_body_id = _advance_u32_counter(_next_body_id)
 		_bodies.append(assigned)
-		_append_body_event(
-			SimEvent.TypeId.BODY_ADDED, assigned, assigned.velocity(), status
+		_append_event(
+			SimEvent.TypeId.BODY_ADDED,
+			0,
+			assigned.id(),
+			request.cause_body_id,
+			0,
+			SimEvent.CauseId.NONE,
+			assigned.position(),
+			assigned.velocity(),
+			request.event_type_id,
+			request.ordinal,
+			SimEvent.FLAG_RUNTIME_SPAWN_KEY_PRESENT,
+			status
 		)
 		if not status.is_ok():
 			return
@@ -870,7 +887,7 @@ func set_body_velocity(
 
 
 func _compose_zone_effects(
-		body: SimBody, status: SimStatus
+		body: SimBody, status: SimStatus, include_acceleration: bool = true
 ) -> ZoneEffects:
 	var effective_friction_raw: int = FixMath.mul_raw(
 		_base_friction_raw, body.friction_multiplier_raw(), status
@@ -887,16 +904,21 @@ func _compose_zone_effects(
 			zone.friction_multiplier_raw(),
 			status
 		)
-		acceleration = acceleration.add(zone.acceleration(), status)
+		if include_acceleration:
+			acceleration = acceleration.add(zone.acceleration(), status)
 		if not status.is_ok():
 			return ZoneEffects.new(0, FixVec2.zero())
 	return ZoneEffects.new(effective_friction_raw, acceleration)
 
 
-func _prepare_body(body: SimBody, status: SimStatus) -> PreparedBody:
+func _prepare_body(
+		body: SimBody, acceleration_mode: int, status: SimStatus
+) -> PreparedBody:
 	if not body.alive():
 		return PreparedBody.new(body, FixVec2.zero())
-	var effects: ZoneEffects = _compose_zone_effects(body, status)
+	var effects: ZoneEffects = _compose_zone_effects(
+		body, status, acceleration_mode == ContinuousAccelerationMode.APPLY
+	)
 	if not status.is_ok():
 		return PreparedBody.new(SimBody.new(), FixVec2.zero())
 	var effective_friction_raw: int = effects.friction_raw
@@ -1258,7 +1280,27 @@ func _apply_stop_threshold(
 			return
 
 
+func commit_pending_spawns(status: SimStatus) -> bool:
+	if not _require_initialized(status, SimStatus.Operation.WORLD_COMMIT_SPAWNS):
+		return false
+	var before: SimWorld = copy(status)
+	if not status.is_ok():
+		return false
+	_flush_pending_spawns(status)
+	if status.is_ok():
+		return true
+	_assign_from(before)
+	return false
+
+
 func step(status: SimStatus) -> bool:
+	return step_with_acceleration_mode(ContinuousAccelerationMode.APPLY, status)
+
+
+func step_with_acceleration_mode(mode: int, status: SimStatus) -> bool:
+	if mode != ContinuousAccelerationMode.APPLY and mode != ContinuousAccelerationMode.SUPPRESS:
+		status.fail(SimStatus.Code.INVALID_ARGUMENT, SimStatus.Operation.WORLD_STEP_POLICY, mode, 0)
+		return false
 	if not _require_initialized(status, SimStatus.Operation.WORLD_STEP):
 		return false
 	if _tick == FixMath.INT64_MAX:
@@ -1292,7 +1334,7 @@ func step(status: SimStatus) -> bool:
 	if status.is_ok():
 		var prepared_bodies: Array[SimBody] = []
 		for body: SimBody in _bodies:
-			var item: PreparedBody = _prepare_body(body, status)
+			var item: PreparedBody = _prepare_body(body, mode, status)
 			if not status.is_ok():
 				break
 			prepared.append(item)
@@ -1336,6 +1378,49 @@ func step(status: SimStatus) -> bool:
 	_next_event_sequence = next_sequence_before
 	_last_substep_count = last_substeps_before
 	return false
+
+
+func is_quiescent(mode: int, status: SimStatus) -> bool:
+	if not _require_initialized(status, SimStatus.Operation.WORLD_QUIESCENCE):
+		return false
+	if mode != ContinuousAccelerationMode.APPLY and mode != ContinuousAccelerationMode.SUPPRESS:
+		status.fail(SimStatus.Code.INVALID_ARGUMENT, SimStatus.Operation.WORLD_QUIESCENCE, mode, 0)
+		return false
+	if has_pending_requests():
+		return false
+	for body: SimBody in _bodies:
+		if not body.alive():
+			continue
+		if not body.velocity().is_zero():
+			return false
+		if mode == ContinuousAccelerationMode.APPLY:
+			var effects: ZoneEffects = _compose_zone_effects(body, status)
+			if not status.is_ok() or not effects.acceleration.is_zero():
+				return false
+	return true
+
+
+func _assign_from(other: SimWorld) -> void:
+	_initialized = other._initialized
+	_tick = other._tick
+	_base_friction_raw = other._base_friction_raw
+	_stop_speed_raw = other._stop_speed_raw
+	_restitution_raw = other._restitution_raw
+	_rng = other._rng
+	_boundary_type = other._boundary_type
+	_boundary = other._boundary
+	_last_substep_count = other._last_substep_count
+	_bodies = other._bodies
+	_zones = other._zones
+	_next_body_id = other._next_body_id
+	_next_zone_id = other._next_zone_id
+	_events = other._events
+	_event_cursor = other._event_cursor
+	_next_event_sequence = other._next_event_sequence
+	_pending_body_spawns = other._pending_body_spawns
+	_pending_zone_spawns = other._pending_zone_spawns
+	_initial_bodies_committed = other._initial_bodies_committed
+	_initial_zones_committed = other._initial_zones_committed
 
 
 func consume_next_event(status: SimStatus) -> SimEvent:
