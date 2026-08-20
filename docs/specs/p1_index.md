@@ -28,7 +28,7 @@ P1의 명세 순서와 승인 경계를 관리한다. P1의 완료 목표는 개
 |---|---|---|---|
 | 1 | [`p1_ctb_battle_state.md`](p1_ctb_battle_state.md) | **approved · implemented · verified** · 2026-08-20 | 안정 ID 기반 CTB와 전투 상태 머신이 입력 대기부터 물리 해결 종료까지 결정론적으로 진행됨 |
 | 2 | [`p1_launch_aim_prediction.md`](p1_launch_aim_prediction.md) | **approved · implemented · verified** · 2026-08-20 | 드래그 입력이 정수 명령으로 양자화되고 발사·취소·궤적 예측이 같은 계약을 사용함 |
-| 3 | [`p1_damage_resolution.md`](p1_damage_resolution.md) | **draft · approval required** · 2026-08-20 | 충돌 이벤트가 승인된 공식·재충돌 규칙에 따라 체력·파괴 결과로 정산됨 |
+| 3 | [`p1_damage_resolution.md`](p1_damage_resolution.md) | **approved · implemented · verified** · 2026-08-20 | 충돌 이벤트가 승인된 공식·재충돌 규칙에 따라 체력·파괴 결과로 정산됨 |
 | 4 | `p1_trigger_bus_battle_result.md` | **미작성** | P1 트리거 큐, 파괴 귀속, 승패 판정이 고정 순서와 유한 처리 계약을 가짐 |
 | 5 | `p1_batch_sim_graybox.md` | **미작성** | 플레이스홀더 전투와 headless 배치 러너가 전투를 끝내고 결정론·CSV 수용 기준을 통과함 |
 
@@ -98,17 +98,17 @@ P1-5 회색상자 전투 · 배치 시뮬 · P1 결정론 회귀
 - 같은 기물 쌍의 재충돌 피해 쿨다운
 - 체력 0 파괴 요청을 P0의 공통 `BODY_DESTROYED` 경로로 정산
 
-승인 대기:
+승인 완료:
 
-- ⬜ U-32 무게지수, 무게비 하한·상한, 기준속도, 피해임계속도
-- ⬜ U-33 크리티컬 배율과 적용 시점
-- ⬜ 아군 피해 감소 계수 0.5 러프값의 P1 채택 여부
-- ⬜ 재충돌 피해 쿨다운 틱
-- ⬜ 피해 최종 반올림과 최소 피해 1의 정확한 적용 조건
-- ⬜ 기존 `BODY_COLLIDED` payload 의미 확장과 P0 golden hash 재고정
-- ⬜ 속력 동률 양방향 동시 피해와 같은 스텝 HP 0 기물의 후속 충돌 제외
+- ✅ U-32 P1 기준 무게지수·질량비 범위·기준속도·피해임계속도
+- ✅ U-33 P1 기준 크리티컬 배율과 적용 시점
+- ✅ 아군 피해 감소 계수 0.5의 P1 기준값 채택
+- ✅ 재충돌 피해 쿨다운 12틱
+- ✅ half-away 최종 반올림과 임계 이상 최소 피해 1
+- ✅ 기존 `BODY_COLLIDED` payload 의미 확장과 P0 golden hash 재고정
+- ✅ 속력 동률 양방향 동시 피해와 같은 스텝 HP 0 기물의 후속 충돌 제외
 
-상세 권장안과 회귀 범위는 `p1_damage_resolution.md` R-01~10에 정리되어 있다. 승인 전에는 코어 구현을 시작하지 않는다.
+상세 승인안과 회귀 범위는 `p1_damage_resolution.md` R-01~10에 정리되어 있다.
 
 범위 밖: 개별 능력·시너지·상태이상 효과, 발사체, 부착물.
 

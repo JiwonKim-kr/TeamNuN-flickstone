@@ -852,6 +852,63 @@ func remove_body(body_id: int, status: SimStatus) -> void:
 	_bodies.remove_at(index)
 
 
+func destroy_body(
+		body_id: int, cause_body_id: int, status: SimStatus
+) -> bool:
+	if not _require_initialized(status, SimStatus.Operation.WORLD_DESTROY_BODY):
+		return false
+	if (
+		body_id == 0
+		or cause_body_id == 0
+		or body_id == cause_body_id
+		or not UInt32Math.is_u32(body_id)
+		or not UInt32Math.is_u32(cause_body_id)
+	):
+		status.fail(
+			SimStatus.Code.INVALID_ARGUMENT,
+			SimStatus.Operation.WORLD_DESTROY_BODY,
+			body_id,
+			cause_body_id
+		)
+		return false
+	var index: int = _find_body_index(body_id)
+	if index < 0:
+		status.fail(
+			SimStatus.Code.NOT_FOUND,
+			SimStatus.Operation.WORLD_DESTROY_BODY,
+			body_id,
+			cause_body_id
+		)
+		return false
+	var body: SimBody = _bodies[index]
+	if not body.destructible():
+		status.fail(
+			SimStatus.Code.INVALID_SIM_STATE,
+			SimStatus.Operation.WORLD_DESTROY_BODY,
+			body_id,
+			cause_body_id
+		)
+		return false
+	_append_event(
+		SimEvent.TypeId.BODY_DESTROYED,
+		0,
+		body.id(),
+		cause_body_id,
+		0,
+		SimEvent.CauseId.DAMAGE,
+		body.position(),
+		body.velocity(),
+		0,
+		0,
+		0,
+		status
+	)
+	if not status.is_ok():
+		return false
+	_bodies.remove_at(index)
+	return true
+
+
 func remove_zone(zone_id: int, status: SimStatus) -> void:
 	if not _require_initialized(status, SimStatus.Operation.WORLD_REMOVE_ZONE):
 		return
@@ -1214,6 +1271,18 @@ func _resolve_circle_contacts(substep: int, status: SimStatus) -> void:
 				):
 					emitted_low_ids.append(result.body_a.id())
 					emitted_high_ids.append(result.body_b.id())
+					var collision_flags: int = 0
+					if result.speed_order == SimEvent.COLLISION_SOURCE_FASTER:
+						collision_flags = SimEvent.FLAG_COLLISION_SOURCE_FASTER
+					elif result.speed_order == SimEvent.COLLISION_TARGET_FASTER:
+						collision_flags = SimEvent.FLAG_COLLISION_TARGET_FASTER
+					var packed_masses: int = SimEvent.pack_collision_masses(
+						result.body_a.mass_raw(),
+						result.body_b.mass_raw(),
+						status
+					)
+					if not status.is_ok():
+						return
 					_append_event(
 						SimEvent.TypeId.BODY_COLLIDED,
 						substep,
@@ -1224,8 +1293,8 @@ func _resolve_circle_contacts(substep: int, status: SimStatus) -> void:
 						result.contact_position,
 						result.normal,
 						result.approach_speed_raw,
-						0,
-						0,
+						packed_masses,
+						collision_flags,
 						status
 					)
 					if not status.is_ok():

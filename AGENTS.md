@@ -13,7 +13,7 @@ These instructions apply to the entire repository.
 ## Current phase
 
 - P0 deterministic simulation core is complete.
-- P1-1 CTB/BattleState and P1-2 launch/aim/prediction are approved, implemented, and verified. P1-3 damage resolution has a draft spec (`docs/specs/p1_damage_resolution.md`) and must not be implemented before explicit R-01~10 approval.
+- P1-1 CTB/BattleState, P1-2 launch/aim/prediction, and P1-3 damage resolution are approved, implemented, and verified. Resume with the P1-4 trigger bus/battle result spec.
 - P0 order was: FixMath/SimRng → SimWorld → collision/wall/kill zones → state-hash regression.
 - P0 and P1 use manifest-registered placeholders only.
 - Do not run art lock/generation/reskin or SE generation/attachment until combat feel is approved.

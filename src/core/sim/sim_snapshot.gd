@@ -407,7 +407,7 @@ func _validate(status: SimStatus) -> bool:
 			or not UInt32Math.is_u32(event.target_body_id())
 			or not UInt32Math.is_u32(event.zone_id())
 			or event.cause_id() < SimEvent.CauseId.NONE
-			or event.cause_id() > SimEvent.CauseId.KILL_ZONE
+			or event.cause_id() > SimEvent.CauseId.DAMAGE
 			or not UInt32Math.is_u32(event.flags())
 		):
 			status.fail(

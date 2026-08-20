@@ -20,6 +20,8 @@ var _current_actor_body_id: int = 0
 var _abstract_time: int = 0
 var _last_acted_faction: int = BattleParticipant.Faction.INVALID
 var _participants: Array[BattleParticipant] = []
+var _combatants: Array[BattleCombatant] = []
+var _cooldowns: Array[DamagePairCooldown] = []
 var _world: SimWorld = SimWorld.new()
 var _pending: Array[BattleMutationRequest] = []
 var _normal_resolve_ticks: int = 0
@@ -29,6 +31,18 @@ var _forced_settle_used: bool = false
 
 static func _participant_less(left: BattleParticipant, right: BattleParticipant) -> bool:
 	return left.body_id() < right.body_id()
+
+
+static func _combatant_less(left: BattleCombatant, right: BattleCombatant) -> bool:
+	return left.body_id() < right.body_id()
+
+
+static func _cooldown_less(
+		left: DamagePairCooldown, right: DamagePairCooldown
+) -> bool:
+	if left.low_body_id() != right.low_body_id():
+		return left.low_body_id() < right.low_body_id()
+	return left.high_body_id() < right.high_body_id()
 
 
 static func _request_less(left: BattleMutationRequest, right: BattleMutationRequest) -> bool:
@@ -44,13 +58,36 @@ static func _copy_participants(source: Array[BattleParticipant]) -> Array[Battle
 	return result
 
 
+static func _copy_combatants(
+		source: Array[BattleCombatant]
+) -> Array[BattleCombatant]:
+	var result: Array[BattleCombatant] = []
+	for item: BattleCombatant in source:
+		result.append(item.copy())
+	return result
+
+
+static func _copy_cooldowns(
+		source: Array[DamagePairCooldown]
+) -> Array[DamagePairCooldown]:
+	var result: Array[DamagePairCooldown] = []
+	for item: DamagePairCooldown in source:
+		result.append(item.copy())
+	return result
+
+
 static func _copy_pending(source: Array[BattleMutationRequest]) -> Array[BattleMutationRequest]:
 	var result: Array[BattleMutationRequest] = []
 	for item: BattleMutationRequest in source: result.append(item.copy())
 	return result
 
 
-static func create(world: SimWorld, participants: Array[BattleParticipant], status: SimStatus) -> BattleState:
+static func _create_internal(
+		world: SimWorld,
+		participants: Array[BattleParticipant],
+		combatants: Array[BattleCombatant],
+		status: SimStatus
+) -> BattleState:
 	var state := BattleState.new()
 	if not status.is_ok(): return state
 	if world == null or world.has_pending_requests() or world.event_cursor() != world.event_count():
@@ -73,12 +110,75 @@ static func create(world: SimWorld, participants: Array[BattleParticipant], stat
 	if not has_actor:
 		status.fail(SimStatus.Code.NO_ELIGIBLE_ACTOR, SimStatus.Operation.BATTLE_CREATE, 0, 0)
 		return state
+	var sorted_combatants: Array[BattleCombatant] = _copy_combatants(combatants)
+	sorted_combatants.sort_custom(_combatant_less)
+	for index: int in range(sorted_combatants.size()):
+		var combatant: BattleCombatant = sorted_combatants[index]
+		if (
+			not combatant.is_initialized()
+			or combatant.current_hp() <= 0
+			or combatant.critical_basis_points() != 0
+			or (
+				index > 0
+				and sorted_combatants[index - 1].body_id() == combatant.body_id()
+			)
+		):
+			status.fail(
+				SimStatus.Code.INVALID_COMBATANT,
+				SimStatus.Operation.BATTLE_CREATE,
+				combatant.body_id(),
+				combatant.critical_basis_points()
+			)
+			return state
+		var combatant_body_status := SimStatus.new()
+		var combatant_body: SimBody = world.body_by_id(
+			combatant.body_id(), combatant_body_status
+		)
+		if not combatant_body_status.is_ok() or not combatant_body.destructible():
+			status.fail(
+				SimStatus.Code.INVALID_COMBATANT,
+				SimStatus.Operation.BATTLE_CREATE,
+				combatant.body_id(),
+				0
+			)
+			return state
+		for participant: BattleParticipant in sorted:
+			if (
+				participant.body_id() == combatant.body_id()
+				and participant.faction() != combatant.faction()
+			):
+				status.fail(
+					SimStatus.Code.INVALID_COMBATANT,
+					SimStatus.Operation.BATTLE_CREATE,
+					combatant.body_id(),
+					combatant.faction()
+				)
+				return state
 	state._world = world.copy(status)
 	if not status.is_ok(): return BattleState.new()
 	state._participants = sorted
+	state._combatants = sorted_combatants
 	state._phase = Phase.BATTLE_START
 	state._initialized = true
 	return state
+
+
+static func create(
+		world: SimWorld,
+		participants: Array[BattleParticipant],
+		status: SimStatus
+) -> BattleState:
+	var combatants: Array[BattleCombatant] = []
+	return _create_internal(world, participants, combatants, status)
+
+
+static func create_with_combatants(
+		world: SimWorld,
+		participants: Array[BattleParticipant],
+		combatants: Array[BattleCombatant],
+		status: SimStatus
+) -> BattleState:
+	return _create_internal(world, participants, combatants, status)
 
 
 static func restore(
@@ -93,11 +193,45 @@ static func restore(
 		forced_used: bool,
 		status: SimStatus
 ) -> BattleState:
+	var combatants: Array[BattleCombatant] = []
+	var cooldowns: Array[DamagePairCooldown] = []
+	return restore_with_combatants(
+		world,
+		participants,
+		combatants,
+		cooldowns,
+		phase,
+		current_actor,
+		abstract_time,
+		last_faction,
+		normal_ticks,
+		forced_ticks,
+		forced_used,
+		status
+	)
+
+
+static func restore_with_combatants(
+		world: SimWorld,
+		participants: Array[BattleParticipant],
+		combatants: Array[BattleCombatant],
+		cooldowns: Array[DamagePairCooldown],
+		phase: int,
+		current_actor: int,
+		abstract_time: int,
+		last_faction: int,
+		normal_ticks: int,
+		forced_ticks: int,
+		forced_used: bool,
+		status: SimStatus
+) -> BattleState:
 	var state := BattleState.new()
 	if not status.is_ok() or world == null or abstract_time < 0:
 		return state
 	state._world = world.copy(status)
 	state._participants = _copy_participants(participants)
+	state._combatants = _copy_combatants(combatants)
+	state._cooldowns = _copy_cooldowns(cooldowns)
 	state._phase = phase
 	state._current_actor_body_id = current_actor
 	state._abstract_time = abstract_time
@@ -143,6 +277,66 @@ func _validate(status: SimStatus) -> bool:
 		if not lookup.is_ok():
 			status.fail(SimStatus.Code.NOT_FOUND, SimStatus.Operation.BATTLE_STATE_READ, item.body_id(), 0)
 			return false
+	for index: int in range(_combatants.size()):
+		var combatant: BattleCombatant = _combatants[index]
+		if (
+			not combatant.is_initialized()
+			or combatant.current_hp() <= 0
+			or combatant.critical_basis_points() != 0
+			or (
+				index > 0
+				and _combatants[index - 1].body_id() >= combatant.body_id()
+			)
+		):
+			status.fail(
+				SimStatus.Code.INVALID_COMBATANT,
+				SimStatus.Operation.BATTLE_STATE_READ,
+				combatant.body_id(),
+				combatant.current_hp()
+			)
+			return false
+		var body_status := SimStatus.new()
+		var combatant_body: SimBody = _world.body_by_id(
+			combatant.body_id(), body_status
+		)
+		if not body_status.is_ok() or not combatant_body.destructible():
+			status.fail(
+				SimStatus.Code.INVALID_COMBATANT,
+				SimStatus.Operation.BATTLE_STATE_READ,
+				combatant.body_id(),
+				0
+			)
+			return false
+		var participant_index: int = _find_participant(combatant.body_id())
+		if (
+			participant_index >= 0
+			and _participants[participant_index].faction() != combatant.faction()
+		):
+			status.fail(
+				SimStatus.Code.INVALID_COMBATANT,
+				SimStatus.Operation.BATTLE_STATE_READ,
+				combatant.body_id(),
+				combatant.faction()
+			)
+			return false
+	for index: int in range(_cooldowns.size()):
+		var cooldown: DamagePairCooldown = _cooldowns[index]
+		if (
+			not cooldown.is_initialized()
+			or _find_combatant(cooldown.low_body_id()) < 0
+			or _find_combatant(cooldown.high_body_id()) < 0
+			or (
+				index > 0
+				and not _cooldown_less(_cooldowns[index - 1], cooldown)
+			)
+		):
+			status.fail(
+				SimStatus.Code.INVALID_BATTLE_STATE,
+				SimStatus.Operation.BATTLE_COOLDOWN_UPDATE,
+				cooldown.low_body_id(),
+				cooldown.high_body_id()
+			)
+			return false
 	if _phase == Phase.TURN_START or _phase == Phase.AIM:
 		if _find_participant(_current_actor_body_id) < 0:
 			status.fail(SimStatus.Code.NOT_FOUND, SimStatus.Operation.BATTLE_STATE_READ, _current_actor_body_id, 0)
@@ -167,6 +361,45 @@ func _find_participant(body_id: int) -> int:
 	return -1
 
 
+func _find_combatant(body_id: int) -> int:
+	for index: int in range(_combatants.size()):
+		if _combatants[index].body_id() == body_id:
+			return index
+		if _combatants[index].body_id() > body_id:
+			break
+	return -1
+
+
+func _find_cooldown(low_body_id: int, high_body_id: int) -> int:
+	for index: int in range(_cooldowns.size()):
+		var item: DamagePairCooldown = _cooldowns[index]
+		if item.low_body_id() == low_body_id and item.high_body_id() == high_body_id:
+			return index
+		if (
+			item.low_body_id() > low_body_id
+			or (
+				item.low_body_id() == low_body_id
+				and item.high_body_id() > high_body_id
+			)
+		):
+			break
+	return -1
+
+
+func _remove_body_state(body_id: int) -> void:
+	var participant_index: int = _find_participant(body_id)
+	if participant_index >= 0:
+		_participants.remove_at(participant_index)
+	var combatant_index: int = _find_combatant(body_id)
+	if combatant_index >= 0:
+		_combatants.remove_at(combatant_index)
+	var survivors: Array[DamagePairCooldown] = []
+	for item: DamagePairCooldown in _cooldowns:
+		if item.low_body_id() != body_id and item.high_body_id() != body_id:
+			survivors.append(item)
+	_cooldowns = survivors
+
+
 func _select_actor(status: SimStatus) -> bool:
 	var selection: CtbScheduler.Selection = CtbScheduler.select_next(_participants, _abstract_time, _last_acted_faction, status)
 	if not status.is_ok(): return false
@@ -177,13 +410,287 @@ func _select_actor(status: SimStatus) -> bool:
 	return true
 
 
+func _same_non_neutral_faction(
+		left: BattleCombatant, right: BattleCombatant
+) -> bool:
+	return (
+		left.faction() != BattleParticipant.Faction.NEUTRAL
+		and left.faction() == right.faction()
+	)
+
+
+func _resolve_damage_direction(
+		attacker: BattleCombatant,
+		victim: BattleCombatant,
+		attacker_mass_raw: int,
+		victim_mass_raw: int,
+		impact_speed_raw: int,
+		status: SimStatus
+) -> DamageResult:
+	if (
+		attacker.critical_basis_points() != 0
+		or victim.critical_basis_points() != 0
+	):
+		status.fail(
+			SimStatus.Code.INVALID_COMBATANT,
+			SimStatus.Operation.BATTLE_DAMAGE_EVENT,
+			attacker.body_id(),
+			attacker.critical_basis_points()
+		)
+		return DamageResult.new()
+	var context: DamageContext = DamageContext.create(
+		attacker.body_id(),
+		victim.body_id(),
+		attacker.attack(),
+		victim.current_hp(),
+		attacker_mass_raw,
+		victim_mass_raw,
+		impact_speed_raw,
+		_same_non_neutral_faction(attacker, victim),
+		false,
+		0,
+		0,
+		0,
+		0,
+		status
+	)
+	return DamageCalculator.resolve(context, status)
+
+
+func _queue_pending_destroy(
+		body_id: int,
+		cause_body_id: int,
+		body_ids: Array[int],
+		cause_ids: Array[int]
+) -> void:
+	for index: int in range(body_ids.size()):
+		if body_ids[index] == body_id:
+			return
+		if body_ids[index] > body_id:
+			body_ids.insert(index, body_id)
+			cause_ids.insert(index, cause_body_id)
+			return
+	body_ids.append(body_id)
+	cause_ids.append(cause_body_id)
+
+
+func _apply_damage_result(
+		result: DamageResult,
+		pending_body_ids: Array[int],
+		pending_cause_ids: Array[int],
+		status: SimStatus
+) -> void:
+	if not status.is_ok() or result == null or not result.is_initialized():
+		if status.is_ok():
+			status.fail(
+				SimStatus.Code.INVALID_DAMAGE_CONTEXT,
+				SimStatus.Operation.BATTLE_DAMAGE_EVENT,
+				0,
+				0
+			)
+		return
+	if not result.has_damage():
+		return
+	var victim_index: int = _find_combatant(result.victim_body_id())
+	if victim_index < 0:
+		status.fail(
+			SimStatus.Code.NOT_FOUND,
+			SimStatus.Operation.BATTLE_DAMAGE_EVENT,
+			result.victim_body_id(),
+			0
+		)
+		return
+	var victim: BattleCombatant = _combatants[victim_index]
+	var next_hp: int = victim.current_hp() - result.applied_damage()
+	_combatants[victim_index] = victim.with_current_hp(next_hp, status)
+	if status.is_ok() and next_hp == 0:
+		_queue_pending_destroy(
+			result.victim_body_id(),
+			result.attacker_body_id(),
+			pending_body_ids,
+			pending_cause_ids
+		)
+
+
+func _update_cooldown(
+		low_body_id: int,
+		high_body_id: int,
+		event_tick: int,
+		status: SimStatus
+) -> void:
+	if not FixMath.can_add_int(
+		event_tick, DamageLimits.RECOLLISION_COOLDOWN_TICKS
+	):
+		status.fail(
+			SimStatus.Code.COUNTER_EXHAUSTED,
+			SimStatus.Operation.BATTLE_COOLDOWN_UPDATE,
+			event_tick,
+			DamageLimits.RECOLLISION_COOLDOWN_TICKS
+		)
+		return
+	var item: DamagePairCooldown = DamagePairCooldown.create(
+		low_body_id,
+		high_body_id,
+		event_tick + DamageLimits.RECOLLISION_COOLDOWN_TICKS,
+		status
+	)
+	if not status.is_ok():
+		return
+	var index: int = _find_cooldown(low_body_id, high_body_id)
+	if index >= 0:
+		_cooldowns[index] = item
+	else:
+		_cooldowns.append(item)
+		_cooldowns.sort_custom(_cooldown_less)
+
+
+func _process_collision_event(
+		event: SimEvent,
+		pending_body_ids: Array[int],
+		pending_cause_ids: Array[int],
+		status: SimStatus
+) -> void:
+	var source_id: int = event.source_body_id()
+	var target_id: int = event.target_body_id()
+	if source_id == 0 or source_id >= target_id:
+		status.fail(
+			SimStatus.Code.INVALID_COLLISION_FACT,
+			SimStatus.Operation.BATTLE_DAMAGE_EVENT,
+			source_id,
+			target_id
+		)
+		return
+	var source_index: int = _find_combatant(source_id)
+	var target_index: int = _find_combatant(target_id)
+	if source_index < 0 or target_index < 0:
+		return
+	var source: BattleCombatant = _combatants[source_index]
+	var target: BattleCombatant = _combatants[target_index]
+	if source.current_hp() == 0 or target.current_hp() == 0:
+		return
+	var source_mass_raw: int = event.collision_source_mass_raw(status)
+	var target_mass_raw: int = event.collision_target_mass_raw(status)
+	var speed_order: int = event.collision_speed_order(status)
+	if not status.is_ok():
+		return
+	if event.value_a() < DamageLimits.DAMAGE_THRESHOLD_SPEED_RAW:
+		return
+	var cooldown_index: int = _find_cooldown(source_id, target_id)
+	if (
+		cooldown_index >= 0
+		and not _cooldowns[cooldown_index].is_ready(event.tick())
+	):
+		return
+
+	var dealt_damage: bool = false
+	if speed_order == SimEvent.COLLISION_SOURCE_FASTER:
+		var source_result: DamageResult = _resolve_damage_direction(
+			source,
+			target,
+			source_mass_raw,
+			target_mass_raw,
+			event.value_a(),
+			status
+		)
+		dealt_damage = status.is_ok() and source_result.has_damage()
+		_apply_damage_result(
+			source_result, pending_body_ids, pending_cause_ids, status
+		)
+	elif speed_order == SimEvent.COLLISION_TARGET_FASTER:
+		var target_result: DamageResult = _resolve_damage_direction(
+			target,
+			source,
+			target_mass_raw,
+			source_mass_raw,
+			event.value_a(),
+			status
+		)
+		dealt_damage = status.is_ok() and target_result.has_damage()
+		_apply_damage_result(
+			target_result, pending_body_ids, pending_cause_ids, status
+		)
+	else:
+		var source_to_target: DamageResult = _resolve_damage_direction(
+			source,
+			target,
+			source_mass_raw,
+			target_mass_raw,
+			event.value_a(),
+			status
+		)
+		var target_to_source: DamageResult = _resolve_damage_direction(
+			target,
+			source,
+			target_mass_raw,
+			source_mass_raw,
+			event.value_a(),
+			status
+		)
+		dealt_damage = (
+			status.is_ok()
+			and (source_to_target.has_damage() or target_to_source.has_damage())
+		)
+		_apply_damage_result(
+			source_to_target, pending_body_ids, pending_cause_ids, status
+		)
+		_apply_damage_result(
+			target_to_source, pending_body_ids, pending_cause_ids, status
+		)
+	if status.is_ok() and dealt_damage:
+		_update_cooldown(source_id, target_id, event.tick(), status)
+
+
 func _consume_world_events(status: SimStatus) -> void:
+	var event_boundary: int = _world.event_count()
+	var pending_body_ids: Array[int] = []
+	var pending_cause_ids: Array[int] = []
+	while status.is_ok() and _world.event_cursor() < event_boundary:
+		var event: SimEvent = _world.consume_next_event(status)
+		if not status.is_ok():
+			return
+		if event.type_id() == SimEvent.TypeId.BODY_COLLIDED:
+			_process_collision_event(
+				event, pending_body_ids, pending_cause_ids, status
+			)
+		elif (
+			event.type_id() == SimEvent.TypeId.BODY_REMOVED
+			or event.type_id() == SimEvent.TypeId.BODY_DESTROYED
+		):
+			_remove_body_state(event.source_body_id())
+	if not status.is_ok():
+		return
+	for index: int in range(pending_body_ids.size()):
+		var body_id: int = pending_body_ids[index]
+		var combatant_index: int = _find_combatant(body_id)
+		if combatant_index < 0:
+			continue
+		if _combatants[combatant_index].current_hp() != 0:
+			status.fail(
+				SimStatus.Code.INVALID_BATTLE_STATE,
+				SimStatus.Operation.BATTLE_DAMAGE_EVENT,
+				body_id,
+				_combatants[combatant_index].current_hp()
+			)
+			return
+		_world.destroy_body(body_id, pending_cause_ids[index], status)
+		if not status.is_ok():
+			return
 	while status.is_ok() and _world.event_cursor() < _world.event_count():
 		var event: SimEvent = _world.consume_next_event(status)
-		if not status.is_ok(): return
-		if event.type_id() == SimEvent.TypeId.BODY_REMOVED or event.type_id() == SimEvent.TypeId.BODY_DESTROYED:
-			var index: int = _find_participant(event.source_body_id())
-			if index >= 0: _participants.remove_at(index)
+		if not status.is_ok():
+			return
+		if (
+			event.type_id() != SimEvent.TypeId.BODY_DESTROYED
+			or event.cause_id() != SimEvent.CauseId.DAMAGE
+		):
+			status.fail(
+				SimStatus.Code.INVALID_BATTLE_STATE,
+				SimStatus.Operation.BATTLE_DAMAGE_EVENT,
+				event.type_id(),
+				event.cause_id()
+			)
+			return
+		_remove_body_state(event.source_body_id())
 
 
 func _apply_barrier(status: SimStatus) -> bool:
@@ -209,11 +716,17 @@ func _apply_barrier(status: SimStatus) -> bool:
 			if request.participant_template != null:
 				_participants.append(request.participant_template.assigned_copy(event.source_body_id(), status))
 				_participants.sort_custom(_participant_less)
+			if status.is_ok() and request.combatant_template != null:
+				_combatants.append(
+					request.combatant_template.assigned_copy(
+						event.source_body_id(), status
+					)
+				)
+				_combatants.sort_custom(_combatant_less)
 		else:
 			_world.remove_body(request.body_id, status)
 			if status.is_ok():
-				var index: int = _find_participant(request.body_id)
-				if index >= 0: _participants.remove_at(index)
+				_remove_body_state(request.body_id)
 				_consume_world_events(status)
 		if not status.is_ok(): break
 	if status.is_ok():
@@ -228,17 +741,75 @@ func queue_body_spawn(body_template: SimBody, participant_template: BattlePartic
 	if not status.is_ok() or body_template == null or body_template.id() != 0 or (participant_template != null and participant_template.body_id() != 0):
 		status.fail(SimStatus.Code.INVALID_ARGUMENT, SimStatus.Operation.BATTLE_QUEUE_MUTATION, cause_body_id, ordinal)
 		return false
-	return _queue_request(BattleMutationRequest.Kind.SPAWN, 0, body_template, participant_template, cause_body_id, event_type_id, ordinal, status)
+	return _queue_request(BattleMutationRequest.Kind.SPAWN, 0, body_template, participant_template, null, cause_body_id, event_type_id, ordinal, status)
+
+
+func queue_combatant_body_spawn(
+		body_template: SimBody,
+		participant_template: BattleParticipant,
+		combatant_template: BattleCombatant,
+		cause_body_id: int,
+		event_type_id: int,
+		ordinal: int,
+		status: SimStatus
+) -> bool:
+	if (
+		not status.is_ok()
+		or body_template == null
+		or body_template.id() != 0
+		or not body_template.destructible()
+		or combatant_template == null
+		or not combatant_template.is_initialized()
+		or combatant_template.body_id() != 0
+		or combatant_template.current_hp() <= 0
+		or combatant_template.critical_basis_points() != 0
+		or (
+			participant_template != null
+			and (
+				participant_template.body_id() != 0
+				or participant_template.faction() != combatant_template.faction()
+			)
+		)
+	):
+		if status.is_ok():
+			status.fail(
+				SimStatus.Code.INVALID_COMBATANT,
+				SimStatus.Operation.BATTLE_QUEUE_MUTATION,
+				cause_body_id,
+				ordinal
+			)
+		return false
+	return _queue_request(
+		BattleMutationRequest.Kind.SPAWN,
+		0,
+		body_template,
+		participant_template,
+		combatant_template,
+		cause_body_id,
+		event_type_id,
+		ordinal,
+		status
+	)
 
 
 func queue_participant_removal(body_id: int, cause_body_id: int, event_type_id: int, ordinal: int, status: SimStatus) -> bool:
 	if _find_participant(body_id) < 0:
 		status.fail(SimStatus.Code.NOT_FOUND, SimStatus.Operation.BATTLE_QUEUE_MUTATION, body_id, 0)
 		return false
-	return _queue_request(BattleMutationRequest.Kind.REMOVE, body_id, null, null, cause_body_id, event_type_id, ordinal, status)
+	return _queue_request(BattleMutationRequest.Kind.REMOVE, body_id, null, null, null, cause_body_id, event_type_id, ordinal, status)
 
 
-func _queue_request(kind: int, body_id: int, body_template: SimBody, participant_template: BattleParticipant, cause_body_id: int, event_type_id: int, ordinal: int, status: SimStatus) -> bool:
+func _queue_request(
+		kind: int,
+		body_id: int,
+		body_template: SimBody,
+		participant_template: BattleParticipant,
+		combatant_template: BattleCombatant,
+		cause_body_id: int,
+		event_type_id: int,
+		ordinal: int,
+		status: SimStatus
+) -> bool:
 	if not status.is_ok() or not UInt32Math.is_u32(cause_body_id) or event_type_id < 0 or event_type_id > 0xFFFF or not UInt32Math.is_u32(ordinal): return false
 	for prior: BattleMutationRequest in _pending:
 		if prior.tick == _world.tick() and prior.cause_body_id == cause_body_id and prior.event_type_id == event_type_id and prior.ordinal == ordinal:
@@ -248,6 +819,7 @@ func _queue_request(kind: int, body_id: int, body_template: SimBody, participant
 	request.kind = kind; request.tick = _world.tick(); request.body_id = body_id
 	request.body_template = null if body_template == null else body_template.copy()
 	request.participant_template = null if participant_template == null else participant_template.copy()
+	request.combatant_template = null if combatant_template == null else combatant_template.copy()
 	request.cause_body_id = cause_body_id; request.event_type_id = event_type_id; request.ordinal = ordinal
 	_pending.append(request)
 	return true
@@ -421,7 +993,10 @@ func copy(status: SimStatus) -> BattleState:
 		return result
 	result._initialized = true; result._phase = _phase; result._current_actor_body_id = _current_actor_body_id
 	result._abstract_time = _abstract_time; result._last_acted_faction = _last_acted_faction
-	result._participants = _copy_participants(_participants); result._world = _world.copy(status)
+	result._participants = _copy_participants(_participants)
+	result._combatants = _copy_combatants(_combatants)
+	result._cooldowns = _copy_cooldowns(_cooldowns)
+	result._world = _world.copy(status)
 	result._pending = _copy_pending(_pending); result._normal_resolve_ticks = _normal_resolve_ticks
 	result._forced_resolve_ticks = _forced_resolve_ticks; result._forced_settle_used = _forced_settle_used
 	return result
@@ -430,7 +1005,8 @@ func copy(status: SimStatus) -> BattleState:
 func _assign_from(other: BattleState) -> void:
 	_initialized = other._initialized; _phase = other._phase; _current_actor_body_id = other._current_actor_body_id
 	_abstract_time = other._abstract_time; _last_acted_faction = other._last_acted_faction
-	_participants = other._participants; _world = other._world; _pending = other._pending
+	_participants = other._participants; _combatants = other._combatants
+	_cooldowns = other._cooldowns; _world = other._world; _pending = other._pending
 	_normal_resolve_ticks = other._normal_resolve_ticks; _forced_resolve_ticks = other._forced_resolve_ticks
 	_forced_settle_used = other._forced_settle_used
 
@@ -448,6 +1024,18 @@ func participant_by_body_id(body_id: int, status: SimStatus) -> BattleParticipan
 	var index: int = _find_participant(body_id)
 	if index < 0: status.fail(SimStatus.Code.NOT_FOUND, SimStatus.Operation.BATTLE_STATE_READ, body_id, 0); return BattleParticipant.new()
 	return _participants[index].copy()
+func combatant_count() -> int: return _combatants.size()
+func combatant_at(index: int, status: SimStatus) -> BattleCombatant:
+	if index < 0 or index >= _combatants.size(): status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.BATTLE_STATE_READ, index, _combatants.size()); return BattleCombatant.new()
+	return _combatants[index].copy()
+func combatant_by_body_id(body_id: int, status: SimStatus) -> BattleCombatant:
+	var index: int = _find_combatant(body_id)
+	if index < 0: status.fail(SimStatus.Code.NOT_FOUND, SimStatus.Operation.BATTLE_STATE_READ, body_id, 0); return BattleCombatant.new()
+	return _combatants[index].copy()
+func cooldown_count() -> int: return _cooldowns.size()
+func cooldown_at(index: int, status: SimStatus) -> DamagePairCooldown:
+	if index < 0 or index >= _cooldowns.size(): status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.BATTLE_STATE_READ, index, _cooldowns.size()); return DamagePairCooldown.new()
+	return _cooldowns[index].copy()
 func normal_resolve_ticks() -> int: return _normal_resolve_ticks
 func forced_resolve_ticks() -> int: return _forced_resolve_ticks
 func forced_settle_used() -> bool: return _forced_settle_used

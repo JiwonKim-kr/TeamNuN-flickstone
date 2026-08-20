@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "vectors": [
+    {
+      "id": "threshold_below",
+      "attack": 100,
+      "victim_hp": 999,
+      "attacker_mass_units": 64,
+      "victim_mass_units": 64,
+      "impact_speed_units": 63,
+      "expected": [0, 0, 0]
+    },
+    {
+      "id": "threshold_exact",
+      "attack": 100,
+      "victim_hp": 999,
+      "attacker_mass_units": 64,
+      "victim_mass_units": 64,
+      "impact_speed_units": 64,
+      "expected": [65536, 6, 6]
+    },
+    {
+      "id": "equal_mass",
+      "attack": 100,
+      "victim_hp": 999,
+      "attacker_mass_units": 64,
+      "victim_mass_units": 64,
+      "impact_speed_units": 1024,
+      "expected": [65536, 100, 100]
+    },
+    {
+      "id": "weight_upper_clamp",
+      "attack": 100,
+      "victim_hp": 999,
+      "attacker_mass_units": 256,
+      "victim_mass_units": 16,
+      "impact_speed_units": 1024,
+      "expected": [131072, 200, 200]
+    },
+    {
+      "id": "weight_lower_clamp",
+      "attack": 100,
+      "victim_hp": 999,
+      "attacker_mass_units": 16,
+      "victim_mass_units": 256,
+      "impact_speed_units": 1024,
+      "expected": [32768, 50, 50]
+    },
+    {
+      "id": "modifier_order",
+      "attack": 100,
+      "victim_hp": 999,
+      "attacker_mass_units": 64,
+      "victim_mass_units": 64,
+      "impact_speed_units": 1024,
+      "friendly": true,
+      "critical": true,
+      "outgoing_bonus_raw": 16384,
+      "incoming_reduction_raw": 13107,
+      "fixed_increase": 7,
+      "fixed_reduction": 3,
+      "expected": [65536, 104, 104]
+    },
+    {
+      "id": "lethal_cap",
+      "attack": 100,
+      "victim_hp": 40,
+      "attacker_mass_units": 64,
+      "victim_mass_units": 64,
+      "impact_speed_units": 1024,
+      "expected": [65536, 100, 40]
+    }
+  ]
+}

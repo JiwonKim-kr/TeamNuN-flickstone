@@ -15,6 +15,7 @@ class CircleResult:
 	var normal: FixVec2
 	var contact_position: FixVec2
 	var approach_speed_raw: int
+	var speed_order: int
 
 	func _init(a: SimBody, b: SimBody) -> void:
 		body_a = a.copy()
@@ -24,6 +25,7 @@ class CircleResult:
 		normal = FixVec2.zero()
 		contact_position = FixVec2.zero()
 		approach_speed_raw = 0
+		speed_order = SimEvent.COLLISION_SPEED_TIE
 
 
 class WallHit:
@@ -208,6 +210,17 @@ static func resolve_circle_pair(
 
 	var velocity_a: FixVec2 = body_a.velocity()
 	var velocity_b: FixVec2 = body_b.velocity()
+	var speed_a_squared_wide: int = _wide_dot(
+		velocity_a, velocity_a, status
+	)
+	var speed_b_squared_wide: int = _wide_dot(
+		velocity_b, velocity_b, status
+	)
+	if not status.is_ok():
+		return result
+	result.speed_order = FixMath.compare_raw(
+		speed_a_squared_wide, speed_b_squared_wide
+	)
 	var relative_velocity: FixVec2 = velocity_a.sub(velocity_b, status)
 	var approach_raw: int = relative_velocity.dot_raw(normal, status)
 	result.approach_speed_raw = approach_raw

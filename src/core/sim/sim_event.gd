@@ -6,6 +6,15 @@ extends RefCounted
 ## must never be reordered or reused.
 
 const FLAG_RUNTIME_SPAWN_KEY_PRESENT: int = 1
+const FLAG_COLLISION_SOURCE_FASTER: int = 1 << 1
+const FLAG_COLLISION_TARGET_FASTER: int = 1 << 2
+const COLLISION_FLAGS_MASK: int = (
+	FLAG_COLLISION_SOURCE_FASTER | FLAG_COLLISION_TARGET_FASTER
+)
+
+const COLLISION_TARGET_FASTER: int = -1
+const COLLISION_SPEED_TIE: int = 0
+const COLLISION_SOURCE_FASTER: int = 1
 
 enum TypeId {
 	NONE = 0,
@@ -21,6 +30,7 @@ enum CauseId {
 	NONE = 0,
 	KILL_BOUNDARY = 1,
 	KILL_ZONE = 2,
+	DAMAGE = 3,
 }
 
 var _tick: int = 0
@@ -54,7 +64,31 @@ static func _is_known_cause(cause_id: int) -> bool:
 		cause_id == CauseId.NONE
 		or cause_id == CauseId.KILL_BOUNDARY
 		or cause_id == CauseId.KILL_ZONE
+		or cause_id == CauseId.DAMAGE
 	)
+
+
+static func pack_collision_masses(
+		source_mass_raw: int,
+		target_mass_raw: int,
+		status: SimStatus
+) -> int:
+	if not status.is_ok():
+		return 0
+	if (
+		source_mass_raw <= 0
+		or target_mass_raw <= 0
+		or not UInt32Math.is_u32(source_mass_raw)
+		or not UInt32Math.is_u32(target_mass_raw)
+	):
+		status.fail(
+			SimStatus.Code.INVALID_COLLISION_FACT,
+			SimStatus.Operation.COLLISION_FACT_READ,
+			source_mass_raw,
+			target_mass_raw
+		)
+		return 0
+	return source_mass_raw | (target_mass_raw << 32)
 
 
 static func create(
@@ -214,3 +248,58 @@ func value_b() -> int:
 
 func flags() -> int:
 	return _flags
+
+
+func _require_collision_fact(status: SimStatus) -> bool:
+	if not status.is_ok():
+		return false
+	if (
+		_type_id != TypeId.BODY_COLLIDED
+		or _value_a <= 0
+		or _value_b <= 0
+		or (_flags & ~COLLISION_FLAGS_MASK) != 0
+		or (_flags & COLLISION_FLAGS_MASK) == COLLISION_FLAGS_MASK
+	):
+		status.fail(
+			SimStatus.Code.INVALID_COLLISION_FACT,
+			SimStatus.Operation.COLLISION_FACT_READ,
+			_sequence,
+			_flags
+		)
+		return false
+	var source_mass_raw: int = _value_b & 0xFFFFFFFF
+	var target_mass_raw: int = (_value_b >> 32) & 0xFFFFFFFF
+	if (
+		not SimLimits.is_mass_valid(source_mass_raw)
+		or not SimLimits.is_mass_valid(target_mass_raw)
+	):
+		status.fail(
+			SimStatus.Code.INVALID_COLLISION_FACT,
+			SimStatus.Operation.COLLISION_FACT_READ,
+			source_mass_raw,
+			target_mass_raw
+		)
+		return false
+	return true
+
+
+func collision_source_mass_raw(status: SimStatus) -> int:
+	if not _require_collision_fact(status):
+		return 0
+	return _value_b & 0xFFFFFFFF
+
+
+func collision_target_mass_raw(status: SimStatus) -> int:
+	if not _require_collision_fact(status):
+		return 0
+	return (_value_b >> 32) & 0xFFFFFFFF
+
+
+func collision_speed_order(status: SimStatus) -> int:
+	if not _require_collision_fact(status):
+		return COLLISION_SPEED_TIE
+	if (_flags & FLAG_COLLISION_SOURCE_FASTER) != 0:
+		return COLLISION_SOURCE_FASTER
+	if (_flags & FLAG_COLLISION_TARGET_FASTER) != 0:
+		return COLLISION_TARGET_FASTER
+	return COLLISION_SPEED_TIE

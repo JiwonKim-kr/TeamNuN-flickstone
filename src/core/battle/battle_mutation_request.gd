@@ -10,6 +10,7 @@ var event_type_id: int = 0
 var ordinal: int = 0
 var body_template: SimBody
 var participant_template: BattleParticipant
+var combatant_template: BattleCombatant
 var body_id: int = 0
 
 func copy() -> BattleMutationRequest:
@@ -21,5 +22,6 @@ func copy() -> BattleMutationRequest:
 	result.ordinal = ordinal
 	result.body_template = null if body_template == null else body_template.copy()
 	result.participant_template = null if participant_template == null else participant_template.copy()
+	result.combatant_template = null if combatant_template == null else combatant_template.copy()
 	result.body_id = body_id
 	return result
