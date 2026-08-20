@@ -9,7 +9,7 @@
 | 선행 명세 | `p1_index.md` 승인, `p1_ctb_battle_state.md` 승인·구현·검증 완료 |
 | 후속 명세 | `p1_damage_resolution.md` |
 | 구현 권한 | 승인 범위 내 구현 가능 |
-| 구현 상태 | **implemented · narrow verified · full verification deferred** · 2026-08-20 |
+| 구현 상태 | **implemented · verified** · 2026-08-20 |
 
 ## 목적
 
@@ -498,4 +498,4 @@ L-01~09와 명세 전체가 승인되면 다음 순서로 구현한다.
 
 ## 구현 기록
 
-2026-08-20 승인 범위의 코어·UI 브리지·독립 기준값·Godot narrow runner 구현을 완료했다. P1-2 수용 테스트 15개, P1-1, P0-1~4 narrow 회귀가 통과했으며 P0-4는 1,000회 반복과 입력 순열 검사를 포함한다. `verify --full`은 장시간 실행 중 사용자 요청으로 중단했으므로 다음 작업에서 전체 검증부터 재개한다.
+2026-08-20 승인 범위의 코어·UI 브리지·독립 기준값·Godot narrow runner 구현을 완료했다. P1-2 수용 테스트 15개, P1-1, P0-1~4 narrow 회귀가 통과했으며 P0-4는 1,000회 반복과 입력 순열 검사를 포함한다. 이후 Godot 4.6.3 활성 `verify --full`에서 게이트 5개 중 lore 미초기화 1개 정상 SKIP, 나머지 통과 및 자동 발견 러너 13종 전부 통과를 확인했다.

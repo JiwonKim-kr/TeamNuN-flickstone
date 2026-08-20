@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P1-2 발사/조준 구현·narrow 회귀 완료 — `verify --full` 재개 대기** |
+| 현재 단계 | **P1-2 전체 검증 완료 — P1-3 피해 해결 초안 작성·승인 대기** |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -71,7 +71,8 @@
 - [x] P1-2 Godot 입력·궤적선 UI 브리지 구현. 코어 상태 직접 수정 경로 없음
 - [x] P1-2 독립 Python KAT·fixture와 Godot 수용 테스트 15개 통과
 - [x] P1-1, P0-1~4 narrow 회귀 통과. P0-4는 1,000회 반복·입력 순열 포함
-- [ ] P1-2 반영 상태의 `verify --full` 5게이트 — 장시간 실행 중 사용자 요청으로 중단, 다음 작업에서 재개
+- [x] P1-2 반영 상태의 Godot 4.6.3 `verify --full` 완료 — lore 미초기화 1게이트 정상 SKIP, 나머지 통과·러너 13종 전부 통과
+- [x] P1-3 피해 해결 초안과 R-01~10 승인 결정 작성 (`docs/specs/p1_damage_resolution.md`)
 
 ### 3.1 P1-2 현재 작업 기록
 
@@ -92,13 +93,21 @@
 - `run_p1_launch_aim_prediction.py`: `verify --full` 자동 발견 narrow runner
 - `p1_launch_reference.py`·`p1_launch_vectors.json`: codec·파워·무게별 속도의 독립 기준값
 
+### 3.2 P1-3 현재 작업 기록
+
+- `BODY_COLLIDED`가 충돌 직전 접근속도만 보존하고 두 기물의 속력 대소·질량 쌍은 보존하지 않는 구현 제약을 확인했다.
+- 충돌 뒤 같은 스텝의 소멸 처리로 body가 먼저 제거될 수 있어, 피해 계산에 필요한 충돌 시점 질량도 사건에 보존해야 함을 확인했다.
+- 기존 event 고정 레이아웃을 유지하면서 `value_b`와 `flags`에 충돌 사실을 추가하는 권장안을 작성했다. 이 변경은 P0 golden hash 재고정과 P0-2~4 전체 회귀 승인이 필요하다.
+- 별도 `BattleCombatant`, 순수 `DamageCalculator`, pair cooldown, 공통 `BODY_DESTROYED/DAMAGE`, BattleSnapshot v2 경계를 초안에 명시했다.
+- U-32·U-33 수치와 동률·동일 스텝 정산을 R-01~10 승인 결정으로 분리했다.
+
 남은 작업:
 
-1. `verify --full`을 Godot 4.6.3 활성 상태로 다시 실행한다.
-2. 전체 5게이트가 통과하면 P1-2를 `implemented · verified`로 문서화한다.
-3. `git diff --check`와 최종 변경 파일 목록을 확인하고 관련 없는 변경이 섞이지 않았는지 점검한다.
-4. 사용자 검수 결과를 보고한다. 커밋은 사용자가 요청하거나 구현 결과를 승인한 경우에만 수행한다.
-5. 다음 단계는 P1-3 피해 해결 명세 초안이다. U-32·U-33 피해 수치와 재충돌 규칙의 별도 승인이 필요하며 승인 전 구현하지 않는다.
+1. 사용자가 P1-3 R-01~10, 특히 P0 payload migration·피해 수치·동시성 규칙을 승인하거나 수정한다.
+2. 승인 뒤 충돌 사실 payload와 P0 golden 회귀부터 구현한다.
+3. 피해 전투원·순수 계산기·cooldown·공통 파괴·BattleSnapshot v2를 구현한다.
+4. P1-3 narrow → 영향받은 P0/P1 narrow → Godot 활성 `verify --full` 순으로 검증한다.
+5. 커밋은 사용자가 요청하거나 구현 결과를 승인한 경우에만 수행한다.
 
 ## 4. 구현 우선순위
 
