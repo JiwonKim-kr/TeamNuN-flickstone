@@ -81,8 +81,9 @@
 - [x] 최적화 후 P1-5 baseline terminal 결과와 처리시간 측정
 - [x] P1-5 core driver·batch CSV·golden·snapshot 복원·집계·repro 구현
 - [x] P1-5 회색상자 scene·manifest placeholder 3종 구현, Godot import·smoke·manifest 검증
+- [x] P1-5 실제 batch 256 — 256승·실패 0·terminal hash 일치
 - [ ] P1-5 회색상자 사람 수동 감각 검수 (조준·충돌·피해·턴 길이)
-- [ ] P1-5 실제 batch 256 / exhaustive 1,000 및 현재 변경 기준 `verify --full`
+- [ ] P1-5 실제 exhaustive 1,000 및 현재 변경 기준 `verify --full`
 
 ### 3.1 P1-2 현재 작업 기록
 
@@ -119,7 +120,7 @@
 남은 작업:
 
 1. Godot 편집기 또는 실행 파일로 `scenes/main.tscn`을 열고 아군 P 기물 드래그, 예상 궤적, 충돌·피해·턴 길이를 사람이 검수한다.
-2. 실제 `batch` 256과 `exhaustive` 1,000을 실행해 장시간 결정론 결과를 확정한다.
+2. 실제 `exhaustive` 1,000을 실행해 장시간 결정론 결과를 확정한다. (`batch` 256 완료)
 3. 현재 P1-5 씬 변경을 포함한 Godot 활성 `verify --full`을 완료한다.
 4. 위 결과와 사람 검수 결정을 반영해 P1 전체 완료 여부를 판정한다.
 
@@ -138,11 +139,12 @@
 - 위 3-case 증분을 16-case narrow로 확장했다. 4 workers 실행에서 16승, 각 52턴·17,171틱·동일 terminal hash, 총 274,736틱, forced settle 0으로 PASS했다.
 - observer 집계는 기준 case에서 player damage 293, enemy damage 300, damage 파괴 5, 경계/존 파괴 0을 기록했고 observer 적용 전 terminal hash를 유지했다.
 - 병렬 runner는 case ID 정렬, worker 1~16 제한, `--keep-going`, 실패 CSV 행, numeric code/operation과 저장소 상대 repro 경로를 지원한다.
-- 승인 실행량 16/256/1,000은 `narrow`/`batch`/`exhaustive` 모드로 확장된다. 256·1,000 case 생성 계약은 독립 테스트를 통과했지만 실제 장시간 실행은 아직 미완료다.
+- 승인 실행량 16/256/1,000은 `narrow`/`batch`/`exhaustive` 모드로 확장된다. 1,000 case 생성 계약은 독립 테스트를 통과했지만 실제 장시간 실행은 아직 미완료다.
 - `placeholder_gen.py`로 아군 P·적군 E·조준 `>` PNG를 만들고 `manifest.py add`로 3개 entry를 등록했다. 전장 바닥·벽은 승인대로 `Polygon2D`/`Line2D`만 사용한다.
 - `scenes/p1_graybox_battle.tscn`과 `src/ui/battle/p1_graybox_battle.gd`를 추가하고 메인 씬에 연결했다. 3대3 진영, 현재 actor 강조, 아군 드래그 발사, 조준선·권위 예측 궤적, P1 전용 결정론 적 샷, 재시작을 제공한다.
 - 씬 추가 뒤 Godot 4.6.3 headless import·main scene smoke·manifest 3-entry 정합성이 모두 PASS했다.
 - 씬 추가 뒤 P1-5 16-case narrow를 재실행했다. 16승·실패 0, 각 52턴·17,171틱, 총 274,736틱, forced settle 0으로 PASS했다.
+- P1-5 256-case batch를 4 workers로 완료했다. 256승·실패 0, 각 52턴·17,171틱, 총 4,395,776틱, terminal hash 1종, forced settle 0으로 PASS했다. 결과 CSV는 `.gitignore` 대상 `pipeline/artifacts/p1_batch/batch_256.csv`에 있다.
 
 ### 3.4 다음 작업 실행 명령
 

@@ -157,8 +157,9 @@ P1-5 회색상자 전투 · 배치 시뮬 · P1 결정론 회귀
 - 16-case narrow: 16승, 실패 0, 각 52턴·17,171틱, terminal hash 동일, forced settle 0
 - 3대3 플레이 가능 회색상자 씬, 드래그 조준선·예상 궤적, 자동 적 턴과 manifest 등록 플레이스홀더 3종 구현 완료
 - Godot 4.6.3 import·main scene smoke·manifest 정합성 통과
+- 256-case batch: 256승, 실패 0, 각 52턴·17,171틱, 총 4,395,776틱, terminal hash 1종, forced settle 0
 - ⬜ 사람이 조준·충돌·피해·턴 길이 감각을 직접 검수
-- ⬜ 실제 batch 256 / exhaustive 1,000 및 현재 변경 기준 `verify --full` 완료
+- ⬜ 실제 exhaustive 1,000 및 현재 변경 기준 `verify --full` 완료
 
 범위 밖: P3 적 AI 품질, 콘텐츠별 승률 목표, 실제 아트·효과음, P6 최종 밸런스 판정.
 
