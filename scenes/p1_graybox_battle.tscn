@@ -1,0 +1,83 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://src/ui/battle/p1_graybox_battle.gd" id="1"]
+[ext_resource type="Script" path="res://src/ui/battle/aim_input_adapter.gd" id="2"]
+[ext_resource type="Texture2D" path="res://assets/art/ui/p1_graybox/PLACEHOLDER_aim_marker.png" id="3"]
+
+[sub_resource type="StyleBoxFlat" id="hud_panel"]
+bg_color = Color(0.055, 0.067, 0.09, 0.94)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.25, 0.32, 0.42, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[node name="P1GrayboxBattle" type="Node2D"]
+script = ExtResource("1")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+offset_right = 1152.0
+offset_bottom = 720.0
+color = Color(0.025, 0.03, 0.045, 1)
+mouse_filter = 2
+
+[node name="Battlefield" type="Node2D" parent="."]
+position = Vector2(64, 52)
+
+[node name="Floor" type="Polygon2D" parent="Battlefield"]
+polygon = PackedVector2Array(0, 0, 1024, 0, 1024, 640, 0, 640)
+color = Color(0.105, 0.125, 0.15, 1)
+
+[node name="CenterGuide" type="Line2D" parent="Battlefield"]
+points = PackedVector2Array(512, 0, 512, 640)
+width = 2.0
+default_color = Color(0.28, 0.31, 0.36, 0.6)
+
+[node name="Walls" type="Line2D" parent="Battlefield"]
+points = PackedVector2Array(0, 0, 1024, 0, 1024, 640, 0, 640, 0, 0)
+width = 4.0
+default_color = Color(0.58, 0.66, 0.78, 1)
+
+[node name="Pieces" type="Node2D" parent="Battlefield"]
+
+[node name="AimLayer" type="Node2D" parent="Battlefield"]
+
+[node name="TrajectoryLine" type="Line2D" parent="Battlefield/AimLayer"]
+width = 3.0
+default_color = Color(1, 0.82, 0.2, 0.75)
+
+[node name="AimLine" type="Line2D" parent="Battlefield/AimLayer"]
+width = 5.0
+default_color = Color(1, 0.9, 0.35, 1)
+
+[node name="AimMarker" type="Sprite2D" parent="Battlefield/AimLayer"]
+visible = false
+texture = ExtResource("3")
+
+[node name="Hud" type="PanelContainer" parent="."]
+offset_left = 80.0
+offset_top = 68.0
+offset_right = 1072.0
+offset_bottom = 136.0
+theme_override_styles/panel = SubResource("hud_panel")
+
+[node name="Margin" type="MarginContainer" parent="Hud"]
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 9
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 9
+
+[node name="Rows" type="VBoxContainer" parent="Hud/Margin"]
+
+[node name="Status" type="Label" parent="Hud/Margin/Rows"]
+text = "P1-5 회색상자 초기화 중"
+
+[node name="Help" type="Label" parent="Hud/Margin/Rows"]
+theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+
+[node name="AimInputAdapter" type="Node" parent="."]
+script = ExtResource("2")

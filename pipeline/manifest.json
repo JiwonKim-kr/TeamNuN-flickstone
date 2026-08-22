@@ -1,5 +1,63 @@
 {
   "version": 1,
   "style_guide": null,
-  "entries": []
+  "entries": [
+    {
+      "id": "art:sprites/p1_graybox_player_piece",
+      "track": "art",
+      "status": "placeholder",
+      "spec": "P1-5 회색상자 아군 기물: 48x48 RGBA, P 글리프, 청색 진영 표시",
+      "requested_by": [
+        {
+          "kind": "scene_node",
+          "path": "scenes/p1_graybox_battle.tscn::Battlefield/Pieces"
+        }
+      ],
+      "file": "assets/art/sprites/p1_graybox/PLACEHOLDER_player_piece.png",
+      "history": [
+        {
+          "at": "2026-08-22T11:17:14.562403+00:00",
+          "action": "registered"
+        }
+      ]
+    },
+    {
+      "id": "art:sprites/p1_graybox_enemy_piece",
+      "track": "art",
+      "status": "placeholder",
+      "spec": "P1-5 회색상자 적군 기물: 48x48 RGBA, E 글리프, 적색 진영 표시",
+      "requested_by": [
+        {
+          "kind": "scene_node",
+          "path": "scenes/p1_graybox_battle.tscn::Battlefield/Pieces"
+        }
+      ],
+      "file": "assets/art/sprites/p1_graybox/PLACEHOLDER_enemy_piece.png",
+      "history": [
+        {
+          "at": "2026-08-22T11:17:14.726404+00:00",
+          "action": "registered"
+        }
+      ]
+    },
+    {
+      "id": "art:ui/p1_graybox_aim_marker",
+      "track": "art",
+      "status": "placeholder",
+      "spec": "P1-5 회색상자 조준 표식: 32x32 투명 RGBA, 방향 판독용 > 글리프",
+      "requested_by": [
+        {
+          "kind": "scene_node",
+          "path": "scenes/p1_graybox_battle.tscn::Battlefield/AimLayer"
+        }
+      ],
+      "file": "assets/art/ui/p1_graybox/PLACEHOLDER_aim_marker.png",
+      "history": [
+        {
+          "at": "2026-08-22T11:17:14.899402+00:00",
+          "action": "registered"
+        }
+      ]
+    }
+  ]
 }

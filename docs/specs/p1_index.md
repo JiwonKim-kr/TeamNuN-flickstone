@@ -30,7 +30,7 @@ P1의 명세 순서와 승인 경계를 관리한다. P1의 완료 목표는 개
 | 2 | [`p1_launch_aim_prediction.md`](p1_launch_aim_prediction.md) | **approved · implemented · verified** · 2026-08-20 | 드래그 입력이 정수 명령으로 양자화되고 발사·취소·궤적 예측이 같은 계약을 사용함 |
 | 3 | [`p1_damage_resolution.md`](p1_damage_resolution.md) | **approved · implemented · verified** · 2026-08-20 | 충돌 이벤트가 승인된 공식·재충돌 규칙에 따라 체력·파괴 결과로 정산됨 |
 | 4 | [`p1_trigger_bus_battle_result.md`](p1_trigger_bus_battle_result.md) | **approved · implemented · verified** · 2026-08-22 | P1 트리거 큐, 파괴 귀속, 승패 판정이 고정 순서와 유한 처리 계약을 가짐 |
-| 5 | [`p1_batch_sim_graybox.md`](p1_batch_sim_graybox.md) | **approved** · 2026-08-22 · G-01~06 사용자 진행 승인 | 플레이스홀더 전투와 headless 배치 러너가 전투를 끝내고 결정론·CSV 수용 기준을 통과함 |
+| 5 | [`p1_batch_sim_graybox.md`](p1_batch_sim_graybox.md) | **approved · implemented · narrow verified** · 2026-08-22 · 사람 감각 검수·장시간 회귀 대기 | 플레이스홀더 전투와 headless 배치 러너가 전투를 끝내고 결정론·CSV 수용 기준을 통과함 |
 
 ```text
 P1-1 CTB · BattleState
@@ -150,6 +150,15 @@ P1-5 회색상자 전투 · 배치 시뮬 · P1 결정론 회귀
 - **확정**: RFC 4180 UTF-8 LF 고정 CSV 스키마와 결과 분포·턴 중앙값·강제 정산·실패 집계
 - **확정**: P1 전투 상태는 별도 `BattleSnapshot` schema로 분리하고 P0 `SimSnapshot` schema v1 정규 바이트를 길이와 함께 내장한다. P1 전투 필드 추가는 BattleSnapshot 버전만 올린다. (`p1_ctb_battle_state.md` C-08)
 - **확정**: terminal golden은 명시적 갱신 플래그·승인 참조 필수이며 CI 갱신 금지
+
+구현·검증 현황 (2026-08-22):
+
+- 결정론 fixture/shot supplier/battle driver/report와 CSV·golden·repro runner 구현 완료
+- 16-case narrow: 16승, 실패 0, 각 52턴·17,171틱, terminal hash 동일, forced settle 0
+- 3대3 플레이 가능 회색상자 씬, 드래그 조준선·예상 궤적, 자동 적 턴과 manifest 등록 플레이스홀더 3종 구현 완료
+- Godot 4.6.3 import·main scene smoke·manifest 정합성 통과
+- ⬜ 사람이 조준·충돌·피해·턴 길이 감각을 직접 검수
+- ⬜ 실제 batch 256 / exhaustive 1,000 및 현재 변경 기준 `verify --full` 완료
 
 범위 밖: P3 적 AI 품질, 콘텐츠별 승률 목표, 실제 아트·효과음, P6 최종 밸런스 판정.
 

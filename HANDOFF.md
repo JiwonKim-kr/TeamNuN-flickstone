@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P1-5 G-01~06 승인 완료 — 결정론 보존 성능 최적화 및 구현 진행 중** |
+| 현재 단계 | **P1-5 구현·narrow 검증 완료 — 사람 감각 검수 및 장시간 회귀 대기** |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -80,7 +80,9 @@
 - [x] `SimWorld.step` 롤백 비용 최적화 후 P0 상태·오류 원자성·해시 회귀 통과
 - [x] 최적화 후 P1-5 baseline terminal 결과와 처리시간 측정
 - [x] P1-5 core driver·batch CSV·golden·snapshot 복원·집계·repro 구현
-- [ ] P1-5 회색상자 scene·manifest placeholder 구현 및 수동 검수
+- [x] P1-5 회색상자 scene·manifest placeholder 3종 구현, Godot import·smoke·manifest 검증
+- [ ] P1-5 회색상자 사람 수동 감각 검수 (조준·충돌·피해·턴 길이)
+- [ ] P1-5 실제 batch 256 / exhaustive 1,000 및 현재 변경 기준 `verify --full`
 
 ### 3.1 P1-2 현재 작업 기록
 
@@ -116,10 +118,10 @@
 
 남은 작업:
 
-1. `SimWorld.step`의 append-only event history 재복제를 제거하되 공개 깊은 복제와 실패 원자성을 유지한다.
-2. P0·P1 전체 회귀와 P1-5 동일 fixture 계측으로 결과 불변·실행시간 개선을 확인한다.
-3. P1-5 회색상자 전투와 배치 시뮬 러너를 구현한다.
-4. 회색상자 수동 플레이 검수까지 끝내 P1 전체 완료 여부를 판정한다.
+1. Godot 편집기 또는 실행 파일로 `scenes/main.tscn`을 열고 아군 P 기물 드래그, 예상 궤적, 충돌·피해·턴 길이를 사람이 검수한다.
+2. 실제 `batch` 256과 `exhaustive` 1,000을 실행해 장시간 결정론 결과를 확정한다.
+3. 현재 P1-5 씬 변경을 포함한 Godot 활성 `verify --full`을 완료한다.
+4. 위 결과와 사람 검수 결정을 반영해 P1 전체 완료 여부를 판정한다.
 
 ### 3.3 P1-5 성능·구현 진행 기록
 
@@ -137,6 +139,27 @@
 - observer 집계는 기준 case에서 player damage 293, enemy damage 300, damage 파괴 5, 경계/존 파괴 0을 기록했고 observer 적용 전 terminal hash를 유지했다.
 - 병렬 runner는 case ID 정렬, worker 1~16 제한, `--keep-going`, 실패 CSV 행, numeric code/operation과 저장소 상대 repro 경로를 지원한다.
 - 승인 실행량 16/256/1,000은 `narrow`/`batch`/`exhaustive` 모드로 확장된다. 256·1,000 case 생성 계약은 독립 테스트를 통과했지만 실제 장시간 실행은 아직 미완료다.
+- `placeholder_gen.py`로 아군 P·적군 E·조준 `>` PNG를 만들고 `manifest.py add`로 3개 entry를 등록했다. 전장 바닥·벽은 승인대로 `Polygon2D`/`Line2D`만 사용한다.
+- `scenes/p1_graybox_battle.tscn`과 `src/ui/battle/p1_graybox_battle.gd`를 추가하고 메인 씬에 연결했다. 3대3 진영, 현재 actor 강조, 아군 드래그 발사, 조준선·권위 예측 궤적, P1 전용 결정론 적 샷, 재시작을 제공한다.
+- 씬 추가 뒤 Godot 4.6.3 headless import·main scene smoke·manifest 3-entry 정합성이 모두 PASS했다.
+- 씬 추가 뒤 P1-5 16-case narrow를 재실행했다. 16승·실패 0, 각 52턴·17,171틱, 총 274,736틱, forced settle 0으로 PASS했다.
+
+### 3.4 다음 작업 실행 명령
+
+Windows PowerShell에서 먼저 `$env:PYTHONUTF8='1'`을 설정한다.
+
+```powershell
+# 빠른 씬/manifest 확인
+python pipeline/scripts/play_test.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
+
+# P1-5 결정론 회귀
+python pipeline/tests/run_p1_batch_sim_graybox.py --mode narrow --jobs 4 --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
+python pipeline/tests/run_p1_batch_sim_graybox.py --mode batch --jobs 4 --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
+python pipeline/tests/run_p1_batch_sim_graybox.py --mode exhaustive --jobs 4 --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
+
+# 최종 통합 게이트
+python pipeline/scripts/verify.py --full --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
+```
 
 ## 4. 구현 우선순위
 
