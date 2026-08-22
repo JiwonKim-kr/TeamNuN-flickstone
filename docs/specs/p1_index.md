@@ -30,7 +30,7 @@ P1의 명세 순서와 승인 경계를 관리한다. P1의 완료 목표는 개
 | 2 | [`p1_launch_aim_prediction.md`](p1_launch_aim_prediction.md) | **approved · implemented · verified** · 2026-08-20 | 드래그 입력이 정수 명령으로 양자화되고 발사·취소·궤적 예측이 같은 계약을 사용함 |
 | 3 | [`p1_damage_resolution.md`](p1_damage_resolution.md) | **approved · implemented · verified** · 2026-08-20 | 충돌 이벤트가 승인된 공식·재충돌 규칙에 따라 체력·파괴 결과로 정산됨 |
 | 4 | [`p1_trigger_bus_battle_result.md`](p1_trigger_bus_battle_result.md) | **approved · implemented · verified** · 2026-08-22 | P1 트리거 큐, 파괴 귀속, 승패 판정이 고정 순서와 유한 처리 계약을 가짐 |
-| 5 | [`p1_batch_sim_graybox.md`](p1_batch_sim_graybox.md) | **draft** · 2026-08-22 · G-01~06 승인 대기 | 플레이스홀더 전투와 headless 배치 러너가 전투를 끝내고 결정론·CSV 수용 기준을 통과함 |
+| 5 | [`p1_batch_sim_graybox.md`](p1_batch_sim_graybox.md) | **approved** · 2026-08-22 · G-01~06 사용자 진행 승인 | 플레이스홀더 전투와 headless 배치 러너가 전투를 끝내고 결정론·CSV 수용 기준을 통과함 |
 
 ```text
 P1-1 CTB · BattleState
@@ -143,13 +143,13 @@ P1-5 회색상자 전투 · 배치 시뮬 · P1 결정론 회귀
 - 동일 시드·입력 반복, 삽입 순서 교란, snapshot 복원 후 진행의 P1 결정론 회귀
 - `pipeline/tests/run_*.py` 자동 발견과 `verify --full` 편입
 
-승인 대기:
+승인 완료:
 
-- ⬜ P1 전용 샷 공급 정책과 입력 fixture 형식
-- ⬜ 배치 수, 전투 최대 턴, 교착 판정·종료 규칙
-- ⬜ CSV 스키마와 필수 집계 지표
+- **확정**: 가장 가까운 적 중심·power step 192의 P1 전용 샷 공급 정책과 정수 fixture schema v1
+- **확정**: narrow 16 / 기본 256 / exhaustive 1,000, 전투 최대 128턴, 교착·turn limit 실패 처리
+- **확정**: RFC 4180 UTF-8 LF 고정 CSV 스키마와 결과 분포·턴 중앙값·강제 정산·실패 집계
 - **확정**: P1 전투 상태는 별도 `BattleSnapshot` schema로 분리하고 P0 `SimSnapshot` schema v1 정규 바이트를 길이와 함께 내장한다. P1 전투 필드 추가는 BattleSnapshot 버전만 올린다. (`p1_ctb_battle_state.md` C-08)
-- ⬜ P1 회귀 골든의 갱신 승인 절차
+- **확정**: terminal golden은 명시적 갱신 플래그·승인 참조 필수이며 CI 갱신 금지
 
 범위 밖: P3 적 AI 품질, 콘텐츠별 승률 목표, 실제 아트·효과음, P6 최종 밸런스 판정.
 

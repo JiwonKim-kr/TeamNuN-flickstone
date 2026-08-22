@@ -2,12 +2,13 @@
 
 | 항목 | 값 |
 |---|---|
-| status | **draft** |
+| status | **approved** |
 | drafted | 2026-08-22 |
+| approved | 2026-08-22 · 사용자 진행 승인 |
 | phase | P1 · 전투 루프 |
 | 선행 명세 | P0-1~4, P1-1~4 승인·구현·검증 완료 |
 | 후속 단계 | P2 콘텐츠 기반 · P3 AI |
-| 구현 권한 | **없음 — G-01~06 사람 승인 대기** |
+| 구현 권한 | **있음 — G-01~06 승인 범위** |
 
 ## 목적
 
@@ -59,16 +60,16 @@
 | repro artifact | 실패 case를 단독 재실행할 수 있는 정수 전용 JSON |
 | infrastructure failure | `SimStatus` 오류, RESOLVE deadlock, turn limit, fixture 오류, CSV 쓰기 실패. 정상 `BattleResult`와 구분 |
 
-## 결정 목록 — 승인 대기
+## 결정 목록 — 승인 완료
 
 | ID | 결정 | 권장안 | 상태 |
 |---|---|---|---|
-| G-01 | batch shot supplier와 입력 fixture | 가장 가까운 적의 중심을 향해 power step 192로 발사. 거리 동률은 body ID. 적이 없거나 유효 명령 생성 실패만 forced-no-launch. fixture는 정수 전용 schema v1 | ⬜ 승인 대기 |
-| G-02 | 회색상자 encounter 값 | P1 회귀 fixture로만 3대3, 직사각형 WALL 전장 1,024×640, 반지름 32·무게 64, HP 100·공격 20, 속도 80/100/125를 양 팀 대칭 배치 | ⬜ 승인 대기 |
-| G-03 | 실행량·종료 경계 | narrow 16전투, 기본 batch 256전투, exhaustive 1,000전투. 전투당 128턴 한도. core `RESOLVE_DEADLOCK` 또는 turn limit는 정상 결과로 접지 않고 실패 | ⬜ 승인 대기 |
-| G-04 | CSV schema와 집계 | 아래 고정 열 순서, RFC 4180, UTF-8 LF, 정수/고정 enum만 사용. stdout 요약에 결과 분포·턴 중앙값·강제 정산·실패 수 | ⬜ 승인 대기 |
-| G-05 | P1 terminal golden | 승인된 fixture의 case별 result·turn·tick·terminal hash를 JSON으로 체크인. 명시적 갱신 플래그와 승인 참조 필수, CI 갱신 금지 | ⬜ 승인 대기 |
-| G-06 | 씬·플레이스홀더 범위 | 전장 1, 아군/적 기물 각 1종, aim marker 1종의 PNG placeholder만 생성·manifest 등록. 효과음 없음 | ⬜ 승인 대기 |
+| G-01 | batch shot supplier와 입력 fixture | 가장 가까운 적의 중심을 향해 power step 192로 발사. 거리 동률은 body ID. 적이 없거나 유효 명령 생성 실패만 forced-no-launch. fixture는 정수 전용 schema v1 | ✅ 승인 |
+| G-02 | 회색상자 encounter 값 | P1 회귀 fixture로만 3대3, 직사각형 WALL 전장 1,024×640, 반지름 32·무게 64, HP 100·공격 20, 속도 80/100/125를 양 팀 대칭 배치 | ✅ 승인 |
+| G-03 | 실행량·종료 경계 | narrow 16전투, 기본 batch 256전투, exhaustive 1,000전투. 전투당 128턴 한도. core `RESOLVE_DEADLOCK` 또는 turn limit는 정상 결과로 접지 않고 실패 | ✅ 승인 |
+| G-04 | CSV schema와 집계 | 아래 고정 열 순서, RFC 4180, UTF-8 LF, 정수/고정 enum만 사용. stdout 요약에 결과 분포·턴 중앙값·강제 정산·실패 수 | ✅ 승인 |
+| G-05 | P1 terminal golden | 승인된 fixture의 case별 result·turn·tick·terminal hash를 JSON으로 체크인. 명시적 갱신 플래그와 승인 참조 필수, CI 갱신 금지 | ✅ 승인 |
+| G-06 | 씬·플레이스홀더 범위 | 전장 1, 아군/적 기물 각 1종, aim marker 1종의 PNG placeholder만 생성·manifest 등록. 효과음 없음 | ✅ 승인 |
 
 G-02의 전장 크기·3대3·HP·공격은 정식 D-03/U-34/U-36 값을 확정하지 않는다. fixture ID에 `p1_graybox_v1`을 포함하고 제품 데이터와 분리한다. 향후 정식 콘텐츠가 정해져도 P1 회귀 fixture는 호환성 기준으로 유지한다.
 
@@ -292,7 +293,7 @@ HANDOFF.md
 16. Godot 활성 `pipeline/scripts/verify.py --full`이 통과한다.
 17. 사람이 회색상자 전투를 직접 플레이해 조준·충돌·피해·턴 길이의 감각을 승인하거나 조정 항목을 기록한다.
 
-## 구현 순서 — 승인 뒤
+## 구현 순서
 
 1. 독립 Python reference와 fixture/golden schema를 먼저 고정한다.
 2. fixture 값 객체·loader와 오류 계약을 구현한다.
@@ -304,9 +305,9 @@ HANDOFF.md
 8. narrow → P1-1~4 → P0 → exhaustive → `verify --full` 순서로 검증한다.
 9. 사람 전투 감각 검수 뒤 P1 전체 완료 여부를 판정한다.
 
-## 승인 요청
+## 승인 기록
 
-다음 여섯 결정을 한 묶음 또는 항목별로 승인받는다.
+다음 여섯 결정은 2026-08-22 사용자 진행 지시로 한 묶음 승인되었다.
 
 1. G-01 가장 가까운 적·power 192 shot supplier와 정수 fixture schema
 2. G-02 정식 콘텐츠와 분리된 대칭 3대3 회귀 encounter 값
@@ -315,4 +316,4 @@ HANDOFF.md
 5. G-05 terminal golden·명시적 갱신 승인 절차
 6. G-06 플레이스홀더 3종과 scene 범위
 
-승인 전에는 이 문서를 `draft`로 유지하고 `src/core/`, scene, fixture, manifest를 구현하지 않는다.
+승인 범위 밖 변경은 별도 재승인을 받는다.
