@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "approval_ref": "P1-5",
+  "cases": [
+    {
+      "case_id": 1,
+      "result": 1,
+      "turn_count": 52,
+      "sim_tick_count": 17171,
+      "terminal_hash": "ea819aa9acc94f2cf115d7446fd05da76fbe396cadb8c1405715e5f5ff7b3df6"
+    },
+    {
+      "case_id": 2,
+      "result": 1,
+      "turn_count": 52,
+      "sim_tick_count": 17171,
+      "terminal_hash": "ea819aa9acc94f2cf115d7446fd05da76fbe396cadb8c1405715e5f5ff7b3df6"
+    },
+    {
+      "case_id": 3,
+      "result": 1,
+      "turn_count": 52,
+      "sim_tick_count": 17171,
+      "terminal_hash": "ea819aa9acc94f2cf115d7446fd05da76fbe396cadb8c1405715e5f5ff7b3df6"
+    }
+  ]
+}

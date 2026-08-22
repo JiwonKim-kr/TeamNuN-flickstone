@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "fixture_id": "p1_graybox_v1",
+  "boundary": [[0, 0], [1024, 0], [1024, 640], [0, 640]],
+  "combatants": [
+    {"stable_key": 10, "faction": 1, "position": [337, 320], "speed_stat": 80, "radius": 32, "mass": 64, "hp": 100, "attack": 20},
+    {"stable_key": 20, "faction": 1, "position": [407, 320], "speed_stat": 100, "radius": 32, "mass": 64, "hp": 100, "attack": 20},
+    {"stable_key": 30, "faction": 1, "position": [477, 320], "speed_stat": 125, "radius": 32, "mass": 64, "hp": 100, "attack": 20},
+    {"stable_key": 40, "faction": 2, "position": [547, 320], "speed_stat": 80, "radius": 32, "mass": 64, "hp": 100, "attack": 20},
+    {"stable_key": 50, "faction": 2, "position": [617, 320], "speed_stat": 100, "radius": 32, "mass": 64, "hp": 100, "attack": 20},
+    {"stable_key": 60, "faction": 2, "position": [687, 320], "speed_stat": 125, "radius": 32, "mass": 64, "hp": 100, "attack": 20}
+  ],
+  "cases": [
+    {"case_id": 1, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 0, "restore_after_turn": 0},
+    {"case_id": 2, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 1, "restore_after_turn": 0},
+    {"case_id": 3, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 0, "restore_after_turn": 10}
+  ]
+}

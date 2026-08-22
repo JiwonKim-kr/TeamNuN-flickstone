@@ -130,6 +130,9 @@
 - 승인 문서에 초기 좌표가 지정되지 않았으므로 전장·3대3·스탯·power를 유지한 중앙 근접 대칭 대형을 사용한다. 목적은 동일 물리에서 무충돌 이동 턴을 줄이는 것이다.
 - 최적화·근접 대형 baseline은 52턴·17,171틱·123,480ms에 `PLAYER_VICTORY`로 끝났고 terminal hash는 `ea819aa9acc94f2cf115d7446fd05da76fbe396cadb8c1405715e5f5ff7b3df6`이다.
 - Godot 활성 `verify --full`은 P1-5 baseline 이전 단계와 P0 결정론 골든·N=9·삽입 순열까지 PASS를 확인했다. 이후 P0 1,000회 반복이 24분을 초과해 이번 실행은 중단했으며 전체 PASS 체크는 아직 미완료다.
+- P1-5 fixture schema v1 검증, RFC 4180 UTF-8 LF CSV writer, 승인 참조가 필요한 golden 갱신과 CI 갱신 거부를 구현했다.
+- 기준·역순 삽입·10턴 snapshot round-trip 3개 case는 모두 52턴·17,171틱·동일 terminal hash로 PASS했다. 일반 실행의 체크인 golden 비교도 PASS했다.
+- 현재 자동 case 세트는 구현 증분 검증용 3개다. 승인된 narrow 16개, 기본 256개, exhaustive 1,000개 확장과 병렬 실행, damage/파괴 집계, failure repro는 아직 남아 있다.
 
 ## 4. 구현 우선순위
 
