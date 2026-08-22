@@ -79,7 +79,7 @@
 - [x] P1-5 최초 프로토타입 계측: 3v3 단일 전투가 5분 제한 초과, 40턴·생존 6·총 HP 309 확인
 - [x] `SimWorld.step` 롤백 비용 최적화 후 P0 상태·오류 원자성·해시 회귀 통과
 - [x] 최적화 후 P1-5 baseline terminal 결과와 처리시간 측정
-- [ ] P1-5 core driver·batch CSV·golden·snapshot 복원 회귀 구현
+- [x] P1-5 core driver·batch CSV·golden·snapshot 복원·집계·repro 구현
 - [ ] P1-5 회색상자 scene·manifest placeholder 구현 및 수동 검수
 
 ### 3.1 P1-2 현재 작업 기록
@@ -132,7 +132,11 @@
 - Godot 활성 `verify --full`은 P1-5 baseline 이전 단계와 P0 결정론 골든·N=9·삽입 순열까지 PASS를 확인했다. 이후 P0 1,000회 반복이 24분을 초과해 이번 실행은 중단했으며 전체 PASS 체크는 아직 미완료다.
 - P1-5 fixture schema v1 검증, RFC 4180 UTF-8 LF CSV writer, 승인 참조가 필요한 golden 갱신과 CI 갱신 거부를 구현했다.
 - 기준·역순 삽입·10턴 snapshot round-trip 3개 case는 모두 52턴·17,171틱·동일 terminal hash로 PASS했다. 일반 실행의 체크인 golden 비교도 PASS했다.
-- 현재 자동 case 세트는 구현 증분 검증용 3개다. 승인된 narrow 16개, 기본 256개, exhaustive 1,000개 확장과 병렬 실행, damage/파괴 집계, failure repro는 아직 남아 있다.
+- 초기 구현 증분은 3-case였으며, 아래 단계에서 승인된 narrow 16개와 집계·repro 경계로 확장했다.
+- 위 3-case 증분을 16-case narrow로 확장했다. 4 workers 실행에서 16승, 각 52턴·17,171틱·동일 terminal hash, 총 274,736틱, forced settle 0으로 PASS했다.
+- observer 집계는 기준 case에서 player damage 293, enemy damage 300, damage 파괴 5, 경계/존 파괴 0을 기록했고 observer 적용 전 terminal hash를 유지했다.
+- 병렬 runner는 case ID 정렬, worker 1~16 제한, `--keep-going`, 실패 CSV 행, numeric code/operation과 저장소 상대 repro 경로를 지원한다.
+- 승인 실행량 16/256/1,000은 `narrow`/`batch`/`exhaustive` 모드로 확장된다. 256·1,000 case 생성 계약은 독립 테스트를 통과했지만 실제 장시간 실행은 아직 미완료다.
 
 ## 4. 구현 우선순위
 

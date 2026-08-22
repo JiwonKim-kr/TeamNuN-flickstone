@@ -3,6 +3,27 @@ extends RefCounted
 
 const TURN_LIMIT := 128
 
+
+static func _faction_for(body_id: int, participants: Array[BattleParticipant]) -> int:
+	for item: BattleParticipant in participants:
+		if item.body_id() == body_id: return item.faction()
+	return BattleParticipant.Faction.INVALID
+
+
+static func _observe_transition(state: BattleState, participants: Array[BattleParticipant], metrics: Array[int], status: SimStatus) -> void:
+	for index: int in range(state.trigger_record_count()):
+		var record := state.trigger_record_at(index, status)
+		if record.trigger_id() == BattleTriggerId.Value.ON_HIT_DEAL:
+			var faction := _faction_for(record.subject_body_id(), participants)
+			if faction == BattleParticipant.Faction.PLAYER: metrics[0] += record.value_a()
+			elif faction == BattleParticipant.Faction.ENEMY: metrics[1] += record.value_a()
+			else: status.fail(SimStatus.Code.INVALID_BATTLE_REPORT, SimStatus.Operation.BATTLE_REPORT_CREATE, record.subject_body_id(), faction)
+		elif record.trigger_id() == BattleTriggerId.Value.ON_DEATH_SELF:
+			match record.cause_id():
+				SimEvent.CauseId.DAMAGE: metrics[2] += 1
+				SimEvent.CauseId.KILL_BOUNDARY: metrics[3] += 1
+				SimEvent.CauseId.KILL_ZONE: metrics[4] += 1
+
 static func run(state: BattleState, status: SimStatus) -> P1BattleReport:
 	return run_with_restore_after_turn(state, 0, status)
 
@@ -12,7 +33,9 @@ static func run_with_restore_after_turn(state: BattleState, restore_after_turn: 
 		status.fail(SimStatus.Code.INVALID_ARGUMENT, SimStatus.Operation.BATTLE_DRIVER_ADVANCE, restore_after_turn, TURN_LIMIT)
 		return P1BattleReport.new()
 	var turns := 0
-	var forced_count := 0
+	var metrics: Array[int] = [0, 0, 0, 0, 0, 0]
+	var initial_participants: Array[BattleParticipant] = []
+	for index: int in range(state.participant_count()): initial_participants.append(state.participant_at(index, status))
 	var restored := false
 	while status.is_ok() and state.phase() != BattleState.Phase.BATTLE_END:
 		match state.phase():
@@ -26,7 +49,7 @@ static func run_with_restore_after_turn(state: BattleState, restore_after_turn: 
 				turns += 1
 			BattleState.Phase.RESOLVE:
 				var was_forced := state.forced_settle_used(); state.advance_resolve(status)
-				if not was_forced and state.forced_settle_used(): forced_count += 1
+				if not was_forced and state.forced_settle_used(): metrics[5] += 1
 			BattleState.Phase.TURN_END: state.complete_turn_end(status)
 			BattleState.Phase.CHECK:
 				state.resolve_check(status)
@@ -35,6 +58,7 @@ static func run_with_restore_after_turn(state: BattleState, restore_after_turn: 
 					state = BattleSnapshot.decode(bytes, status).restore_state(status)
 					restored = status.is_ok()
 			_: status.fail(SimStatus.Code.INVALID_PHASE, SimStatus.Operation.BATTLE_DRIVER_ADVANCE, state.phase(), 0)
+		if status.is_ok(): _observe_transition(state, initial_participants, metrics, status)
 	if status.is_ok() and restore_after_turn > 0 and not restored:
 		status.fail(SimStatus.Code.INVALID_BATTLE_REPORT, SimStatus.Operation.BATTLE_DRIVER_ADVANCE, restore_after_turn, turns)
-	return P1BattleReport.create(state, turns, forced_count, status) if status.is_ok() else P1BattleReport.new()
+	return P1BattleReport.create(state, turns, metrics, status) if status.is_ok() else P1BattleReport.new()

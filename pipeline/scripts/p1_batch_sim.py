@@ -77,6 +77,7 @@ def load_fixture(path: Path) -> tuple[str, list[BattleCase]]:
     combatants = data["combatants"]
     if not isinstance(combatants, list) or len(combatants) != 6: raise ValueError("fixture must contain 6 combatants")
     stable_keys: set[int] = set(); faction_counts = {1: 0, 2: 0}
+    validated: list[tuple[int, int, int, int, int]] = []
     for index, item in enumerate(combatants):
         if not isinstance(item, dict): raise ValueError(f"combatants[{index}] must be object")
         _exact_keys(item, COMBATANT_KEYS, f"combatants[{index}]")
@@ -86,10 +87,23 @@ def load_fixture(path: Path) -> tuple[str, list[BattleCase]]:
         faction = _integer(item["faction"], "faction", 1, 2); faction_counts[faction] += 1
         position = item["position"]
         if not isinstance(position, list) or len(position) != 2: raise ValueError("position must be [x,y]")
-        _integer(position[0], "position.x", 33, 991); _integer(position[1], "position.y", 33, 607)
+        x = _integer(position[0], "position.x", 33, 991); y = _integer(position[1], "position.y", 33, 607)
         if item["radius"] != 32 or item["mass"] != 64 or item["hp"] != 100 or item["attack"] != 20: raise ValueError("combatant constants mismatch")
-        _integer(item["speed_stat"], "speed_stat", 50, 200)
+        speed = _integer(item["speed_stat"], "speed_stat", 50, 200)
+        validated.append((faction, x, y, item["radius"], speed))
     if faction_counts != {1: 3, 2: 3}: raise ValueError("fixture must be symmetric 3v3")
+    for left_index, left in enumerate(validated):
+        for right in validated[left_index + 1:]:
+            if (left[1] - right[1]) ** 2 + (left[2] - right[2]) ** 2 <= (left[3] + right[3]) ** 2:
+                raise ValueError("combatant circles overlap or touch")
+    players = [(x, y, speed) for faction, x, y, _, speed in validated if faction == 1]
+    enemies = [(x, y, speed) for faction, x, y, _, speed in validated if faction == 2]
+    if (
+        sorted((item[0], item[1]) for item in players) != sorted((1024 - item[0], item[1]) for item in enemies)
+        or sorted(item[2] for item in players) != [80, 100, 125]
+        or sorted(item[2] for item in enemies) != [80, 100, 125]
+    ):
+        raise ValueError("fixture teams must be X-axis symmetric with speeds 80/100/125")
     cases: list[BattleCase] = []; case_ids: set[int] = set()
     if not isinstance(data["cases"], list) or not data["cases"]: raise ValueError("cases must be non-empty")
     for index, item in enumerate(data["cases"]):
@@ -99,6 +113,16 @@ def load_fixture(path: Path) -> tuple[str, list[BattleCase]]:
         if case.case_id in case_ids: raise ValueError("duplicate case_id")
         case_ids.add(case.case_id); cases.append(case)
     return data["fixture_id"], cases
+
+
+def expand_cases(cases: list[BattleCase], count: int) -> list[BattleCase]:
+    if len(cases) != 16 or count not in (16, 256, 1000):
+        raise ValueError("approved batch sizes require 16 fixture cases and count 16/256/1000")
+    result: list[BattleCase] = []
+    for index in range(count):
+        template = cases[index % len(cases)]
+        result.append(BattleCase(index + 1, template.seed_hi, template.seed_lo, template.insertion_variant, template.restore_after_turn))
+    return result
 
 
 def write_csv(path: Path, rows: list[BatchRow]) -> None:
@@ -119,8 +143,25 @@ def read_goldens(path: Path) -> dict[int, dict[str, Any]]:
     return {item["case_id"]: item for item in data["cases"]}
 
 
-def update_goldens(path: Path, rows: list[BatchRow], approval_ref: str, *, ci: bool) -> None:
+def update_goldens(path: Path, rows: list[BatchRow], approval_ref: str, *, ci: bool) -> list[str]:
     if ci or not approval_ref: raise ValueError("golden update requires approval-ref and is forbidden in CI")
+    previous = read_goldens(path) if path.is_file() else {}
     payload = {"schema_version": 1, "approval_ref": approval_ref, "cases": [golden_value(row) for row in sorted(rows, key=lambda item: item.case_id)]}
+    with path.open("w", encoding="utf-8", newline="\n") as stream:
+        stream.write(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+    changes: list[str] = []
+    for item in payload["cases"]:
+        old = previous.get(item["case_id"])
+        changes.append(f"GOLDEN case={item['case_id']} old={json.dumps(old, sort_keys=True)} new={json.dumps(item, sort_keys=True)}")
+    return changes
+
+
+def write_repro(path: Path, fixture_id: str, case: BattleCase, stage: str, failure_code: int, failure_operation: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": 1, "fixture_id": fixture_id, **asdict(case),
+        "failure_stage": stage, "failure_code": failure_code,
+        "failure_operation": failure_operation, "last_snapshot_hex": "",
+    }
     with path.open("w", encoding="utf-8", newline="\n") as stream:
         stream.write(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")

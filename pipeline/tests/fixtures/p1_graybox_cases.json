@@ -13,6 +13,19 @@
   "cases": [
     {"case_id": 1, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 0, "restore_after_turn": 0},
     {"case_id": 2, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 1, "restore_after_turn": 0},
-    {"case_id": 3, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 0, "restore_after_turn": 10}
+    {"case_id": 3, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 0, "restore_after_turn": 10},
+    {"case_id": 4, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 1, "restore_after_turn": 10},
+    {"case_id": 5, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 0, "restore_after_turn": 5},
+    {"case_id": 6, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 1, "restore_after_turn": 5},
+    {"case_id": 7, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 0, "restore_after_turn": 20},
+    {"case_id": 8, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 1, "restore_after_turn": 20},
+    {"case_id": 9, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 0, "restore_after_turn": 30},
+    {"case_id": 10, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 1, "restore_after_turn": 30},
+    {"case_id": 11, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 0, "restore_after_turn": 40},
+    {"case_id": 12, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 1, "restore_after_turn": 40},
+    {"case_id": 13, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 0, "restore_after_turn": 50},
+    {"case_id": 14, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 1, "restore_after_turn": 50},
+    {"case_id": 15, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 0, "restore_after_turn": 1},
+    {"case_id": 16, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 1, "restore_after_turn": 1}
   ]
 }
