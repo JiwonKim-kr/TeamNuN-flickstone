@@ -29,7 +29,7 @@ P1의 명세 순서와 승인 경계를 관리한다. P1의 완료 목표는 개
 | 1 | [`p1_ctb_battle_state.md`](p1_ctb_battle_state.md) | **approved · implemented · verified** · 2026-08-20 | 안정 ID 기반 CTB와 전투 상태 머신이 입력 대기부터 물리 해결 종료까지 결정론적으로 진행됨 |
 | 2 | [`p1_launch_aim_prediction.md`](p1_launch_aim_prediction.md) | **approved · implemented · verified** · 2026-08-20 | 드래그 입력이 정수 명령으로 양자화되고 발사·취소·궤적 예측이 같은 계약을 사용함 |
 | 3 | [`p1_damage_resolution.md`](p1_damage_resolution.md) | **approved · implemented · verified** · 2026-08-20 | 충돌 이벤트가 승인된 공식·재충돌 규칙에 따라 체력·파괴 결과로 정산됨 |
-| 4 | `p1_trigger_bus_battle_result.md` | **미작성** | P1 트리거 큐, 파괴 귀속, 승패 판정이 고정 순서와 유한 처리 계약을 가짐 |
+| 4 | [`p1_trigger_bus_battle_result.md`](p1_trigger_bus_battle_result.md) | **approved** · 2026-08-22 · T-01 구현·정적 검증 완료, Godot narrow 대기 | P1 트리거 큐, 파괴 귀속, 승패 판정이 고정 순서와 유한 처리 계약을 가짐 |
 | 5 | `p1_batch_sim_graybox.md` | **미작성** | 플레이스홀더 전투와 headless 배치 러너가 전투를 끝내고 결정론·CSV 수용 기준을 통과함 |
 
 ```text

@@ -1,6 +1,6 @@
 # HANDOFF — Flickstone 프로젝트 인수 문서
 
-> 최종 갱신: 2026-08-20
+> 최종 갱신: 2026-08-22
 > 규칙은 `CLAUDE.md`, 명령 범위는 `docs/command-catalog.md`, 게임 설계는 `docs/design/game_design.md`를 정본으로 삼는다.
 
 ## 1. 프로젝트 한 줄 요약
@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P1-2 전체 검증 완료 — P1-3 피해 해결 초안 작성·승인 대기** |
+| 현재 단계 | **P1-4 전체 명세 승인 — T-01 구현·정적 검증 완료, Godot narrow 대기** |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -72,7 +72,9 @@
 - [x] P1-2 독립 Python KAT·fixture와 Godot 수용 테스트 15개 통과
 - [x] P1-1, P0-1~4 narrow 회귀 통과. P0-4는 1,000회 반복·입력 순열 포함
 - [x] P1-2 반영 상태의 Godot 4.6.3 `verify --full` 완료 — lore 미초기화 1게이트 정상 SKIP, 나머지 통과·러너 13종 전부 통과
-- [x] P1-3 피해 해결 초안과 R-01~10 승인 결정 작성 (`docs/specs/p1_damage_resolution.md`)
+- [x] P1-3 피해 해결 R-01~10 승인, 구현, 독립 기준값·Godot 수용·전체 회귀 검증 완료 (`docs/specs/p1_damage_resolution.md`)
+- [x] P1-4 트리거 버스/파괴 귀속/전투 결과 초안과 T-01~10 승인 결정 작성 (`docs/specs/p1_trigger_bus_battle_result.md`)
+- [x] P1-4 T-01~10 전체 명세 승인 (`docs/specs/p1_trigger_bus_battle_result.md`)
 
 ### 3.1 P1-2 현재 작업 기록
 
@@ -93,21 +95,26 @@
 - `run_p1_launch_aim_prediction.py`: `verify --full` 자동 발견 narrow runner
 - `p1_launch_reference.py`·`p1_launch_vectors.json`: codec·파워·무게별 속도의 독립 기준값
 
-### 3.2 P1-3 현재 작업 기록
+### 3.2 P1-4 현재 작업 기록
 
-- `BODY_COLLIDED`가 충돌 직전 접근속도만 보존하고 두 기물의 속력 대소·질량 쌍은 보존하지 않는 구현 제약을 확인했다.
-- 충돌 뒤 같은 스텝의 소멸 처리로 body가 먼저 제거될 수 있어, 피해 계산에 필요한 충돌 시점 질량도 사건에 보존해야 함을 확인했다.
-- 기존 event 고정 레이아웃을 유지하면서 `value_b`와 `flags`에 충돌 사실을 추가하는 권장안을 작성했다. 이 변경은 P0 golden hash 재고정과 P0-2~4 전체 회귀 승인이 필요하다.
-- 별도 `BattleCombatant`, 순수 `DamageCalculator`, pair cooldown, 공통 `BODY_DESTROYED/DAMAGE`, BattleSnapshot v2 경계를 초안에 명시했다.
-- U-32·U-33 수치와 동률·동일 스텝 정산을 R-01~10 승인 결정으로 분리했다.
+- P1-3 사건 소비 시 파괴된 participant/combatant가 즉시 제거되므로, P1-4가 사망·처치 근거를 제거 전에 불변 레코드로 보존해야 하는 구현 제약을 확인했다.
+- 확정 TriggerId, 물리·phase 발생 경계, 같은 시점 전체 순서, 폭 우선 wave와 유한 처리 한도를 T-01~03으로 분리했다.
+- 직접 충돌 가해자와 행동의 운동 root를 분리한 연쇄·환경 처치 귀속, `counts_for_victory`/중립 제외 승패, 동시 전멸 결과를 T-04~05로 분리했다.
+- 외부 directive가 승패를 주입하는 P1-1 임시 API를 권위 `resolve_check()`와 검증 wrapper로 전환하는 migration을 T-06으로 제안했다.
+- U-23은 record별 비소비 서브스트림과 전투 wrapper의 0%·100%·단일 후보 무소비 처리로 제안했다. 저수준 P0 `SimRng` 계약은 바꾸지 않는다.
+- `BattleSnapshot` v3, append-only 진단, 독립 Python KAT·Godot narrow·전체 회귀를 T-08~10으로 분리했다.
+- P1 인덱스의 “능력 등록”은 효과·콘텐츠 데이터가 없는 P1-4 범위와 충돌하므로, 실제 등록을 후속 데이터 기반 능력 단계로 미루는 수정안을 T-01 승인 항목에 명시했다.
+- T-01 `BattleTriggerId` 1~13과 `BattleTriggerRecord` 고정 레이아웃·깊은 복제·PASSIVE record 거부를 구현했다.
+- `SimStatus` Code 28 / Operation 97을 append-only로 추가하고 P1-4 narrow runner를 `verify --full` 자동 발견에 편입했다.
+- T-01 static narrow와 `verify --full --skip-godot` 러너 15종은 통과했다. 현재 환경에서 Godot 실행 파일을 찾지 못해 실제 GDScript narrow는 대기 중이다.
 
 남은 작업:
 
-1. 사용자가 P1-3 R-01~10, 특히 P0 payload migration·피해 수치·동시성 규칙을 승인하거나 수정한다.
-2. 승인 뒤 충돌 사실 payload와 P0 golden 회귀부터 구현한다.
-3. 피해 전투원·순수 계산기·cooldown·공통 파괴·BattleSnapshot v2를 구현한다.
-4. P1-3 narrow → 영향받은 P0/P1 narrow → Godot 활성 `verify --full` 순으로 검증한다.
-5. 커밋은 사용자가 요청하거나 구현 결과를 승인한 경우에만 수행한다.
+1. Godot 4.6.x 실행 파일이 제공되면 T-01 narrow를 실제 실행한다.
+2. 사용자 별도 구현 요청을 받은 뒤 T-02 발생 조건·전체 순서부터 진행한다.
+3. 이후 버스 → 사건 결합 → 귀속/결과/RNG → snapshot 순으로 구현한다.
+4. 각 slice narrow 뒤 P1-1~3/P0 회귀와 Godot 활성 `verify --full`을 실행한다.
+5. P1-4 전체 검증 뒤 P1-5 회색상자/배치 시뮬 명세로 넘어간다.
 
 ## 4. 구현 우선순위
 
