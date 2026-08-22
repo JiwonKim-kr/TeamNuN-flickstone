@@ -1,6 +1,6 @@
 # HANDOFF — Flickstone 프로젝트 인수 문서
 
-> 최종 갱신: 2026-08-22
+> 최종 갱신: 2026-08-23
 > 규칙은 `CLAUDE.md`, 명령 범위는 `docs/command-catalog.md`, 게임 설계는 `docs/design/game_design.md`를 정본으로 삼는다.
 
 ## 1. 프로젝트 한 줄 요약
@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P1-5 구현·narrow 검증 완료 — 사람 감각 검수 및 장시간 회귀 대기** |
+| 현재 단계 | **P1 완료 — P2 콘텐츠 기반·P3 AI 착수 가능** |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -23,14 +23,14 @@
 | PRNG | `xoshiro128**` 4×uint32, 64비트 런 시드, 키 기반 비소비 서브스트림, rejection sampling. U-23 승인 전에는 단일값 범위·0%·100% 호출을 거부 |
 | 반올림 | 최근접, 절반은 0에서 먼 방향. 암묵적 절삭·포화·조용한 clamp 금지, 오류는 실패 처리 |
 | 고정 스텝 | 120Hz, 정확한 유리수 `1/120`, 시간·입력은 정수 틱, 권위 시뮬레이션 틱 폐기 금지 |
-| P0 이동 감쇠 | 기본 마찰 5/2초⁻¹, 기본 배율 1, 정지 임계 1/2. 외부 가속도가 없는 틱에서만 정지 처리 |
+| P0 이동 감쇠 | 기본 마찰 3/2초⁻¹, 기본 배율 1, 정지 임계 1/2. 외부 가속도가 없는 틱에서만 정지 처리 |
 | 존 중첩 | `zone_id` 오름차순, 마찰 배율은 순서 곱, 가속도는 순서 합. P0 override 없음, 안전 범위 초과 실패 |
 | 시뮬레이션 ID | body·zone 별도 uint32, 0 무효, 월드별 단조 증가·비재사용, 안정 정렬 후 할당, 복제 시 카운터 보존 |
 | SimEvent | 정수 공통 헤더·관계 ID·고정 payload, 불변 append-only 큐, sequence/cursor 정본, 동적 payload 금지 |
 | 소멸 진입 | 기물 중심점 기준, 경계선 위 안전, 서브스텝 선분 검사와 최초 교차 사용 |
 | P0 폴리곤 | 외곽은 시계 방향 단순 볼록 3~64정점, 내부 존은 단순 오목 허용, 비정상 데이터 로드 실패 |
 | 벽 모서리 | 관입 깊이↓·edge index↑로 전 접촉 처리, 꼭짓점 전용 법선, 재검사 64회 미해소 시 실패 |
-| P0 충돌값 | 반발 17/20, 반지름 8~128(기본 32), 무게 1~256(기본 64), 시험 속도 512/1,024/2,048/4,096 |
+| P0 충돌값 | 반발 19/20, 반지름 8~128(기본 32), 무게 1~256(기본 64), 시험 속도 512/1,024/1,536/2,048/4,096 |
 | 서브스텝 | 월드 공통 이동량/(최소 반지름/2), 1~16, 위치만 유리수 분할, 초과 시 이동 전 실패 |
 | destructible | P0부터 저장·해시, 일반 파괴만 확인, 소멸은 무시, BODY_DESTROYED 공통·cause만 구분, 관리 제거 별도 |
 | P0 상태 해시 | 정규 SimSnapshot 바이트의 SHA-256, 내부 32바이트·외부 소문자 64 hex, 게임 판정·RNG 재사용 금지 |
@@ -38,7 +38,7 @@
 | 작업 흐름 | `play spec` 승인 → `play build` → `play test` → `verify` → `review` |
 | 승인 지점 | play spec 승인 / art lock / review — **생략 불가** |
 | 에셋 정책 | P0·P1은 매니페스트에 등록한 플레이스홀더만 사용 |
-| 아트·사운드 시작 | 전투 감각을 검증한 다음 `art lock`, `art gen`, SE 작업 시작 |
+| 아트·사운드 시작 | 전투 감각 승인 완료. `art lock`, `art gen`, SE는 별도 요청·승인 절차로 시작 |
 | CI | GitHub Actions에서 Godot 4.6.3 기준 `verify --full` 실행 |
 
 ## 3. 현재 저장소 상태
@@ -81,9 +81,10 @@
 - [x] 최적화 후 P1-5 baseline terminal 결과와 처리시간 측정
 - [x] P1-5 core driver·batch CSV·golden·snapshot 복원·집계·repro 구현
 - [x] P1-5 회색상자 scene·manifest placeholder 3종 구현, Godot import·smoke·manifest 검증
-- [x] P1-5 실제 batch 256 — 256승·실패 0·terminal hash 일치
-- [ ] P1-5 회색상자 사람 수동 감각 검수 (조준·충돌·피해·턴 길이)
-- [ ] P1-5 실제 exhaustive 1,000 및 현재 변경 기준 `verify --full`
+- [x] PT-01~04 물리 감각 조정 승인·구현 — 마찰 3/2, 반발 19/20, 기준 최대 발사 속도 1,536
+- [x] P1-5 fixture v2 16/256/1,000 배치 — 전승·실패 0·forced settle 0·terminal hash 일치
+- [x] P1-5 회색상자 사람 수동 감각 검수 — 조준·첫 타격·충돌·반사·피해·턴 길이 “문제 없음” 승인
+- [x] Godot 4.6.3 활성 `verify --full` — 게이트 #1~4 PASS, lore 미초기화 #5 정상 SKIP, 러너 17종 PASS
 
 ### 3.1 P1-2 현재 작업 기록
 
@@ -92,7 +93,7 @@
 - `LaunchLimits`: 승인된 각도·파워·속도·예측 상수
 - `LaunchCommand`: `schema_version:uint16 + angle:uint16 + power_step:uint16` little-endian codec
 - `AimQuantizer`: 256개 LUT 방향 후보의 정수 내적 비교, 256단계 파워 양자화
-- `LaunchVelocitySolver`: 기준 속도 1,024, 절대상한 2,048, `sqrt(64 / mass)` 보정
+- `LaunchVelocitySolver`: 기준 속도 1,536, 절대상한 2,048, `sqrt(64 / mass)` 보정
 - `TrajectoryPredictor`: 원본 `BattleState`를 바꾸지 않는 사본 시뮬레이션, 첫 기물 충돌·두 번째 벽 반사·정지·소멸·240틱 잘림 처리
 - `TrajectoryPoint`·`TrajectoryPrediction`: 최대 64개 값 사본과 사건 marker
 - `SimStatus`: Code 22~24, Operation 83~89 append-only 추가
@@ -117,12 +118,12 @@
 - `SimStatus` Code 28~31 / Operation 97~103을 append-only로 추가하고 P1-4 narrow runner와 독립 Python KAT를 `verify --full` 자동 발견에 편입했다.
 - portable Godot 4.6.3으로 P1-4 narrow, P1-1~3, P0 narrow와 1,000회 결정론 반복을 통과했다. Godot 활성 `verify --full`도 게이트 5개 중 lore 미초기화 1개 SKIP, 러너 15종 전체 PASS로 완료했다.
 
-남은 작업:
+완료 판정:
 
-1. Godot 편집기 또는 실행 파일로 `scenes/main.tscn`을 열고 아군 P 기물 드래그, 예상 궤적, 충돌·피해·턴 길이를 사람이 검수한다.
-2. 실제 `exhaustive` 1,000을 실행해 장시간 결정론 결과를 확정한다. (`batch` 256 완료)
-3. 현재 P1-5 씬 변경을 포함한 Godot 활성 `verify --full`을 완료한다.
-4. 위 결과와 사람 검수 결정을 반영해 P1 전체 완료 여부를 판정한다.
+1. 세로 회색상자에서 드래그·예상 궤적·첫 타격·충돌·반사·피해·턴 길이 사람 검수를 통과했다.
+2. fixture v2 16/256/1,000 배치가 실패·교착·강제 정산 없이 끝났다.
+3. 현재 변경 기준 Godot 활성 `verify --full`이 통과했다.
+4. P1 전체 완료 조건을 충족했으며 다음 구현 단계는 P2 콘텐츠 기반 또는 P3 AI다.
 
 ### 3.3 P1-5 성능·구현 진행 기록
 
@@ -131,20 +132,25 @@
 - `BattleState.advance_resolve()`도 롤백 전용 구조 스냅샷과 내부 transaction world copy를 사용한다. 권위 상태에 대한 공개 깊은 복제·snapshot schema는 바꾸지 않는다.
 - P0 SimWorld 원자성·깊은 복제, P0 충돌 원자성·결정론, P1 CTB phase rollback, P1 피해·파괴 rollback·snapshot continuation이 최적화 뒤 통과했다.
 - 승인 문서에 초기 좌표가 지정되지 않았으므로 전장·3대3·스탯·power를 유지한 중앙 근접 대칭 대형을 사용한다. 목적은 동일 물리에서 무충돌 이동 턴을 줄이는 것이다.
-- 최적화·근접 대형 baseline은 52턴·17,171틱·123,480ms에 `PLAYER_VICTORY`로 끝났고 terminal hash는 `ea819aa9acc94f2cf115d7446fd05da76fbe396cadb8c1405715e5f5ff7b3df6`이다.
-- Godot 활성 `verify --full`은 P1-5 baseline 이전 단계와 P0 결정론 골든·N=9·삽입 순열까지 PASS를 확인했다. 이후 P0 1,000회 반복이 24분을 초과해 이번 실행은 중단했으며 전체 PASS 체크는 아직 미완료다.
+- PT-01~04 이전 v1 최적화·근접 대형 baseline은 52턴·17,171틱·123,480ms에 `PLAYER_VICTORY`로 끝났고 terminal hash는 `ea819aa9acc94f2cf115d7446fd05da76fbe396cadb8c1405715e5f5ff7b3df6`이었다.
+- PT-01~04 이전 v1 시점의 Godot 활성 `verify --full`은 P0 1,000회 반복 도중 중단된 이력이 있었다. 현재 기준 전체 PASS 결과는 아래 v2 완료 기록으로 대체한다.
 - P1-5 fixture schema v1 검증, RFC 4180 UTF-8 LF CSV writer, 승인 참조가 필요한 golden 갱신과 CI 갱신 거부를 구현했다.
-- 기준·역순 삽입·10턴 snapshot round-trip 3개 case는 모두 52턴·17,171틱·동일 terminal hash로 PASS했다. 일반 실행의 체크인 golden 비교도 PASS했다.
+- v1 기준·역순 삽입·10턴 snapshot round-trip 3개 case는 모두 52턴·17,171틱·동일 terminal hash로 PASS했다. 일반 실행의 체크인 golden 비교도 PASS했다.
 - 초기 구현 증분은 3-case였으며, 아래 단계에서 승인된 narrow 16개와 집계·repro 경계로 확장했다.
-- 위 3-case 증분을 16-case narrow로 확장했다. 4 workers 실행에서 16승, 각 52턴·17,171틱·동일 terminal hash, 총 274,736틱, forced settle 0으로 PASS했다.
+- v1의 3-case 증분을 16-case narrow로 확장했다. 4 workers 실행에서 16승, 각 52턴·17,171틱·동일 terminal hash, 총 274,736틱, forced settle 0으로 PASS했다.
 - observer 집계는 기준 case에서 player damage 293, enemy damage 300, damage 파괴 5, 경계/존 파괴 0을 기록했고 observer 적용 전 terminal hash를 유지했다.
 - 병렬 runner는 case ID 정렬, worker 1~16 제한, `--keep-going`, 실패 CSV 행, numeric code/operation과 저장소 상대 repro 경로를 지원한다.
-- 승인 실행량 16/256/1,000은 `narrow`/`batch`/`exhaustive` 모드로 확장된다. 1,000 case 생성 계약은 독립 테스트를 통과했지만 실제 장시간 실행은 아직 미완료다.
+- 승인 실행량 16/256/1,000은 `narrow`/`batch`/`exhaustive` 모드로 확장되며 실제 세 모드 실행을 모두 완료했다.
 - `placeholder_gen.py`로 아군 P·적군 E·조준 `>` PNG를 만들고 `manifest.py add`로 3개 entry를 등록했다. 전장 바닥·벽은 승인대로 `Polygon2D`/`Line2D`만 사용한다.
 - `scenes/p1_graybox_battle.tscn`과 `src/ui/battle/p1_graybox_battle.gd`를 추가하고 메인 씬에 연결했다. 3대3 진영, 현재 actor 강조, 아군 드래그 발사, 조준선·권위 예측 궤적, P1 전용 결정론 적 샷, 재시작을 제공한다.
 - 씬 추가 뒤 Godot 4.6.3 headless import·main scene smoke·manifest 3-entry 정합성이 모두 PASS했다.
-- 씬 추가 뒤 P1-5 16-case narrow를 재실행했다. 16승·실패 0, 각 52턴·17,171틱, 총 274,736틱, forced settle 0으로 PASS했다.
-- P1-5 256-case batch를 4 workers로 완료했다. 256승·실패 0, 각 52턴·17,171틱, 총 4,395,776틱, terminal hash 1종, forced settle 0으로 PASS했다. 결과 CSV는 `.gitignore` 대상 `pipeline/artifacts/p1_batch/batch_256.csv`에 있다.
+- v1 씬 추가 뒤 P1-5 16-case narrow를 재실행했다. 16승·실패 0, 각 52턴·17,171틱, 총 274,736틱, forced settle 0으로 PASS했다.
+- v1 P1-5 256-case batch를 4 workers로 완료했다. 256승·실패 0, 각 52턴·17,171틱, 총 4,395,776틱, terminal hash 1종, forced settle 0으로 PASS했다. 이 값은 아래 v2 결과로 대체되었다.
+- 수동 플레이 씬을 640×1,024 세로 전장으로 분리하고 enemy 위·player 아래에 3명씩 충분한 간격으로 배치했다. HUD 경로·입력 처리와 궤적 예측을 프레임 예산 기반 비동기 처리로 정리해 초기 정지와 드래그 렉을 해소했다.
+- PT-01~04로 기본 마찰 5/2→3/2, 반발 17/20→19/20, 기준 최대 발사 속도 1,024→1,536을 적용하고 회귀 fixture를 `p1_graybox_v2`로 올렸다. 절대상한 2,048과 피해 기준속도 1,024는 유지했다.
+- fixture v2 narrow 16은 16승·실패 0·총 171,184틱, batch 256은 256승·실패 0·총 2,738,944틱, exhaustive 1,000은 1,000승·실패 0·총 10,699,000틱이다. 전부 20턴·10,699틱, forced settle 0, terminal hash `ba0a6c315abbb4502400ed3ab473bf0e1cac0eaa57d9b381142ba2f8cdda68a3`로 일치했다.
+- P0 상태 해시 1,000회 반복과 Godot 4.6.3 활성 `verify --full`을 완료했다. 게이트 #1~4 PASS, lore canon 미초기화 #5 정상 SKIP, 자동 발견 러너 17종 PASS다. Windows에서는 `-X utf8`이 아니라 하위 프로세스에 전파되는 `$env:PYTHONUTF8='1'`을 사용해야 한다.
+- 사용자가 세로 회색상자를 직접 플레이하고 발사·반사·충돌·피해 반응에 “문제 없음”으로 전투 감각을 승인했다.
 
 ### 3.4 다음 작업 실행 명령
 

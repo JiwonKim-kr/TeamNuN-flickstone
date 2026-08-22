@@ -10,7 +10,7 @@ SCALE = 1 << 16
 ANGLE_STEP = 256
 POWER_STEPS = 256
 MAX_DRAG_RAW = 192 * SCALE
-BASE_SPEED_RAW = 1024 * SCALE
+BASE_SPEED_RAW = 1536 * SCALE
 ABSOLUTE_SPEED_RAW = 2048 * SCALE
 REFERENCE_MASS_RAW = 64 * SCALE
 
@@ -59,8 +59,8 @@ def self_check() -> None:
     assert power_step(24 * SCALE) == 32
     assert encode_command(0, 256).hex() == "010000000001"
     assert speed_raw(256, 16) == 2048 * SCALE
-    assert speed_raw(256, 64) == 1024 * SCALE
-    assert speed_raw(256, 256) == 512 * SCALE
+    assert speed_raw(256, 64) == 1536 * SCALE
+    assert speed_raw(256, 256) == 768 * SCALE
 
 
 def check_fixture(path: Path) -> None:

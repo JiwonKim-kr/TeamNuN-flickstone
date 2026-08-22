@@ -30,7 +30,7 @@ P1의 명세 순서와 승인 경계를 관리한다. P1의 완료 목표는 개
 | 2 | [`p1_launch_aim_prediction.md`](p1_launch_aim_prediction.md) | **approved · implemented · verified** · 2026-08-20 | 드래그 입력이 정수 명령으로 양자화되고 발사·취소·궤적 예측이 같은 계약을 사용함 |
 | 3 | [`p1_damage_resolution.md`](p1_damage_resolution.md) | **approved · implemented · verified** · 2026-08-20 | 충돌 이벤트가 승인된 공식·재충돌 규칙에 따라 체력·파괴 결과로 정산됨 |
 | 4 | [`p1_trigger_bus_battle_result.md`](p1_trigger_bus_battle_result.md) | **approved · implemented · verified** · 2026-08-22 | P1 트리거 큐, 파괴 귀속, 승패 판정이 고정 순서와 유한 처리 계약을 가짐 |
-| 5 | [`p1_batch_sim_graybox.md`](p1_batch_sim_graybox.md) | **approved · implemented · narrow verified** · 2026-08-22 · 사람 감각 검수·장시간 회귀 대기 | 플레이스홀더 전투와 headless 배치 러너가 전투를 끝내고 결정론·CSV 수용 기준을 통과함 |
+| 5 | [`p1_batch_sim_graybox.md`](p1_batch_sim_graybox.md) | **approved · implemented · verified** · 2026-08-23 | 플레이스홀더 전투와 16/256/1,000 배치, 전체 게이트, 사람 전투 감각 검수를 완료함 |
 
 ```text
 P1-1 CTB · BattleState
@@ -81,7 +81,7 @@ P1-5 회색상자 전투 · 배치 시뮬 · P1 결정론 회귀
 
 - L-01: `angle:uint16 + power_step:uint16`, schema v1 little-endian 6바이트
 - L-02~03: 최대 드래그 192, 파워 256단계, 최소 32/256, 각도 256간격
-- L-04~06: 기준 최대 속도 1,024, 절대상한 2,048, `sqrt(64 / mass)`, 공통 반올림·시계 방향 동률
+- L-04~06: 기준 최대 속도 1,536, 절대상한 2,048, `sqrt(64 / mass)`, 공통 반올림·시계 방향 동률 (PT-03 재승인)
 - L-07~08: 최대 240틱, 첫 기물 충돌 또는 두 번째 벽 반사 종료, 4틱 표본·최대 64점
 - L-09: 코어·UI 브리지·독립 기준값·Godot narrow 수용 규격
 
@@ -122,13 +122,13 @@ P1-5 회색상자 전투 · 배치 시뮬 · P1 결정론 회귀
 - 적·아군의 `counts_for_victory` 생존 수에 따른 승패 판정과 중립 제외
 - 능력 효과가 없는 P1에서도 관찰 가능한 트리거 레코드
 
-승인 대기:
+승인 완료:
 
-- ⬜ 같은 시점 사건·트리거의 전체 우선순위
-- ⬜ 트리거가 새 트리거를 만든 경우의 큐 규칙과 처리 한도
-- ⬜ 연쇄 피해의 처치 귀속 규칙
-- ⬜ 양 진영 동시 전멸 결과
-- ⬜ U-23 실제 전투 RNG 소비 순서
+- ✅ 같은 시점 사건·트리거의 전체 우선순위
+- ✅ 트리거가 새 트리거를 만든 경우의 폭 우선 큐 규칙과 처리 한도
+- ✅ 연쇄·환경 피해의 운동 root 기반 처치 귀속 규칙
+- ✅ 양 진영 동시 전멸 `DRAW` 결과
+- ✅ U-23 record별 비소비 서브스트림과 무소비 경계
 
 범위 밖: 후보 트리거 `ON_ZONE_ENTER`·`ON_STOP`·`ON_ALLY_DEATH`, 효과 원자 실행, 콘텐츠 JSON 능력, D-12 전투 후 런 상태 처리.
 
@@ -151,15 +151,19 @@ P1-5 회색상자 전투 · 배치 시뮬 · P1 결정론 회귀
 - **확정**: P1 전투 상태는 별도 `BattleSnapshot` schema로 분리하고 P0 `SimSnapshot` schema v1 정규 바이트를 길이와 함께 내장한다. P1 전투 필드 추가는 BattleSnapshot 버전만 올린다. (`p1_ctb_battle_state.md` C-08)
 - **확정**: terminal golden은 명시적 갱신 플래그·승인 참조 필수이며 CI 갱신 금지
 
-구현·검증 현황 (2026-08-22):
+구현·검증 현황 (2026-08-23):
 
 - 결정론 fixture/shot supplier/battle driver/report와 CSV·golden·repro runner 구현 완료
-- 16-case narrow: 16승, 실패 0, 각 52턴·17,171틱, terminal hash 동일, forced settle 0
+- PT-01~04 재승인값: 기본 마찰 3/2, 기본 반발계수 19/20, 기준 최대 발사 속도 1,536. 절대상한 2,048과 피해 기준속도 1,024 유지
+- 회귀 fixture `p1_graybox_v2`와 수동 세로 전장 `p1_graybox_portrait_playtest_v1` 분리
+- 16-case narrow: 16승, 실패 0, 각 20턴·10,699틱, 총 171,184틱, terminal hash 동일, forced settle 0
 - 3대3 플레이 가능 회색상자 씬, 드래그 조준선·예상 궤적, 자동 적 턴과 manifest 등록 플레이스홀더 3종 구현 완료
 - Godot 4.6.3 import·main scene smoke·manifest 정합성 통과
-- 256-case batch: 256승, 실패 0, 각 52턴·17,171틱, 총 4,395,776틱, terminal hash 1종, forced settle 0
-- ⬜ 사람이 조준·충돌·피해·턴 길이 감각을 직접 검수
-- ⬜ 실제 exhaustive 1,000 및 현재 변경 기준 `verify --full` 완료
+- 256-case batch: 256승, 실패 0, 각 20턴·10,699틱, 총 2,738,944틱, terminal hash 1종, forced settle 0
+- 1,000-case exhaustive: 1,000승, 실패 0, 각 20턴·10,699틱, 총 10,699,000틱, forced settle 0
+- Godot 4.6.3 활성 `verify --full`: 게이트 #1~4 PASS, lore canon 미초기화 #5 정상 SKIP, 자동 발견 러너 17종 PASS
+- 사용자가 조준·첫 타격·충돌·반사·피해·연쇄 반응·턴 길이를 직접 검수하고 “문제 없음”으로 승인
+- **P1 전체 완료 조건 1~7 충족**
 
 범위 밖: P3 적 AI 품질, 콘텐츠별 승률 목표, 실제 아트·효과음, P6 최종 밸런스 판정.
 
@@ -188,7 +192,7 @@ P1-5 회색상자 전투 · 배치 시뮬 · P1 결정론 회귀
 
 ## 필요 에셋
 
-P1-5에서 회색상자 전투에 필요한 기물·전장·조준 표식만 추가한다. 모든 이미지는 `pipeline/scripts/placeholder_gen.py`로 생성하고 `PLACEHOLDER_` 접두사와 manifest 등록을 요구한다. 실제 아트·효과음은 전투 감각 승인 뒤로 미룬다.
+P1-5에서 회색상자 전투에 필요한 기물·전장·조준 표식만 추가했다. 모든 이미지는 `pipeline/scripts/placeholder_gen.py`로 생성하고 `PLACEHOLDER_` 접두사와 manifest 등록을 요구한다. 실제 아트·효과음은 전투 감각 승인까지 미뤘으며 P1에서는 실행하지 않았다. 이후 작업은 별도 `art`·`se` 요청과 승인 절차를 따른다.
 
 ## P1 전체 완료 판정
 

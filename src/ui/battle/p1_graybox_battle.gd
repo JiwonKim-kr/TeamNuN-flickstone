@@ -7,13 +7,14 @@ const ENEMY_TEXTURE := preload("res://assets/art/sprites/p1_graybox/PLACEHOLDER_
 const AIM_TEXTURE := preload("res://assets/art/ui/p1_graybox/PLACEHOLDER_aim_marker.png")
 const PIECE_SCALE := Vector2(4.0 / 3.0, 4.0 / 3.0)
 const RESOLVE_STEPS_PER_FRAME := 12
+const RESOLVE_FRAME_BUDGET_USEC := 12000
 
 @onready var _pieces: Node2D = $Battlefield/Pieces
 @onready var _aim_line: Line2D = $Battlefield/AimLayer/AimLine
 @onready var _trajectory_line: Line2D = $Battlefield/AimLayer/TrajectoryLine
 @onready var _aim_marker: Sprite2D = $Battlefield/AimLayer/AimMarker
-@onready var _status_label: Label = $Hud/Status
-@onready var _help_label: Label = $Hud/Help
+@onready var _status_label: Label = $Hud/Margin/Rows/Status
+@onready var _help_label: Label = $Hud/Margin/Rows/Help
 @onready var _input: AimInputAdapter = $AimInputAdapter
 
 var _state: BattleState
@@ -21,10 +22,14 @@ var _piece_nodes: Dictionary = {}
 var _trajectory := TrajectoryLineAdapter.new()
 var _turns: int = 0
 var _error: SimStatus = SimStatus.new()
+var _prediction_thread: Thread = null
+var _prediction_generation: int = 0
+var _prediction_thread_generation: int = 0
+var _pending_prediction_command: LaunchCommand = null
 
 
 func _ready() -> void:
-	_state = P1GrayboxFixture.create(0x12345678, 0x2468ACE0, false, _error)
+	_state = P1GrayboxFixture.create_portrait_playtest(0x12345678, 0x2468ACE0, false, _error)
 	_input.configure(_provide_state, _screen_to_world)
 	_input.prediction_requested.connect(_on_prediction_requested)
 	_input.launch_requested.connect(_on_launch_requested)
@@ -35,15 +40,19 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	_poll_prediction()
 	if not _error.is_ok() or _state == null:
 		_sync_view()
 		return
 	if _state.phase() == BattleState.Phase.RESOLVE:
+		var frame_started: int = Time.get_ticks_usec()
 		for _step: int in range(RESOLVE_STEPS_PER_FRAME):
 			if _state.phase() != BattleState.Phase.RESOLVE:
 				break
 			_state.advance_resolve(_error)
 			if not _error.is_ok():
+				break
+			if Time.get_ticks_usec() - frame_started >= RESOLVE_FRAME_BUDGET_USEC:
 				break
 		_advance_noninteractive_phases()
 	_sync_view()
@@ -108,21 +117,87 @@ func _advance_noninteractive_phases() -> void:
 
 func _on_prediction_requested(command: LaunchCommand) -> void:
 	var status := SimStatus.new()
-	var prediction: TrajectoryPrediction = TrajectoryPredictor.predict(_state, command, status)
-	_trajectory.update_from_prediction(prediction, status)
-	if not status.is_ok():
-		_error = status
-		return
-	_trajectory_line.points = _trajectory.positions()
 	var world: SimWorld = _state.world_copy(status)
 	var actor: SimBody = world.body_by_id(_state.current_actor_body_id(), status)
 	var actor_position := Vector2(float(actor.position().x_raw()), float(actor.position().y_raw())) / float(FixMath.SCALE)
-	var velocity: FixVec2 = LaunchVelocitySolver.solve(actor, command, status)
-	var direction := Vector2(float(velocity.x_raw()), float(velocity.y_raw())).normalized()
+	var fixed_direction: FixVec2 = FixTrigLut.direction(command.angle(), status)
+	if not status.is_ok():
+		return
+	var direction := Vector2(
+		float(fixed_direction.x_raw()), float(fixed_direction.y_raw())
+	).normalized()
 	_aim_line.points = PackedVector2Array([actor_position, actor_position + direction * 120.0])
 	_aim_marker.position = actor_position + direction * 132.0
 	_aim_marker.rotation = direction.angle()
-	_aim_marker.visible = status.is_ok()
+	_aim_marker.visible = true
+
+	_prediction_generation += 1
+	_pending_prediction_command = null
+	if not LaunchLimits.valid_launch_power_step(command.power_step()):
+		_trajectory.clear()
+		_trajectory_line.clear_points()
+		return
+	_pending_prediction_command = command.copy()
+	if _prediction_thread == null:
+		_start_pending_prediction()
+
+
+func _start_pending_prediction() -> void:
+	if _pending_prediction_command == null or _state == null:
+		return
+	var status := SimStatus.new()
+	var state_copy: BattleState = _state.copy(status)
+	if not status.is_ok():
+		_pending_prediction_command = null
+		return
+	var command: LaunchCommand = _pending_prediction_command.copy()
+	_pending_prediction_command = null
+	_prediction_thread_generation = _prediction_generation
+	_prediction_thread = Thread.new()
+	var start_error: int = _prediction_thread.start(
+		_predict_trajectory.bind(
+			state_copy, command, _prediction_thread_generation
+		)
+	)
+	if start_error != OK:
+		_prediction_thread = null
+
+
+func _predict_trajectory(
+		state_copy: BattleState,
+		command: LaunchCommand,
+		generation: int
+) -> Dictionary:
+	var status := SimStatus.new()
+	var prediction: TrajectoryPrediction = TrajectoryPredictor.predict(
+		state_copy, command, status
+	)
+	return {
+		"generation": generation,
+		"prediction": prediction,
+		"code": status.code(),
+		"operation": status.operation(),
+	}
+
+
+func _poll_prediction() -> void:
+	if _prediction_thread == null or _prediction_thread.is_alive():
+		return
+	var result: Variant = _prediction_thread.wait_to_finish()
+	_prediction_thread = null
+	if (
+		result is Dictionary
+		and int(result.get("generation", -1)) == _prediction_generation
+		and int(result.get("code", SimStatus.Code.INVALID_SIM_STATE)) == SimStatus.Code.OK
+		and _input.is_dragging()
+	):
+		var prediction: TrajectoryPrediction = result.get("prediction") as TrajectoryPrediction
+		var status := SimStatus.new()
+		_trajectory.update_from_prediction(prediction, status)
+		if status.is_ok():
+			_trajectory_line.points = _trajectory.positions()
+	if _pending_prediction_command != null and _input.is_dragging():
+		_start_pending_prediction()
 
 
 func _on_launch_requested(command: LaunchCommand) -> void:
@@ -133,10 +208,20 @@ func _on_launch_requested(command: LaunchCommand) -> void:
 
 
 func _clear_aim() -> void:
+	_prediction_generation += 1
+	_pending_prediction_command = null
 	_trajectory.clear()
 	_trajectory_line.clear_points()
 	_aim_line.clear_points()
 	_aim_marker.visible = false
+
+
+func _exit_tree() -> void:
+	_prediction_generation += 1
+	_pending_prediction_command = null
+	if _prediction_thread != null:
+		_prediction_thread.wait_to_finish()
+		_prediction_thread = null
 
 
 func _sync_view() -> void:
@@ -177,6 +262,6 @@ func _restart() -> void:
 	_clear_aim()
 	_turns = 0
 	_error = SimStatus.new()
-	_state = P1GrayboxFixture.create(0x12345678, 0x2468ACE0, false, _error)
+	_state = P1GrayboxFixture.create_portrait_playtest(0x12345678, 0x2468ACE0, false, _error)
 	_advance_noninteractive_phases()
 	_sync_view()

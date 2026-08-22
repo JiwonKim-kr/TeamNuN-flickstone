@@ -9,7 +9,7 @@ from p1_batch_sim import BatchRow, CSV_COLUMNS, expand_cases, load_fixture, upda
 ROOT = Path(__file__).resolve().parents[2]
 fixture_path = ROOT / "pipeline/tests/fixtures/p1_graybox_cases.json"
 fixture_id, cases = load_fixture(fixture_path)
-assert fixture_id == "p1_graybox_v1" and len(cases) == 16
+assert fixture_id == "p1_graybox_v2" and len(cases) == 16
 assert len(expand_cases(cases, 16)) == 16
 assert len(expand_cases(cases, 256)) == 256
 assert len(expand_cases(cases, 1000)) == 1000

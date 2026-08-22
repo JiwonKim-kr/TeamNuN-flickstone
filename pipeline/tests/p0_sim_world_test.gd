@@ -127,7 +127,7 @@ func _test_contract_and_empty_world() -> void:
 		SimWorld.TICKS_PER_SECOND == 120
 		and SimWorld.DT_NUM == 1
 		and SimWorld.DT_DEN == 120
-		and SimWorld.DEFAULT_BASE_FRICTION_RAW == 163840
+		and SimWorld.DEFAULT_BASE_FRICTION_RAW == 98304
 		and SimWorld.DEFAULT_STOP_SPEED_RAW == 32768
 		and SimEvent.TypeId.NONE == 0
 		and SimEvent.TypeId.BODY_ADDED == 1
@@ -191,16 +191,16 @@ func _test_exact_default_friction() -> void:
 	var status := SimStatus.new()
 	var world: SimWorld = SimWorld.create(0, 12, status)
 	var keys: Array[int] = [1]
-	var bodies: Array[SimBody] = [_body_units(0, 0, 48, 0, status)]
+	var bodies: Array[SimBody] = [_body_units(0, 0, 80, 0, status)]
 	world.add_initial_bodies(keys, bodies, status)
 	var stepped: bool = world.step(status)
 	var body: SimBody = world.body_at(0, status)
 	_check(
-		"SW-FRICTION-47-48-001",
+		"SW-FRICTION-79-80-001",
 		stepped
-		and body.velocity().x_raw() == _q(47)
+		and body.velocity().x_raw() == _q(79)
 		and body.velocity().y_raw() == 0
-		and body.position().x_raw() == 25668
+		and body.position().x_raw() == 43145
 		and body.position().y_raw() == 0
 		and world.tick() == 1
 		and world.event_count() == 1
@@ -229,7 +229,7 @@ func _test_overlapping_zones() -> void:
 	world.add_initial_zones(zone_keys, zones, status)
 	var body_keys: Array[int] = [1, 2]
 	var bodies: Array[SimBody] = [
-		_body_units(0, 0, 48, 0, status),
+		_body_units(0, 0, 80, 0, status),
 		_body_units(200, 0, 0, 0, status),
 	]
 	world.add_initial_bodies(body_keys, bodies, status)
@@ -244,9 +244,9 @@ func _test_overlapping_zones() -> void:
 		and first_zone.acceleration().y_raw() == _q(240)
 		and second_zone.id() == 2
 		and second_zone.acceleration().x_raw() == _q(120)
-		and inside.velocity().x_raw() == _q(48)
+		and inside.velocity().x_raw() == _q(80)
 		and inside.velocity().y_raw() == _q(2)
-		and inside.position().x_raw() == 26214
+		and inside.position().x_raw() == 43691
 		and inside.position().y_raw() == 1092
 		and outside.velocity().is_zero()
 		and outside.position().x_raw() == _q(200)

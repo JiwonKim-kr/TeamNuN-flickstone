@@ -71,7 +71,7 @@ def load_fixture(path: Path) -> tuple[str, list[BattleCase]]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict): raise ValueError("fixture root must be object")
     _exact_keys(data, FIXTURE_KEYS, "fixture")
-    if data["schema_version"] != 1 or data["fixture_id"] != "p1_graybox_v1": raise ValueError("unsupported fixture identity")
+    if data["schema_version"] != 1 or data["fixture_id"] != "p1_graybox_v2": raise ValueError("unsupported fixture identity")
     boundary = data["boundary"]
     if boundary != [[0, 0], [1024, 0], [1024, 640], [0, 640]]: raise ValueError("unexpected approved boundary")
     combatants = data["combatants"]

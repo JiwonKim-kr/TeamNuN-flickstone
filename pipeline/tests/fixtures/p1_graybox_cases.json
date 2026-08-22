@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "fixture_id": "p1_graybox_v1",
+  "fixture_id": "p1_graybox_v2",
   "boundary": [[0, 0], [1024, 0], [1024, 640], [0, 640]],
   "combatants": [
     {"stable_key": 10, "faction": 1, "position": [337, 320], "speed_stat": 80, "radius": 32, "mass": 64, "hp": 100, "attack": 20},
@@ -17,14 +17,14 @@
     {"case_id": 4, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 1, "restore_after_turn": 10},
     {"case_id": 5, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 0, "restore_after_turn": 5},
     {"case_id": 6, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 1, "restore_after_turn": 5},
-    {"case_id": 7, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 0, "restore_after_turn": 20},
-    {"case_id": 8, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 1, "restore_after_turn": 20},
-    {"case_id": 9, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 0, "restore_after_turn": 30},
-    {"case_id": 10, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 1, "restore_after_turn": 30},
-    {"case_id": 11, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 0, "restore_after_turn": 40},
-    {"case_id": 12, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 1, "restore_after_turn": 40},
-    {"case_id": 13, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 0, "restore_after_turn": 50},
-    {"case_id": 14, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 1, "restore_after_turn": 50},
+    {"case_id": 7, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 0, "restore_after_turn": 15},
+    {"case_id": 8, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 1, "restore_after_turn": 15},
+    {"case_id": 9, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 0, "restore_after_turn": 12},
+    {"case_id": 10, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 1, "restore_after_turn": 12},
+    {"case_id": 11, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 0, "restore_after_turn": 8},
+    {"case_id": 12, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 1, "restore_after_turn": 8},
+    {"case_id": 13, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 0, "restore_after_turn": 2},
+    {"case_id": 14, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 1, "restore_after_turn": 2},
     {"case_id": 15, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 0, "restore_after_turn": 1},
     {"case_id": 16, "seed_hi": 4660, "seed_lo": 22136, "insertion_variant": 1, "restore_after_turn": 1}
   ]

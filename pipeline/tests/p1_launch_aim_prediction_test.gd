@@ -123,7 +123,7 @@ func _test_velocity_and_commit() -> void:
 	var speeds: Array[int] = []
 	for mass: int in [1, 16, 64, 256]:
 		speeds.append(LaunchVelocitySolver.solve(full, _body(0, 0, mass, status), status).x_raw())
-	_check("P1-LAUNCH-SPEED-001", status.is_ok() and speeds == [2048 * FixMath.SCALE, 2048 * FixMath.SCALE, 1024 * FixMath.SCALE, 512 * FixMath.SCALE], str(speeds))
+	_check("P1-LAUNCH-SPEED-001", status.is_ok() and speeds == [2048 * FixMath.SCALE, 2048 * FixMath.SCALE, 1536 * FixMath.SCALE, 768 * FixMath.SCALE], str(speeds))
 	var state: BattleState = _aim_state([_v(0, 0, status)], [64], status)
 	var before: PackedByteArray = BattleSnapshot.capture(state, status).encode(status)
 	var weak_status := SimStatus.new()
@@ -132,7 +132,7 @@ func _test_velocity_and_commit() -> void:
 	_check("P1-LAUNCH-ATOMIC-001", not weak_status.is_ok() and before == after)
 	LaunchVelocitySolver.commit(state, full, status)
 	var launched: SimBody = state.world_copy(status).body_by_id(1, status)
-	_check("P1-LAUNCH-COMMIT-001", status.is_ok() and state.phase() == BattleState.Phase.RESOLVE and launched.velocity().x_raw() == 1024 * FixMath.SCALE and launched.velocity().y_raw() == 0)
+	_check("P1-LAUNCH-COMMIT-001", status.is_ok() and state.phase() == BattleState.Phase.RESOLVE and launched.velocity().x_raw() == 1536 * FixMath.SCALE and launched.velocity().y_raw() == 0)
 
 
 func _terminal_marker(prediction: TrajectoryPrediction, status: SimStatus) -> int:

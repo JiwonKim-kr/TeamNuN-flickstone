@@ -4,7 +4,7 @@
 |---|---|
 | status | **approved** |
 | drafted | 2026-08-22 |
-| approved | 2026-08-22 · 사용자 진행 승인 |
+| approved | 2026-08-22 · 사용자 진행 승인; 2026-08-23 · 플레이 씬 세로 배치 및 PT-01~04 승인 |
 | phase | P1 · 전투 루프 |
 | 선행 명세 | P0-1~4, P1-1~4 승인·구현·검증 완료 |
 | 후속 단계 | P2 콘텐츠 기반 · P3 AI |
@@ -68,10 +68,12 @@
 | G-02 | 회색상자 encounter 값 | P1 회귀 fixture로만 3대3, 직사각형 WALL 전장 1,024×640, 반지름 32·무게 64, HP 100·공격 20, 속도 80/100/125를 양 팀 대칭 배치 | ✅ 승인 |
 | G-03 | 실행량·종료 경계 | narrow 16전투, 기본 batch 256전투, exhaustive 1,000전투. 전투당 128턴 한도. core `RESOLVE_DEADLOCK` 또는 turn limit는 정상 결과로 접지 않고 실패 | ✅ 승인 |
 | G-04 | CSV schema와 집계 | 아래 고정 열 순서, RFC 4180, UTF-8 LF, 정수/고정 enum만 사용. stdout 요약에 결과 분포·턴 중앙값·강제 정산·실패 수 | ✅ 승인 |
-| G-05 | P1 terminal golden | 승인된 fixture의 case별 result·turn·tick·terminal hash를 JSON으로 체크인. 명시적 갱신 플래그와 승인 참조 필수, CI 갱신 금지 | ✅ 승인 |
-| G-06 | 씬·플레이스홀더 범위 | 전장 1, 아군/적 기물 각 1종, aim marker 1종의 PNG placeholder만 생성·manifest 등록. 효과음 없음 | ✅ 승인 |
+| G-05 | P1 terminal golden | 승인된 fixture의 case별 result·turn·tick·terminal hash를 JSON으로 체크인. PT-01~03 물리 기준 변경은 fixture v2와 새 golden으로 구분. 명시적 갱신 플래그와 승인 참조 필수, CI 갱신 금지 | ✅ 재승인 |
+| G-06 | 씬·플레이스홀더 범위 | 전장 1, 아군/적 기물 각 1종, aim marker 1종의 PNG placeholder만 생성·manifest 등록. 플레이 씬은 640×1,024 세로 전장에 enemy 위·player 아래 3명씩 배치. 효과음 없음 | ✅ 재승인 |
 
-G-02의 전장 크기·3대3·HP·공격은 정식 D-03/U-34/U-36 값을 확정하지 않는다. fixture ID에 `p1_graybox_v1`을 포함하고 제품 데이터와 분리한다. 향후 정식 콘텐츠가 정해져도 P1 회귀 fixture는 호환성 기준으로 유지한다.
+G-02의 전장 크기·3대3·HP·공격은 정식 D-03/U-34/U-36 값을 확정하지 않는다. PT-01~03 기본 물리 변경 뒤 fixture ID를 `p1_graybox_v2`로 올려 제품 데이터와 분리한다. 향후 정식 콘텐츠가 정해져도 이 P1 회귀 fixture는 호환성 기준으로 유지한다. G-06의 수동 플레이 전용 `p1_graybox_portrait_playtest_v1`은 회귀 fixture와 골든에 사용하지 않지만 PT-01~03 기본 물리는 공유한다. CT 속도는 변경하지 않는다.
+
+v2의 기준 전투가 20턴에 종료되므로 snapshot 복원 지점은 종료 전 `1/2/5/8/10/12/15턴`을 사용한다. 종료 이후 복원을 요청해 검사를 건너뛰는 fixture는 허용하지 않는다.
 
 ## G-01 권장안 · shot supplier와 fixture
 
@@ -96,13 +98,13 @@ G-02의 전장 크기·3대3·HP·공격은 정식 D-03/U-34/U-36 값을 확정�
 ```json
 {
   "schema_version": 1,
-  "fixture_id": "p1_graybox_v1",
-  "boundary": [[-512, -320], [512, -320], [512, 320], [-512, 320]],
+  "fixture_id": "p1_graybox_v2",
+  "boundary": [[0, 0], [1024, 0], [1024, 640], [0, 640]],
   "combatants": [
     {
-      "stable_key": 1,
+      "stable_key": 10,
       "faction": 1,
-      "position": [-320, -96],
+      "position": [337, 320],
       "speed_stat": 80,
       "radius": 32,
       "mass": 64,
@@ -124,7 +126,7 @@ G-02의 전장 크기·3대3·HP·공격은 정식 D-03/U-34/U-36 값을 확정�
 
 ## G-02 권장안 · 회색상자 encounter
 
-- 전장: 중심 원점, 1,024×640 직사각형, WALL 경계, 내부 zone·장애물 없음
+- 전장: 좌상단 원점 `(0,0)`, 1,024×640 직사각형, WALL 경계, 내부 zone·장애물 없음
 - 출전: player 3, enemy 3. D-03의 확정 범위 안에서 최소값을 사용한다.
 - 위치: 양 팀을 X축 대칭으로 배치하며 어떤 원도 겹치거나 벽에 닿지 않는다.
 - 공통 물리: 반지름 32, 무게 64, 기본 마찰·반발계수는 P0 승인값
@@ -317,3 +319,15 @@ HANDOFF.md
 6. G-06 플레이스홀더 3종과 scene 범위
 
 승인 범위 밖 변경은 별도 재승인을 받는다.
+
+## 구현·검증 기록
+
+2026-08-23 PT-01~04 물리 기준선과 세로 플레이테스트 배치를 반영해 P1-5 최종 검증을 완료했다.
+
+- 회귀 fixture는 `p1_graybox_v2`, 수동 세로 전장은 `p1_graybox_portrait_playtest_v1`로 분리했다. 수동 전장은 640×1,024에서 enemy 위·player 아래 3명씩 배치한다.
+- terminal golden 승인 참조는 `P1-physics-tuning-PT-01-04-2026-08-23`이며, 기준 전투는 `PLAYER_VICTORY`, 20턴, 10,699틱, terminal hash `ba0a6c315abbb4502400ed3ab473bf0e1cac0eaa57d9b381142ba2f8cdda68a3`이다.
+- narrow 16: 16승, 실패 0, 총 171,184틱, forced settle 0.
+- batch 256: 256승, 실패 0, 총 2,738,944틱, forced settle 0.
+- exhaustive 1,000: 1,000승, 실패 0, 총 10,699,000틱, forced settle 0.
+- P0 1,000회 결정론 회귀와 Godot 4.6.3 활성 `verify --full`의 자동 발견 러너 17종이 모두 통과했다. lore canon 미초기화 게이트만 정상 SKIP이다.
+- 사용자가 직접 드래그 발사·충돌·반사·피해·턴 길이를 검수하고 “문제 없음”으로 승인했다. 이로써 P1 전체 완료 조건 1~7을 충족한다.

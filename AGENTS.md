@@ -15,10 +15,10 @@ These instructions apply to the entire repository.
 - P0 deterministic simulation core is complete.
 - P1-1 CTB/BattleState, P1-2 launch/aim/prediction, and P1-3 damage resolution are approved, implemented, and verified.
 - P1-4 trigger bus/battle result T-01~10 is approved, implemented, and verified with Godot 4.6.3 narrow tests and `verify --full`.
-- P1-5 deterministic fixture, battle driver, batch CSV/golden/repro runner, and playable manifest-placeholder graybox scene are implemented. Godot 4.6.3 import/smoke/manifest, 16-case narrow, and 256-case batch pass; the 1,000-case exhaustive run, current full verification, and human combat-feel review remain.
+- P1-5 deterministic fixture, battle driver, batch CSV/golden/repro runner, and playable manifest-placeholder graybox scene are implemented and verified. The PT-01~04 physics baseline uses friction 3/2, restitution 19/20, and base launch speed 1,536. Godot 4.6.3 import/smoke/manifest, 16/256/1,000-case batches, current `verify --full`, and human combat-feel review pass.
 - P0 order was: FixMath/SimRng → SimWorld → collision/wall/kill zones → state-hash regression.
 - P0 and P1 use manifest-registered placeholders only.
-- Do not run art lock/generation/reskin or SE generation/attachment until combat feel is approved.
+- Combat feel was approved on 2026-08-23. Art lock/generation/reskin and SE generation/attachment remain separate, explicitly requested follow-up work.
 
 ## Architecture
 

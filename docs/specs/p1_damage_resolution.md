@@ -151,7 +151,7 @@ HP·공격력 상한은 밸런스값이 아니라 고정소수점 중간값과 �
 
 | 상수 | 권장값 | 이유 |
 |---|---:|---|
-| `DAMAGE_REFERENCE_SPEED_RAW` | 1,024 × `FIX_SCALE` | P0 시험 기준속도·P1 기준 최대 발사속도와 일치 |
+| `DAMAGE_REFERENCE_SPEED_RAW` | 1,024 × `FIX_SCALE` | 피해 기준속도. PT-03 발사 속도 상향 뒤에도 피해 체감을 함께 높이기 위해 유지 |
 | `DAMAGE_THRESHOLD_SPEED_RAW` | 64 × `FIX_SCALE` | 기준속도의 1/16, 저속 떨림과 의미 있는 접촉 분리용 초기값 |
 | 질량지수 | 1/2 | 넓은 1~256 질량 범위를 제곱근으로 완화 |
 | `WEIGHT_RATIO_MIN_RAW` | 1/2 × `FIX_SCALE` | 가벼운 가해자의 피해가 소멸하지 않게 제한 |

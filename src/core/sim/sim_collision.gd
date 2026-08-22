@@ -2,7 +2,7 @@ class_name SimCollision
 extends RefCounted
 ## Deterministic circle/circle and circle/convex-wall response.
 
-const DEFAULT_RESTITUTION_RAW: int = 55706 # Q(17/20)
+const DEFAULT_RESTITUTION_RAW: int = 62259 # Q(19/20)
 const MAX_SUBSTEPS: int = 16
 const MAX_CONTACT_PASSES: int = 64
 

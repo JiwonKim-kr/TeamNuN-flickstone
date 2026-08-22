@@ -99,7 +99,7 @@ func _test_contract_and_polygon_validation() -> void:
 	)
 	_check(
 		"CB-CONTRACT-001",
-		SimCollision.DEFAULT_RESTITUTION_RAW == 55706
+		SimCollision.DEFAULT_RESTITUTION_RAW == 62259
 		and SimCollision.MAX_SUBSTEPS == 16
 		and SimEvent.TypeId.BODY_COLLIDED == 4
 		and SimEvent.TypeId.BODY_HIT_WALL == 5
@@ -201,7 +201,7 @@ func _test_substeps() -> void:
 	_check(
 		"CB-SUBSTEP-001",
 		count == 9
-		and enhanced_raw == 60621
+		and enhanced_raw == 63897
 		and status.is_ok()
 		and rejected == 0
 		and limit_status.code() == SimStatus.Code.SIM_LIMIT_EXCEEDED
@@ -228,8 +228,8 @@ func _test_circle_response() -> void:
 		result.had_overlap
 		and result.impulse_applied
 		and result.approach_speed_raw == _q(100)
-		and result.body_a.velocity().x_raw() == 491500
-		and result.body_b.velocity().x_raw() == 6062100
+		and result.body_a.velocity().x_raw() == 163850
+		and result.body_b.velocity().x_raw() == 6389750
 		and separation >= _q(16)
 		and status.is_ok(),
 		_detail(status, 1, 2)
@@ -356,7 +356,7 @@ func _test_wall_and_corner_response() -> void:
 	_check(
 		"CB-WALL-REFLECT-001",
 		body.position().x_raw() == _q(92)
-		and body.velocity().x_raw() == -13369440
+		and body.velocity().x_raw() == -14942160
 		and world.last_substep_count() == 1
 		and hit.type_id() == SimEvent.TypeId.BODY_HIT_WALL
 		and hit.value_a() == 1

@@ -10,7 +10,7 @@ extends RefCounted
 const TICKS_PER_SECOND: int = 120
 const DT_NUM: int = 1
 const DT_DEN: int = 120
-const DEFAULT_BASE_FRICTION_RAW: int = 163840 # Q(5/2)
+const DEFAULT_BASE_FRICTION_RAW: int = 98304 # Q(3/2)
 const DEFAULT_STOP_SPEED_RAW: int = FixMath.HALF_RAW # Q(1/2)
 const DEFAULT_RESTITUTION_RAW: int = SimCollision.DEFAULT_RESTITUTION_RAW
 

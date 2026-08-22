@@ -15,9 +15,9 @@
   "speeds": [
     {"mass_units": 1, "power_step": 256, "speed_raw": 134217728},
     {"mass_units": 16, "power_step": 256, "speed_raw": 134217728},
-    {"mass_units": 64, "power_step": 32, "speed_raw": 8388608},
-    {"mass_units": 64, "power_step": 128, "speed_raw": 33554432},
-    {"mass_units": 64, "power_step": 256, "speed_raw": 67108864},
-    {"mass_units": 256, "power_step": 256, "speed_raw": 33554432}
+    {"mass_units": 64, "power_step": 32, "speed_raw": 12582912},
+    {"mass_units": 64, "power_step": 128, "speed_raw": 50331648},
+    {"mass_units": 64, "power_step": 256, "speed_raw": 100663296},
+    {"mass_units": 256, "power_step": 256, "speed_raw": 50331648}
   ]
 }
