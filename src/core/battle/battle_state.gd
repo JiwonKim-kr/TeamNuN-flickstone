@@ -1021,7 +1021,7 @@ func commit_launch_velocity(launch_velocity: FixVec2, status: SimStatus) -> bool
 		return false
 	var backup: BattleState = copy(SimStatus.new())
 	_begin_trigger_transition()
-	var next_world: SimWorld = _world.copy(status)
+	var next_world: SimWorld = _world._transaction_copy(status)
 	next_world.set_body_velocity(_current_actor_body_id, launch_velocity, status)
 	if not status.is_ok() or not _consume_actor(status): _assign_from(backup); return false
 	_world = next_world
@@ -1071,7 +1071,7 @@ func interrupt_missing_current_actor(status: SimStatus) -> bool:
 
 func advance_resolve(status: SimStatus) -> bool:
 	if not _require_phase(Phase.RESOLVE, SimStatus.Operation.BATTLE_RESOLVE_ADVANCE, status): return false
-	var backup: BattleState = copy(SimStatus.new())
+	var backup: BattleState = _rollback_snapshot()
 	_begin_trigger_transition()
 	var mode: int = SimWorld.ContinuousAccelerationMode.SUPPRESS if _forced_settle_used else SimWorld.ContinuousAccelerationMode.APPLY
 	if (not _forced_settle_used or _forced_resolve_ticks > 0) and _world.is_quiescent(mode, status) and _pending.is_empty() and _world.event_cursor() == _world.event_count():
@@ -1088,7 +1088,7 @@ func advance_resolve(status: SimStatus) -> bool:
 		var moving_body: SimBody = _world.body_at(index, status)
 		if not moving_body.velocity().is_zero():
 			_emit_trigger(BattleTriggerId.Value.ON_MOVING, 0, moving_body.id(), 0, 0, SimEvent.CauseId.NONE, moving_body.position(), moving_body.velocity(), 0, 0, status)
-	var next_world: SimWorld = _world.copy(status)
+	var next_world: SimWorld = _world._transaction_copy(status)
 	if _forced_settle_used:
 		for index: int in range(next_world.body_count()):
 			var body: SimBody = next_world.body_at(index, status)
@@ -1190,6 +1190,23 @@ func copy(status: SimStatus) -> BattleState:
 	result._battle_result = _battle_result; result._next_trigger_sequence = _next_trigger_sequence
 	result._last_trigger_batch = _copy_trigger_records(_last_trigger_batch)
 	result._motion_credits = _copy_motion_credits(_motion_credits)
+	return result
+
+
+func _rollback_snapshot() -> BattleState:
+	# Resolve replaces value objects and the world reference before applying any
+	# mutation barrier. A shallow structural snapshot is therefore sufficient
+	# for atomic rollback and avoids cloning the full append-only event history
+	# every 120 Hz tick. Public copy() remains deeply isolated.
+	var result := BattleState.new()
+	result._initialized = _initialized; result._phase = _phase; result._current_actor_body_id = _current_actor_body_id
+	result._abstract_time = _abstract_time; result._last_acted_faction = _last_acted_faction
+	result._participants = _participants.duplicate(); result._combatants = _combatants.duplicate()
+	result._cooldowns = _cooldowns.duplicate(); result._world = _world
+	result._pending = _pending.duplicate(); result._normal_resolve_ticks = _normal_resolve_ticks
+	result._forced_resolve_ticks = _forced_resolve_ticks; result._forced_settle_used = _forced_settle_used
+	result._battle_result = _battle_result; result._next_trigger_sequence = _next_trigger_sequence
+	result._last_trigger_batch = _last_trigger_batch.duplicate(); result._motion_credits = _motion_credits.duplicate()
 	return result
 
 

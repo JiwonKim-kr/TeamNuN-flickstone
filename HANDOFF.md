@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P1-4 전체 구현·Godot 검증 완료 — 다음은 P1-5 명세 작성·승인** |
+| 현재 단계 | **P1-5 G-01~06 승인 완료 — 결정론 보존 성능 최적화 및 구현 진행 중** |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -75,6 +75,12 @@
 - [x] P1-3 피해 해결 R-01~10 승인, 구현, 독립 기준값·Godot 수용·전체 회귀 검증 완료 (`docs/specs/p1_damage_resolution.md`)
 - [x] P1-4 트리거 버스/파괴 귀속/전투 결과 초안과 T-01~10 승인 결정 작성 (`docs/specs/p1_trigger_bus_battle_result.md`)
 - [x] P1-4 T-01~10 전체 명세 승인 (`docs/specs/p1_trigger_bus_battle_result.md`)
+- [x] P1-5 회색상자/배치 시뮬 G-01~06 승인 (`docs/specs/p1_batch_sim_graybox.md`)
+- [x] P1-5 최초 프로토타입 계측: 3v3 단일 전투가 5분 제한 초과, 40턴·생존 6·총 HP 309 확인
+- [x] `SimWorld.step` 롤백 비용 최적화 후 P0 상태·오류 원자성·해시 회귀 통과
+- [x] 최적화 후 P1-5 baseline terminal 결과와 처리시간 측정
+- [ ] P1-5 core driver·batch CSV·golden·snapshot 복원 회귀 구현
+- [ ] P1-5 회색상자 scene·manifest placeholder 구현 및 수동 검수
 
 ### 3.1 P1-2 현재 작업 기록
 
@@ -110,9 +116,20 @@
 
 남은 작업:
 
-1. `docs/specs/p1_batch_sim_graybox.md`의 G-01~06 권장안을 사람이 검수·승인한다.
-2. 승인 뒤 P1-5 회색상자 전투와 배치 시뮬 러너를 구현한다.
-3. 회색상자 수동 플레이 검수까지 끝내 P1 전체 완료 여부를 판정한다.
+1. `SimWorld.step`의 append-only event history 재복제를 제거하되 공개 깊은 복제와 실패 원자성을 유지한다.
+2. P0·P1 전체 회귀와 P1-5 동일 fixture 계측으로 결과 불변·실행시간 개선을 확인한다.
+3. P1-5 회색상자 전투와 배치 시뮬 러너를 구현한다.
+4. 회색상자 수동 플레이 검수까지 끝내 P1 전체 완료 여부를 판정한다.
+
+### 3.3 P1-5 성능·구현 진행 기록
+
+- 최초 세로 3열 대형은 40턴까지 200초 이상, 생존 6·총 HP 309였고 단일 전투가 300초 제한을 넘었다.
+- `SimWorld.step()` 실패 복구는 기존 불변 값 객체를 공유하는 얕은 배열 스냅샷으로 변경했다. 공개 `SimWorld.copy()`의 깊은 복제 계약은 유지한다.
+- `BattleState.advance_resolve()`도 롤백 전용 구조 스냅샷과 내부 transaction world copy를 사용한다. 권위 상태에 대한 공개 깊은 복제·snapshot schema는 바꾸지 않는다.
+- P0 SimWorld 원자성·깊은 복제, P0 충돌 원자성·결정론, P1 CTB phase rollback, P1 피해·파괴 rollback·snapshot continuation이 최적화 뒤 통과했다.
+- 승인 문서에 초기 좌표가 지정되지 않았으므로 전장·3대3·스탯·power를 유지한 중앙 근접 대칭 대형을 사용한다. 목적은 동일 물리에서 무충돌 이동 턴을 줄이는 것이다.
+- 최적화·근접 대형 baseline은 52턴·17,171틱·123,480ms에 `PLAYER_VICTORY`로 끝났고 terminal hash는 `ea819aa9acc94f2cf115d7446fd05da76fbe396cadb8c1405715e5f5ff7b3df6`이다.
+- Godot 활성 `verify --full`은 P1-5 baseline 이전 단계와 P0 결정론 골든·N=9·삽입 순열까지 PASS를 확인했다. 이후 P0 1,000회 반복이 24분을 초과해 이번 실행은 중단했으며 전체 PASS 체크는 아직 미완료다.
 
 ## 4. 구현 우선순위
 

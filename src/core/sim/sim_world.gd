@@ -1382,15 +1382,15 @@ func step_with_acceleration_mode(mode: int, status: SimStatus) -> bool:
 		return false
 
 	var tick_before: int = _tick
-	var bodies_before: Array[SimBody] = _copy_body_array(_bodies)
-	var zones_before: Array[SimZone] = _copy_zone_array(_zones)
-	var events_before: Array[SimEvent] = _copy_event_array(_events)
-	var body_requests_before: Array[BodySpawnRequest] = _copy_body_requests(
-		_pending_body_spawns
-	)
-	var zone_requests_before: Array[ZoneSpawnRequest] = _copy_zone_requests(
-		_pending_zone_spawns
-	)
+	# A step replaces value objects and request arrays; it never mutates an
+	# object that was already committed. Shallow array snapshots therefore
+	# preserve the exact rollback state without cloning the append-only event
+	# history on every 120 Hz tick. Public copy() remains a deep copy.
+	var bodies_before: Array[SimBody] = _bodies.duplicate()
+	var zones_before: Array[SimZone] = _zones.duplicate()
+	var events_before: Array[SimEvent] = _events.duplicate()
+	var body_requests_before: Array[BodySpawnRequest] = _pending_body_spawns.duplicate()
+	var zone_requests_before: Array[ZoneSpawnRequest] = _pending_zone_spawns.duplicate()
 	var next_body_before: int = _next_body_id
 	var next_zone_before: int = _next_zone_id
 	var next_sequence_before: int = _next_event_sequence
@@ -1535,6 +1535,26 @@ func copy(status: SimStatus) -> SimWorld:
 	result._pending_zone_spawns = _copy_zone_requests(_pending_zone_spawns)
 	result._initial_bodies_committed = _initial_bodies_committed
 	result._initial_zones_committed = _initial_zones_committed
+	return result
+
+
+func _transaction_copy(status: SimStatus) -> SimWorld:
+	# Internal copy for an atomic simulation transaction. Committed value
+	# objects are immutable and all mutating paths replace array entries, so
+	# sharing them here is safe. Public copy() keeps its deep-copy contract.
+	var result := SimWorld.new()
+	if not status.is_ok() or not _initialized:
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_SIM_STATE, SimStatus.Operation.WORLD_COPY, 0, 0)
+		return result
+	result._initialized = true; result._tick = _tick
+	result._base_friction_raw = _base_friction_raw; result._stop_speed_raw = _stop_speed_raw; result._restitution_raw = _restitution_raw
+	result._rng = _rng.copy(status); result._boundary_type = _boundary_type; result._boundary = _boundary
+	result._last_substep_count = _last_substep_count
+	result._bodies = _bodies.duplicate(); result._zones = _zones.duplicate()
+	result._next_body_id = _next_body_id; result._next_zone_id = _next_zone_id
+	result._events = _events.duplicate(); result._event_cursor = _event_cursor; result._next_event_sequence = _next_event_sequence
+	result._pending_body_spawns = _pending_body_spawns.duplicate(); result._pending_zone_spawns = _pending_zone_spawns.duplicate()
+	result._initial_bodies_committed = _initial_bodies_committed; result._initial_zones_committed = _initial_zones_committed
 	return result
 
 
