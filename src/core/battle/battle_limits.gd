@@ -11,6 +11,8 @@ const NORMAL_RESOLVE_MAX_TICKS: int = 960
 const FORCED_RESOLVE_MAX_TICKS: int = 240
 const FORCED_DAMPING_NUMERATOR: int = 3
 const FORCED_DAMPING_DENOMINATOR: int = 4
+const TRIGGER_MAX_WAVES: int = 32
+const TRIGGER_MAX_RECORDS: int = 4096
 
 
 static func valid_base_speed(value: int) -> bool:

@@ -313,7 +313,10 @@ def section_elevenlabs() -> None:
 
     # CLI: 키 부재 → 종료 코드 3, 스택트레이스 없음
     # ELEVENLABS_* 제거된 깨끗한 환경. PYTHONUTF8 은 남긴다(Windows cp949 출력 방지).
-    clean_env = {"PATH": os.environ.get("PATH", ""), "PYTHONUTF8": "1"}
+    clean_env = os.environ.copy()
+    clean_env["PYTHONUTF8"] = "1"
+    for secret_key in ("SCENARIO_API_KEY", "SCENARIO_API_SECRET", "ELEVENLABS_API_KEY"):
+        clean_env.pop(secret_key, None)
     with tempfile.TemporaryDirectory() as td:
         r = _run([sys.executable, str(SCRIPTS / "elevenlabs_client.py"),
                   "generate", "--text", "x", "--env", str(Path(td) / "none.env")],

@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P1-4 전체 명세 승인 — T-01 구현·정적 검증 완료, Godot narrow 대기** |
+| 현재 단계 | **P1-4 전체 구현·Godot 검증 완료 — 다음은 P1-5 명세 작성·승인** |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -104,17 +104,15 @@
 - U-23은 record별 비소비 서브스트림과 전투 wrapper의 0%·100%·단일 후보 무소비 처리로 제안했다. 저수준 P0 `SimRng` 계약은 바꾸지 않는다.
 - `BattleSnapshot` v3, append-only 진단, 독립 Python KAT·Godot narrow·전체 회귀를 T-08~10으로 분리했다.
 - P1 인덱스의 “능력 등록”은 효과·콘텐츠 데이터가 없는 P1-4 범위와 충돌하므로, 실제 등록을 후속 데이터 기반 능력 단계로 미루는 수정안을 T-01 승인 항목에 명시했다.
-- T-01 `BattleTriggerId` 1~13과 `BattleTriggerRecord` 고정 레이아웃·깊은 복제·PASSIVE record 거부를 구현했다.
-- `SimStatus` Code 28 / Operation 97을 append-only로 추가하고 P1-4 narrow runner를 `verify --full` 자동 발견에 편입했다.
-- T-01 static narrow와 `verify --full --skip-godot` 러너 15종은 통과했다. 현재 환경에서 Godot 실행 파일을 찾지 못해 실제 GDScript narrow는 대기 중이다.
+- T-01~10 전체를 구현했다. 고정 트리거 레코드, wave/record 한도 버스, phase·물리 사건 변환, 운동 root 귀속, 권위 승패, record별 RNG, BattleSnapshot v3와 v1/v2 호환을 포함한다.
+- `SimStatus` Code 28~31 / Operation 97~103을 append-only로 추가하고 P1-4 narrow runner와 독립 Python KAT를 `verify --full` 자동 발견에 편입했다.
+- portable Godot 4.6.3으로 P1-4 narrow, P1-1~3, P0 narrow와 1,000회 결정론 반복을 통과했다. Godot 활성 `verify --full`도 게이트 5개 중 lore 미초기화 1개 SKIP, 러너 15종 전체 PASS로 완료했다.
 
 남은 작업:
 
-1. Godot 4.6.x 실행 파일이 제공되면 T-01 narrow를 실제 실행한다.
-2. 사용자 별도 구현 요청을 받은 뒤 T-02 발생 조건·전체 순서부터 진행한다.
-3. 이후 버스 → 사건 결합 → 귀속/결과/RNG → snapshot 순으로 구현한다.
-4. 각 slice narrow 뒤 P1-1~3/P0 회귀와 Godot 활성 `verify --full`을 실행한다.
-5. P1-4 전체 검증 뒤 P1-5 회색상자/배치 시뮬 명세로 넘어간다.
+1. `play spec`으로 `p1_batch_sim_graybox.md` 초안을 작성한다.
+2. P1 전용 샷 공급 정책, 입력 fixture, 배치·최대 턴·교착 기준, CSV 스키마, 골든 갱신 절차를 사람 승인으로 확정한다.
+3. 승인 뒤 P1-5 회색상자 전투와 배치 시뮬 러너를 구현한다.
 
 ## 4. 구현 우선순위
 

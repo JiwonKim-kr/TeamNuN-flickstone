@@ -27,6 +27,11 @@ var _pending: Array[BattleMutationRequest] = []
 var _normal_resolve_ticks: int = 0
 var _forced_resolve_ticks: int = 0
 var _forced_settle_used: bool = false
+var _battle_result: int = BattleResult.Value.ONGOING
+var _next_trigger_sequence: int = 1
+var _last_trigger_batch: Array[BattleTriggerRecord] = []
+var _motion_credits: Array[BattleMotionCredit] = []
+var _trigger_bus: BattleTriggerBus = BattleTriggerBus.new()
 
 
 static func _participant_less(left: BattleParticipant, right: BattleParticipant) -> bool:
@@ -79,6 +84,18 @@ static func _copy_cooldowns(
 static func _copy_pending(source: Array[BattleMutationRequest]) -> Array[BattleMutationRequest]:
 	var result: Array[BattleMutationRequest] = []
 	for item: BattleMutationRequest in source: result.append(item.copy())
+	return result
+
+
+static func _copy_trigger_records(source: Array[BattleTriggerRecord]) -> Array[BattleTriggerRecord]:
+	var result: Array[BattleTriggerRecord] = []
+	for item: BattleTriggerRecord in source: result.append(item.copy())
+	return result
+
+
+static func _copy_motion_credits(source: Array[BattleMotionCredit]) -> Array[BattleMotionCredit]:
+	var result: Array[BattleMotionCredit] = []
+	for item: BattleMotionCredit in source: result.append(item.copy())
 	return result
 
 
@@ -239,8 +256,32 @@ static func restore_with_combatants(
 	state._normal_resolve_ticks = normal_ticks
 	state._forced_resolve_ticks = forced_ticks
 	state._forced_settle_used = forced_used
+	if phase == Phase.BATTLE_END:
+		state._battle_result = BattleResultResolver.resolve(state._participants)
+		if state._battle_result == BattleResult.Value.ONGOING:
+			status.fail(SimStatus.Code.INVALID_BATTLE_RESULT, SimStatus.Operation.BATTLE_RESULT_RESOLVE, phase, 0)
 	state._initialized = status.is_ok()
 	if not state._validate(status): return BattleState.new()
+	return state
+
+
+static func restore_v3(world: SimWorld, participants: Array[BattleParticipant], combatants: Array[BattleCombatant], cooldowns: Array[DamagePairCooldown], phase: int, current_actor: int, abstract_time: int, last_faction: int, normal_ticks: int, forced_ticks: int, forced_used: bool, result_value: int, next_sequence: int, records: Array[BattleTriggerRecord], credits: Array[BattleMotionCredit], status: SimStatus) -> BattleState:
+	var state: BattleState = restore_with_combatants(world, participants, combatants, cooldowns, phase, current_actor, abstract_time, last_faction, normal_ticks, forced_ticks, forced_used, status)
+	if not status.is_ok(): return BattleState.new()
+	if not BattleResult.is_known(result_value) or next_sequence <= 0 or next_sequence > UInt32Math.U32_MAX or (phase == Phase.BATTLE_END) != BattleResult.is_terminal(result_value):
+		status.fail(SimStatus.Code.INVALID_BATTLE_RESULT, SimStatus.Operation.BATTLE_RESULT_RESOLVE, phase, result_value); return BattleState.new()
+	var previous_sequence: int = 0
+	for record: BattleTriggerRecord in records:
+		if record == null or not record.is_initialized() or record.sequence() <= previous_sequence or record.sequence() >= next_sequence:
+			status.fail(SimStatus.Code.INVALID_TRIGGER_RECORD, SimStatus.Operation.BATTLE_TRIGGER_READ, previous_sequence, next_sequence); return BattleState.new()
+		previous_sequence = record.sequence()
+	var previous_body: int = 0
+	for credit: BattleMotionCredit in credits:
+		if credit == null or not credit.is_initialized() or credit.body_id() <= previous_body:
+			status.fail(SimStatus.Code.INVALID_MOTION_CREDIT, SimStatus.Operation.BATTLE_MOTION_CREDIT, previous_body, 0); return BattleState.new()
+		previous_body = credit.body_id()
+	state._battle_result = result_value; state._next_trigger_sequence = next_sequence
+	state._last_trigger_batch = _copy_trigger_records(records); state._motion_credits = _copy_motion_credits(credits)
 	return state
 
 
@@ -386,6 +427,57 @@ func _find_cooldown(low_body_id: int, high_body_id: int) -> int:
 	return -1
 
 
+func _find_motion_credit(body_id: int) -> int:
+	for index: int in range(_motion_credits.size()):
+		if _motion_credits[index].body_id() == body_id: return index
+		if _motion_credits[index].body_id() > body_id: break
+	return -1
+
+
+func _participant_faction(body_id: int) -> int:
+	var index: int = _find_participant(body_id)
+	return BattleParticipant.Faction.INVALID if index < 0 else _participants[index].faction()
+
+
+func _set_motion_credit(body_id: int, root_body_id: int, root_faction: int, source_sequence: int, tick: int, status: SimStatus) -> void:
+	var item: BattleMotionCredit = BattleMotionCredit.create(body_id, root_body_id, root_faction, source_sequence, tick, status)
+	if not status.is_ok(): return
+	var index: int = _find_motion_credit(body_id)
+	if index >= 0: _motion_credits[index] = item
+	else:
+		_motion_credits.append(item)
+		_motion_credits.sort_custom(func(a: BattleMotionCredit, b: BattleMotionCredit) -> bool: return a.body_id() < b.body_id())
+
+
+func _begin_trigger_transition() -> void:
+	_trigger_bus = BattleTriggerBus.new()
+
+
+func _emit_trigger(trigger_id: int, source_sequence: int, subject: int, other: int, instigator: int, cause_id: int, position: FixVec2, vector: FixVec2, value_a: int, value_b: int, status: SimStatus) -> void:
+	if not status.is_ok(): return
+	if _next_trigger_sequence > UInt32Math.U32_MAX:
+		status.fail(SimStatus.Code.COUNTER_EXHAUSTED, SimStatus.Operation.TRIGGER_ENQUEUE, _next_trigger_sequence, 0); return
+	var record: BattleTriggerRecord = BattleTriggerRecord.create(_next_trigger_sequence, 0, trigger_id, _phase, _world.tick(), source_sequence, subject, other, instigator, cause_id, position, vector, value_a, value_b, 0, status)
+	if status.is_ok() and _trigger_bus.enqueue(record, status): _next_trigger_sequence += 1
+
+
+func _finish_trigger_transition(status: SimStatus) -> bool:
+	if not status.is_ok(): return false
+	_last_trigger_batch = _trigger_bus.drain(status)
+	return status.is_ok() and _trigger_bus.is_empty()
+
+
+func _transfer_motion_credit(attacker_id: int, victim_id: int, source_sequence: int, tick: int, status: SimStatus) -> void:
+	var root_id: int = attacker_id
+	var root_faction: int = _participant_faction(attacker_id)
+	var index: int = _find_motion_credit(attacker_id)
+	if index >= 0:
+		root_id = _motion_credits[index].root_body_id()
+		root_faction = _motion_credits[index].root_faction()
+	if root_faction != BattleParticipant.Faction.INVALID:
+		_set_motion_credit(victim_id, root_id, root_faction, source_sequence, tick, status)
+
+
 func _remove_body_state(body_id: int) -> void:
 	var participant_index: int = _find_participant(body_id)
 	if participant_index >= 0:
@@ -398,6 +490,8 @@ func _remove_body_state(body_id: int) -> void:
 		if item.low_body_id() != body_id and item.high_body_id() != body_id:
 			survivors.append(item)
 	_cooldowns = survivors
+	var credit_index: int = _find_motion_credit(body_id)
+	if credit_index >= 0: _motion_credits.remove_at(credit_index)
 
 
 func _select_actor(status: SimStatus) -> bool:
@@ -544,6 +638,12 @@ func _update_cooldown(
 		_cooldowns.sort_custom(_cooldown_less)
 
 
+func _emit_damage_pair(result: DamageResult, event: SimEvent, normal: FixVec2, status: SimStatus) -> void:
+	if not status.is_ok() or not result.has_damage(): return
+	_emit_trigger(BattleTriggerId.Value.ON_HIT_DEAL, event.sequence(), result.attacker_body_id(), result.victim_body_id(), 0, SimEvent.CauseId.NONE, event.position(), normal, result.applied_damage(), result.resolved_damage(), status)
+	_emit_trigger(BattleTriggerId.Value.ON_HIT_TAKE, event.sequence(), result.victim_body_id(), result.attacker_body_id(), 0, SimEvent.CauseId.NONE, event.position(), normal.negated(status), result.applied_damage(), result.resolved_damage(), status)
+
+
 func _process_collision_event(
 		event: SimEvent,
 		pending_body_ids: Array[int],
@@ -573,6 +673,27 @@ func _process_collision_event(
 	var speed_order: int = event.collision_speed_order(status)
 	if not status.is_ok():
 		return
+	if _same_non_neutral_faction(source, target):
+		_emit_trigger(BattleTriggerId.Value.ON_ALLY_COLLIDE, event.sequence(), source_id, target_id, 0, SimEvent.CauseId.NONE, event.position(), event.vector(), event.value_a(), 0, status)
+		_emit_trigger(BattleTriggerId.Value.ON_ALLY_COLLIDE, event.sequence(), target_id, source_id, 0, SimEvent.CauseId.NONE, event.position(), event.vector().negated(status), event.value_a(), 0, status)
+	# Motion lineage follows contact even when the impact is below the damage threshold.
+	if speed_order == SimEvent.COLLISION_SOURCE_FASTER:
+		_transfer_motion_credit(source_id, target_id, event.sequence(), event.tick(), status)
+	elif speed_order == SimEvent.COLLISION_TARGET_FASTER:
+		_transfer_motion_credit(target_id, source_id, event.sequence(), event.tick(), status)
+	else:
+		var source_credit: BattleMotionCredit = BattleMotionCredit.new()
+		var target_credit: BattleMotionCredit = BattleMotionCredit.new()
+		var source_credit_index: int = _find_motion_credit(source_id)
+		var target_credit_index: int = _find_motion_credit(target_id)
+		if source_credit_index >= 0: source_credit = _motion_credits[source_credit_index].copy()
+		if target_credit_index >= 0: target_credit = _motion_credits[target_credit_index].copy()
+		var source_root: int = target_id if not target_credit.is_initialized() else target_credit.root_body_id()
+		var source_faction: int = target.faction() if not target_credit.is_initialized() else target_credit.root_faction()
+		var target_root: int = source_id if not source_credit.is_initialized() else source_credit.root_body_id()
+		var target_faction: int = source.faction() if not source_credit.is_initialized() else source_credit.root_faction()
+		_set_motion_credit(source_id, source_root, source_faction, event.sequence(), event.tick(), status)
+		_set_motion_credit(target_id, target_root, target_faction, event.sequence(), event.tick(), status)
 	if event.value_a() < DamageLimits.DAMAGE_THRESHOLD_SPEED_RAW:
 		return
 	var cooldown_index: int = _find_cooldown(source_id, target_id)
@@ -593,6 +714,7 @@ func _process_collision_event(
 			status
 		)
 		dealt_damage = status.is_ok() and source_result.has_damage()
+		_emit_damage_pair(source_result, event, event.vector(), status)
 		_apply_damage_result(
 			source_result, pending_body_ids, pending_cause_ids, status
 		)
@@ -606,6 +728,7 @@ func _process_collision_event(
 			status
 		)
 		dealt_damage = status.is_ok() and target_result.has_damage()
+		_emit_damage_pair(target_result, event, event.vector().negated(status), status)
 		_apply_damage_result(
 			target_result, pending_body_ids, pending_cause_ids, status
 		)
@@ -630,6 +753,8 @@ func _process_collision_event(
 			status.is_ok()
 			and (source_to_target.has_damage() or target_to_source.has_damage())
 		)
+		_emit_damage_pair(source_to_target, event, event.vector(), status)
+		_emit_damage_pair(target_to_source, event, event.vector().negated(status), status)
 		_apply_damage_result(
 			source_to_target, pending_body_ids, pending_cause_ids, status
 		)
@@ -638,6 +763,25 @@ func _process_collision_event(
 		)
 	if status.is_ok() and dealt_damage:
 		_update_cooldown(source_id, target_id, event.tick(), status)
+
+
+func _process_destroy_event(event: SimEvent, status: SimStatus) -> void:
+	var victim_id: int = event.source_body_id()
+	var victim_faction: int = _participant_faction(victim_id)
+	var direct_attacker: int = event.target_body_id()
+	_emit_trigger(BattleTriggerId.Value.ON_DEATH_SELF, event.sequence(), victim_id, 0, 0, event.cause_id(), event.position(), event.vector(), 0, 0, status)
+	var killer_id: int = 0
+	var killer_faction: int = BattleParticipant.Faction.INVALID
+	var credit_index: int = _find_motion_credit(victim_id)
+	if credit_index >= 0:
+		killer_id = _motion_credits[credit_index].root_body_id()
+		killer_faction = _motion_credits[credit_index].root_faction()
+	elif direct_attacker > 0:
+		killer_id = direct_attacker
+		killer_faction = _participant_faction(direct_attacker)
+	if killer_id > 0 and ((killer_faction == BattleParticipant.Faction.PLAYER and victim_faction == BattleParticipant.Faction.ENEMY) or (killer_faction == BattleParticipant.Faction.ENEMY and victim_faction == BattleParticipant.Faction.PLAYER)):
+		_emit_trigger(BattleTriggerId.Value.ON_KILL, event.sequence(), killer_id, victim_id, direct_attacker, event.cause_id(), event.position(), event.vector(), 0, 0, status)
+	_remove_body_state(victim_id)
 
 
 func _consume_world_events(status: SimStatus) -> void:
@@ -652,10 +796,11 @@ func _consume_world_events(status: SimStatus) -> void:
 			_process_collision_event(
 				event, pending_body_ids, pending_cause_ids, status
 			)
-		elif (
-			event.type_id() == SimEvent.TypeId.BODY_REMOVED
-			or event.type_id() == SimEvent.TypeId.BODY_DESTROYED
-		):
+		elif event.type_id() == SimEvent.TypeId.BODY_HIT_WALL:
+			_emit_trigger(BattleTriggerId.Value.ON_WALL_BOUNCE, event.sequence(), event.source_body_id(), 0, 0, SimEvent.CauseId.NONE, event.position(), event.vector(), event.value_a(), event.value_b(), status)
+		elif event.type_id() == SimEvent.TypeId.BODY_DESTROYED:
+			_process_destroy_event(event, status)
+		elif event.type_id() == SimEvent.TypeId.BODY_REMOVED:
 			_remove_body_state(event.source_body_id())
 	if not status.is_ok():
 		return
@@ -690,7 +835,7 @@ func _consume_world_events(status: SimStatus) -> void:
 				event.cause_id()
 			)
 			return
-		_remove_body_state(event.source_body_id())
+		_process_destroy_event(event, status)
 
 
 func _apply_barrier(status: SimStatus) -> bool:
@@ -828,7 +973,9 @@ func _queue_request(
 func complete_battle_start(status: SimStatus) -> bool:
 	if not _require_phase(Phase.BATTLE_START, SimStatus.Operation.BATTLE_START_COMPLETE, status): return false
 	var backup: BattleState = copy(SimStatus.new())
-	if _apply_barrier(status) and _select_actor(status): return true
+	_begin_trigger_transition()
+	if _apply_barrier(status): _emit_trigger(BattleTriggerId.Value.ON_BATTLE_START, 0, 0, 0, 0, SimEvent.CauseId.NONE, FixVec2.zero(), FixVec2.zero(), 0, 0, status)
+	if status.is_ok() and _select_actor(status) and _finish_trigger_transition(status): return true
 	_assign_from(backup)
 	return false
 
@@ -836,11 +983,14 @@ func complete_battle_start(status: SimStatus) -> bool:
 func complete_turn_start(status: SimStatus) -> bool:
 	if not _require_phase(Phase.TURN_START, SimStatus.Operation.BATTLE_TURN_START_COMPLETE, status): return false
 	var backup: BattleState = copy(SimStatus.new())
+	_begin_trigger_transition()
 	if not _apply_barrier(status): _assign_from(backup); return false
 	if _find_participant(_current_actor_body_id) < 0:
 		status.fail(SimStatus.Code.NOT_FOUND, SimStatus.Operation.BATTLE_TURN_START_COMPLETE, _current_actor_body_id, 0)
 		_assign_from(backup)
 		return false
+	_emit_trigger(BattleTriggerId.Value.ON_TURN_START, 0, _current_actor_body_id, 0, 0, SimEvent.CauseId.NONE, FixVec2.zero(), FixVec2.zero(), 0, 0, status)
+	if not _finish_trigger_transition(status): _assign_from(backup); return false
 	_phase = Phase.AIM
 	return true
 
@@ -869,12 +1019,19 @@ func commit_launch_velocity(launch_velocity: FixVec2, status: SimStatus) -> bool
 	if not _world.is_quiescent(SimWorld.ContinuousAccelerationMode.APPLY, status):
 		if status.is_ok(): status.fail(SimStatus.Code.INVALID_BATTLE_STATE, SimStatus.Operation.BATTLE_ACTION_COMMIT, _current_actor_body_id, 0)
 		return false
+	var backup: BattleState = copy(SimStatus.new())
+	_begin_trigger_transition()
 	var next_world: SimWorld = _world.copy(status)
 	next_world.set_body_velocity(_current_actor_body_id, launch_velocity, status)
-	if not status.is_ok() or not _consume_actor(status): return false
+	if not status.is_ok() or not _consume_actor(status): _assign_from(backup); return false
 	_world = next_world
+	_motion_credits.clear()
+	var actor_faction: int = _participant_faction(_current_actor_body_id)
+	_set_motion_credit(_current_actor_body_id, _current_actor_body_id, actor_faction, 0, _world.tick(), status)
+	_emit_trigger(BattleTriggerId.Value.ON_LAUNCH, 0, _current_actor_body_id, 0, 0, SimEvent.CauseId.NONE, FixVec2.zero(), launch_velocity, 0, 0, status)
 	_normal_resolve_ticks = 0; _forced_resolve_ticks = 0; _forced_settle_used = false
 	_phase = Phase.RESOLVE
+	if not _finish_trigger_transition(status): _assign_from(backup); return false
 	return true
 
 
@@ -883,9 +1040,12 @@ func commit_forced_no_launch(status: SimStatus) -> bool:
 		status.fail(SimStatus.Code.INVALID_PHASE, SimStatus.Operation.BATTLE_ACTION_COMMIT, _phase, (1 << Phase.TURN_START) | (1 << Phase.AIM))
 		return false
 	var backup: BattleState = copy(SimStatus.new())
+	_begin_trigger_transition()
 	if not _apply_barrier(status) or not _consume_actor(status): _assign_from(backup); return false
+	_motion_credits.clear()
 	_normal_resolve_ticks = 0; _forced_resolve_ticks = 0; _forced_settle_used = false
 	_phase = Phase.TURN_END if _world.is_quiescent(SimWorld.ContinuousAccelerationMode.APPLY, status) else Phase.RESOLVE
+	if not _finish_trigger_transition(status): _assign_from(backup); return false
 	return status.is_ok()
 
 
@@ -894,6 +1054,7 @@ func interrupt_missing_current_actor(status: SimStatus) -> bool:
 		status.fail(SimStatus.Code.INVALID_PHASE, SimStatus.Operation.BATTLE_ACTOR_INTERRUPT, _phase, 0)
 		return false
 	var backup: BattleState = copy(SimStatus.new())
+	_begin_trigger_transition()
 	if not _apply_barrier(status):
 		_assign_from(backup)
 		return false
@@ -904,16 +1065,18 @@ func interrupt_missing_current_actor(status: SimStatus) -> bool:
 		_assign_from(backup)
 		return false
 	_phase = Phase.TURN_END if _world.is_quiescent(SimWorld.ContinuousAccelerationMode.APPLY, status) else Phase.RESOLVE
+	if not _finish_trigger_transition(status): _assign_from(backup); return false
 	return status.is_ok()
 
 
 func advance_resolve(status: SimStatus) -> bool:
 	if not _require_phase(Phase.RESOLVE, SimStatus.Operation.BATTLE_RESOLVE_ADVANCE, status): return false
 	var backup: BattleState = copy(SimStatus.new())
+	_begin_trigger_transition()
 	var mode: int = SimWorld.ContinuousAccelerationMode.SUPPRESS if _forced_settle_used else SimWorld.ContinuousAccelerationMode.APPLY
 	if (not _forced_settle_used or _forced_resolve_ticks > 0) and _world.is_quiescent(mode, status) and _pending.is_empty() and _world.event_cursor() == _world.event_count():
 		_phase = Phase.TURN_END
-		return true
+		return _finish_trigger_transition(status)
 	if _forced_settle_used and _forced_resolve_ticks >= BattleLimits.FORCED_RESOLVE_MAX_TICKS:
 		var blocker: int = 0
 		for index: int in range(_world.body_count()):
@@ -921,6 +1084,10 @@ func advance_resolve(status: SimStatus) -> bool:
 			if not body.velocity().is_zero(): blocker = body.id(); break
 		status.fail(SimStatus.Code.RESOLVE_DEADLOCK, SimStatus.Operation.BATTLE_RESOLVE_ADVANCE, blocker, _normal_resolve_ticks + _forced_resolve_ticks)
 		return false
+	for index: int in range(_world.body_count()):
+		var moving_body: SimBody = _world.body_at(index, status)
+		if not moving_body.velocity().is_zero():
+			_emit_trigger(BattleTriggerId.Value.ON_MOVING, 0, moving_body.id(), 0, 0, SimEvent.CauseId.NONE, moving_body.position(), moving_body.velocity(), 0, 0, status)
 	var next_world: SimWorld = _world.copy(status)
 	if _forced_settle_used:
 		for index: int in range(next_world.body_count()):
@@ -939,16 +1106,21 @@ func advance_resolve(status: SimStatus) -> bool:
 		_normal_resolve_ticks += 1
 		if _normal_resolve_ticks >= BattleLimits.NORMAL_RESOLVE_MAX_TICKS: _forced_settle_used = true
 	if _forced_settle_used and _forced_resolve_ticks == 0:
+		if not _finish_trigger_transition(status): _assign_from(backup); return false
 		return status.is_ok()
 	mode = SimWorld.ContinuousAccelerationMode.SUPPRESS if _forced_settle_used else SimWorld.ContinuousAccelerationMode.APPLY
 	if _world.is_quiescent(mode, status) and _pending.is_empty() and _world.event_cursor() == _world.event_count(): _phase = Phase.TURN_END
+	if not _finish_trigger_transition(status): _assign_from(backup); return false
 	return status.is_ok()
 
 
 func complete_turn_end(status: SimStatus) -> bool:
 	if not _require_phase(Phase.TURN_END, SimStatus.Operation.BATTLE_TURN_END_COMPLETE, status): return false
 	var backup: BattleState = copy(SimStatus.new())
+	_begin_trigger_transition()
 	if not _apply_barrier(status): _assign_from(backup); return false
+	_emit_trigger(BattleTriggerId.Value.ON_TURN_END, 0, _current_actor_body_id, 0, 0, SimEvent.CauseId.NONE, FixVec2.zero(), FixVec2.zero(), 0, 0, status)
+	if not _finish_trigger_transition(status): _assign_from(backup); return false
 	_phase = Phase.CHECK
 	return true
 
@@ -958,15 +1130,31 @@ func apply_check_directive(directive: int, status: SimStatus) -> bool:
 	if directive != CheckDirective.CONTINUE and directive != CheckDirective.END:
 		status.fail(SimStatus.Code.INVALID_ARGUMENT, SimStatus.Operation.BATTLE_CHECK_APPLY, directive, 0)
 		return false
+	var computed: int = BattleResultResolver.resolve(_participants)
+	if (directive == CheckDirective.CONTINUE) != (computed == BattleResult.Value.ONGOING):
+		status.fail(SimStatus.Code.INVALID_BATTLE_RESULT, SimStatus.Operation.BATTLE_RESULT_RESOLVE, directive, computed)
+		return false
+	return resolve_check(status)
+
+
+func resolve_check(status: SimStatus) -> bool:
+	if not _require_phase(Phase.CHECK, SimStatus.Operation.BATTLE_RESULT_RESOLVE, status): return false
 	var backup: BattleState = copy(SimStatus.new())
-	if not _apply_barrier(status): _assign_from(backup); return false
-	if directive == CheckDirective.END:
-		_current_actor_body_id = 0; _phase = Phase.BATTLE_END
-		return true
+	_begin_trigger_transition()
+	if not _pending.is_empty() or _world.event_cursor() != _world.event_count():
+		status.fail(SimStatus.Code.INVALID_BATTLE_STATE, SimStatus.Operation.BATTLE_RESULT_RESOLVE, _pending.size(), _world.event_count() - _world.event_cursor())
+		_assign_from(backup); return false
+	var computed: int = BattleResultResolver.resolve(_participants)
 	_current_actor_body_id = 0
-	if _select_actor(status): return true
-	_assign_from(backup)
-	return false
+	if computed == BattleResult.Value.ONGOING:
+		if not _select_actor(status) or not _finish_trigger_transition(status): _assign_from(backup); return false
+		return true
+	_battle_result = computed
+	_phase = Phase.BATTLE_END
+	_motion_credits.clear()
+	_emit_trigger(BattleTriggerId.Value.ON_BATTLE_END, 0, 0, 0, 0, SimEvent.CauseId.NONE, FixVec2.zero(), FixVec2.zero(), computed, 0, status)
+	if not _finish_trigger_transition(status): _assign_from(backup); return false
+	return true
 
 
 func preview(count: int, status: SimStatus) -> Array[CtbPreviewEntry]:
@@ -999,6 +1187,9 @@ func copy(status: SimStatus) -> BattleState:
 	result._world = _world.copy(status)
 	result._pending = _copy_pending(_pending); result._normal_resolve_ticks = _normal_resolve_ticks
 	result._forced_resolve_ticks = _forced_resolve_ticks; result._forced_settle_used = _forced_settle_used
+	result._battle_result = _battle_result; result._next_trigger_sequence = _next_trigger_sequence
+	result._last_trigger_batch = _copy_trigger_records(_last_trigger_batch)
+	result._motion_credits = _copy_motion_credits(_motion_credits)
 	return result
 
 
@@ -1009,6 +1200,9 @@ func _assign_from(other: BattleState) -> void:
 	_cooldowns = other._cooldowns; _world = other._world; _pending = other._pending
 	_normal_resolve_ticks = other._normal_resolve_ticks; _forced_resolve_ticks = other._forced_resolve_ticks
 	_forced_settle_used = other._forced_settle_used
+	_battle_result = other._battle_result; _next_trigger_sequence = other._next_trigger_sequence
+	_last_trigger_batch = other._last_trigger_batch; _motion_credits = other._motion_credits
+	_trigger_bus = BattleTriggerBus.new()
 
 
 func is_initialized() -> bool: return _initialized
@@ -1041,3 +1235,15 @@ func forced_resolve_ticks() -> int: return _forced_resolve_ticks
 func forced_settle_used() -> bool: return _forced_settle_used
 func world_copy(status: SimStatus) -> SimWorld: return _world.copy(status)
 func has_pending_mutations() -> bool: return not _pending.is_empty()
+func battle_result() -> int: return _battle_result
+func next_trigger_sequence() -> int: return _next_trigger_sequence
+func trigger_record_count() -> int: return _last_trigger_batch.size()
+func trigger_record_at(index: int, status: SimStatus) -> BattleTriggerRecord:
+	if index < 0 or index >= _last_trigger_batch.size():
+		status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.BATTLE_TRIGGER_READ, index, _last_trigger_batch.size()); return BattleTriggerRecord.new()
+	return _last_trigger_batch[index].copy()
+func motion_credit_count() -> int: return _motion_credits.size()
+func motion_credit_at(index: int, status: SimStatus) -> BattleMotionCredit:
+	if index < 0 or index >= _motion_credits.size():
+		status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.BATTLE_MOTION_CREDIT, index, _motion_credits.size()); return BattleMotionCredit.new()
+	return _motion_credits[index].copy()

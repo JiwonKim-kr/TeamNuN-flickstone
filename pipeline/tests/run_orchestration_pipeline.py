@@ -216,8 +216,14 @@ def section_status() -> None:
     with tempfile.TemporaryDirectory() as td:
         envp = Path(td) / "fake.env"
         envp.write_text("SCENARIO_API_KEY=SUPERSECRET_TOKEN_XYZ\n", encoding="utf-8")
-        # PYTHONUTF8 은 남긴다(Windows 에서 자식 cp949 출력 방지).
-        clean_env = {"PATH": os.environ.get("PATH", ""), "PYTHONUTF8": "1"}
+        # Windows 자식 프로세스에 필요한 SystemRoot/TEMP 등은 보존하되,
+        # 실제 비밀 키만 제거해 fixture가 유일한 입력이 되게 한다.
+        clean_env = os.environ.copy()
+        clean_env["PYTHONUTF8"] = "1"
+        for secret_key in (
+            "SCENARIO_API_KEY", "SCENARIO_API_SECRET", "ELEVENLABS_API_KEY"
+        ):
+            clean_env.pop(secret_key, None)
         r = _run([sys.executable, str(SCRIPTS / "status.py"),
                   "--env", str(envp), "--json"], env=clean_env)
         data = json.loads(r.stdout)

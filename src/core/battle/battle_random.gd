@@ -1,0 +1,30 @@
+class_name BattleRandom
+extends RefCounted
+
+const PURPOSE_TRIGGER_EFFECT: int = 1
+
+var _rng: SimRng = SimRng.new()
+
+static func for_record(world: SimWorld, record: BattleTriggerRecord, status: SimStatus) -> BattleRandom:
+	var result := BattleRandom.new()
+	if not status.is_ok() or world == null or record == null or not record.is_initialized():
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_ARGUMENT, SimStatus.Operation.BATTLE_RANDOM, 0, 0)
+		return result
+	result._rng = world.root_rng_copy(status).derive_substream(PURPOSE_TRIGGER_EFFECT, record.subject_body_id(), record.sequence(), status)
+	return result
+
+func next_index(count: int, status: SimStatus) -> int:
+	if count <= 0:
+		status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.BATTLE_RANDOM, count, 0); return 0
+	if count == 1: return 0
+	return _rng.next_below(count, status)
+
+func chance(numerator: int, denominator: int, status: SimStatus) -> bool:
+	if denominator <= 0 or numerator < 0 or numerator > denominator:
+		status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.BATTLE_RANDOM, numerator, denominator); return false
+	if numerator == 0: return false
+	if numerator == denominator: return true
+	return _rng.chance(numerator, denominator, status)
+
+func draw_count_hi() -> int: return _rng.draw_count_hi()
+func draw_count_lo() -> int: return _rng.draw_count_lo()

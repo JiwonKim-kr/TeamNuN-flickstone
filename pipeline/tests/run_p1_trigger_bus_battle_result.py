@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
-"""P1-4 trigger bus and battle result acceptance runner (T-01 slice)."""
+"""P1-4 trigger bus, motion credit, RNG, snapshot, and result runner."""
 from __future__ import annotations
 
 import argparse
 import os
 import re
 import sys
+import subprocess
 from pathlib import Path
 
 import godot_test_support
 
 ROOT = Path(__file__).resolve().parents[2]
 TEST = "res://pipeline/tests/p1_trigger_bus_battle_result_test.gd"
-CORE = ("battle_trigger_id.gd", "battle_trigger_record.gd")
+CORE = (
+    "battle_trigger_id.gd", "battle_trigger_record.gd", "battle_trigger_bus.gd",
+    "battle_motion_credit.gd", "battle_result.gd", "battle_result_resolver.gd",
+    "battle_random.gd", "battle_state.gd", "battle_snapshot.gd",
+)
 
 
 def static_checks(project: Path) -> list[str]:
@@ -62,7 +67,11 @@ def static_checks(project: Path) -> list[str]:
     status_text = status_path.read_text(encoding="utf-8")
     for contract in (
         "INVALID_TRIGGER_RECORD = 28",
+        "TRIGGER_LIMIT_EXCEEDED = 29",
+        "INVALID_MOTION_CREDIT = 30",
+        "INVALID_BATTLE_RESULT = 31",
         "TRIGGER_RECORD_CREATE = 97",
+        "BATTLE_RANDOM = 103",
     ):
         if contract not in status_text:
             failures.append(f"missing append-only diagnostic: {contract}")
@@ -80,7 +89,16 @@ def main() -> int:
     if failures:
         print("\n".join(f"[FAIL] {item}" for item in failures))
         return 1
-    print("[PASS] P1-4 T-01 deterministic core boundary")
+    print("[PASS] P1-4 deterministic core boundary")
+
+    reference = subprocess.run(
+        [sys.executable, str(project / "pipeline/tests/p1_trigger_reference.py")],
+        cwd=project, text=True, capture_output=True,
+    )
+    print(reference.stdout.strip())
+    if reference.returncode:
+        print(reference.stderr, file=sys.stderr)
+        return 1
 
     if os.environ.get("ARTIFICER_SKIP_GODOT_TESTS") == "1":
         print("P1_TRIGGER_BUS_BATTLE_RESULT_RUNNER_RESULT: PASS (Godot skipped explicitly)")

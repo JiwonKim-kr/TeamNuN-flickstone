@@ -178,7 +178,10 @@ def section_scenario_client() -> None:
     # SCENARIO_* 제거된 깨끗한 환경. PYTHONUTF8 은 남긴다 — 없으면 Windows 에서 자식이
     # 한글 안내를 cp949 로 내보내고 부모(utf-8 디코드)의 리더 스레드가 UnicodeDecodeError 로
     # 죽어 r.stderr 가 None 이 된다(아래 in 검사에서 TypeError).
-    clean_env = {"PATH": os.environ.get("PATH", ""), "PYTHONUTF8": "1"}
+    clean_env = os.environ.copy()
+    clean_env["PYTHONUTF8"] = "1"
+    for secret_key in ("SCENARIO_API_KEY", "SCENARIO_API_SECRET", "ELEVENLABS_API_KEY"):
+        clean_env.pop(secret_key, None)
     with tempfile.TemporaryDirectory() as td:
         r = subprocess.run(
             [sys.executable, str(SCRIPTS / "scenario_client.py"),
