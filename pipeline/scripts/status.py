@@ -66,12 +66,21 @@ def collect_manifest(manifest_path: Path) -> dict:
     }
 
 
-_SPEC_STATUS_RE = re.compile(r"^\s*-\s*\*\*status\*\*\s*:\s*(\S+)", re.MULTILINE)
+_SPEC_STATUS_PATTERNS = (
+    re.compile(r"^\s*-\s*\*\*status\*\*\s*:\s*(\S+)", re.MULTILINE),
+    re.compile(
+        r"^\s*\|\s*(?:\*\*)?status(?:\*\*)?\s*\|\s*"
+        r"(?:\*\*|`)?([A-Za-z][\w-]*)(?:\*\*|`)?(?:\s+[^|]*)?\|",
+        re.MULTILINE | re.IGNORECASE,
+    ),
+)
 
 
 def parse_spec_status(text: str) -> str | None:
-    m = _SPEC_STATUS_RE.search(text)
-    return m.group(1).strip() if m else None
+    for pattern in _SPEC_STATUS_PATTERNS:
+        if m := pattern.search(text):
+            return m.group(1).strip()
+    return None
 
 
 def collect_specs(specs_dir: Path) -> list[dict]:

@@ -38,6 +38,7 @@ REPO_ROOT = TESTS_DIR.parent.parent
 SCRIPTS = TESTS_DIR.parent / "scripts"
 
 sys.path.insert(0, str(SCRIPTS))
+import status as status_mod  # noqa: E402
 import verify as verify_mod  # noqa: E402
 
 PASS = "PASS"
@@ -194,6 +195,12 @@ def section_gate3_violations() -> None:
 # ---------------------------------------------------------------------------
 def section_status() -> None:
     print("\n[3] status.py — JSON 구조 + 비밀값 마스킹")
+    check("목록형 spec status 파싱",
+          status_mod.parse_spec_status("- **status**: draft\n") == "draft")
+    check("표 형식 spec status 파싱",
+          status_mod.parse_spec_status(
+              "| 항목 | 값 |\n|---|---|\n| status | **approved** |\n"
+          ) == "approved")
     r = _run([sys.executable, str(SCRIPTS / "status.py"), "--json"])
     check("status --json 종료 0", r.returncode == 0)
     data = json.loads(r.stdout)
