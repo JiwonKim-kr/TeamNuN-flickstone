@@ -57,11 +57,26 @@ def _manifest_py() -> Path:
 # 큐 수집
 # ---------------------------------------------------------------------------
 _SPEC_STATUS_RE = re.compile(r"^(\s*-\s*\*\*status\*\*\s*:\s*)(\S+)", re.MULTILINE)
+_SPEC_STATUS_TABLE_RE = re.compile(
+    r"^(\s*\|\s*status\s*\|\s*)(?:\*\*)?([A-Za-z0-9_-]+)(?:\*\*)?(\s*\|\s*)$",
+    re.MULTILINE | re.IGNORECASE,
+)
 
 
 def _parse_spec_status(text: str) -> str | None:
     m = _SPEC_STATUS_RE.search(text)
+    if m:
+        return m.group(2).strip()
+    m = _SPEC_STATUS_TABLE_RE.search(text)
     return m.group(2).strip() if m else None
+
+
+def _replace_spec_status(text: str, status: str) -> str:
+    if _SPEC_STATUS_RE.search(text):
+        return _SPEC_STATUS_RE.sub(
+            lambda m: f"{m.group(1)}{status}", text, count=1)
+    return _SPEC_STATUS_TABLE_RE.sub(
+        lambda m: f"{m.group(1)}**{status}**{m.group(3)}", text, count=1)
 
 
 def build_queue(manifest_path: Path, specs_dir: Path) -> dict:
@@ -219,8 +234,7 @@ def apply_spec(specs_dir: Path, spec_id: str, action: str, reason: str | None) -
         if cur == "approved":
             print(f"멱등: '{spec_id}' 는 이미 approved 입니다. (변경 없음)")
             return 0
-        new_text = _SPEC_STATUS_RE.sub(
-            lambda m: f"{m.group(1)}approved", text, count=1)
+        new_text = _replace_spec_status(text, "approved")
         new_text += f"\n> [review 승인 {today}] 사람 검수 승인.\n"
         path.write_text(new_text, encoding="utf-8")
         print(f"반영됨: {spec_id} → approved (status 필드 갱신)")

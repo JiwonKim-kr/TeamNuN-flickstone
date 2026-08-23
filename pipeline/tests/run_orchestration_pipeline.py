@@ -312,9 +312,10 @@ def section_review() -> None:
         r = _manifest(mpath, spath, "validate")
         check("반영 후 매니페스트 유효", r.returncode == 0)
 
-        # spec 승인 왕복 (draft → approved, 문서 status 필드)
+        # spec 승인 왕복 (표 형식 draft → approved, 문서 status 필드)
         spec = clone / "docs" / "specs" / "test_feature.md"
-        spec.write_text("# spec: test_feature\n\n- **status**: draft\n\n## goal\n테스트.\n",
+        spec.write_text("# spec: test_feature\n\n| 항목 | 값 |\n|---|---|\n"
+                        "| status | **draft** |\n\n## goal\n테스트.\n",
                         encoding="utf-8")
         r = _review(clone, "list", "--json")
         queue = json.loads(r.stdout)
@@ -323,10 +324,10 @@ def section_review() -> None:
         r = _review(clone, "approve", "--id", "spec:test_feature")
         check("spec approve 종료 0", r.returncode == 0)
         spec_text = spec.read_text(encoding="utf-8")
-        check("spec status 필드 approved 로 갱신", "**status**: approved" in spec_text)
+        check("spec status 필드 approved 로 갱신", "| status | **approved** |" in spec_text)
         check("spec 승인 노트 추가", "review 승인" in spec_text)
 
-        # spec reject: status draft 유지 + 사유 노트
+        # spec reject: 기존 목록 형식도 지원하며 status draft 유지 + 사유 노트
         spec2 = clone / "docs" / "specs" / "another.md"
         spec2.write_text("# spec: another\n\n- **status**: draft\n", encoding="utf-8")
         r = _review(clone, "reject", "--id", "spec:another", "--reason", "범위 과다")
