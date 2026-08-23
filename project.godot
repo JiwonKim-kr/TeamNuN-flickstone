@@ -16,6 +16,10 @@ config/description="원형 기물 충돌과 CTB 전술을 결합한 TeamNuN의 �
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.6")
 
+[autoload]
+
+DataDB="*res://src/core/autoload/data_db.gd"
+
 [debug]
 
 gdscript/warnings/untyped_declaration=1

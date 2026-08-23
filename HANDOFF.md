@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P1 완료 — P2 콘텐츠 기반·P3 AI 착수 가능** |
+| 현재 단계 | **P2-1 콘텐츠 카탈로그 완료 — 다음은 P2-2 효과 실행 명세·승인** |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -85,6 +85,10 @@
 - [x] P1-5 fixture v2 16/256/1,000 배치 — 전승·실패 0·forced settle 0·terminal hash 일치
 - [x] P1-5 회색상자 사람 수동 감각 검수 — 조준·첫 타격·충돌·반사·피해·턴 길이 “문제 없음” 승인
 - [x] Godot 4.6.3 활성 `verify --full` — 게이트 #1~4 PASS, lore 미초기화 #5 정상 SKIP, 러너 17종 PASS
+- [x] P2 전체 인덱스 P2-A01~11 및 P2-1 상세 P2-C01~12 승인
+- [x] P2-1 strict JSON·안정 ID·typed immutable catalog·atomic `DataDB`·SHA-256 fingerprint 구현
+- [x] P2-1 독립 Python 기준 3종·Godot 4.6.3 narrow 23개 그룹·1,000회 반복 통과
+- [x] P2-1 반영 Godot 활성 `verify --full` — 게이트 #1~4 PASS, lore 미초기화 #5 정상 SKIP, 러너 18종 PASS
 
 ### 3.1 P1-2 현재 작업 기록
 
@@ -152,13 +156,25 @@
 - P0 상태 해시 1,000회 반복과 Godot 4.6.3 활성 `verify --full`을 완료했다. 게이트 #1~4 PASS, lore canon 미초기화 #5 정상 SKIP, 자동 발견 러너 17종 PASS다. Windows에서는 `-X utf8`이 아니라 하위 프로세스에 전파되는 `$env:PYTHONUTF8='1'`을 사용해야 한다.
 - 사용자가 세로 회색상자를 직접 플레이하고 발사·반사·충돌·피해 반응에 “문제 없음”으로 전투 감각을 승인했다.
 
-### 3.4 다음 작업 실행 명령
+### 3.4 P2-1 콘텐츠 카탈로그 구현 기록
+
+- 권위 JSON은 Godot `JSON.parse()`가 아니라 프로젝트 소유 strict parser가 처리한다. UTF-8/BOM, duplicate key, trailing comma, raw control, decimal/exponent, int64 overflow와 공학 한도를 로드 단계에서 거부한다.
+- `catalog.json`, `id_registry.json`, `pieces.json`, `abilities.json` 네 파일만 허용한다. 현재 runtime piece/ability record는 승인대로 0개다.
+- `ContentCatalogBuilder`는 registry의 숫자/문자열 ID 쌍, active/retired 상태, P1 trigger와 P0/P1 수치 범위, piece→ability 참조를 검증하고 숫자 ID 순서의 불변 사본만 공개한다.
+- `DataDB`는 전체 parse/build/fingerprint 성공 뒤에만 catalog 참조를 교체한다. 실패 reload 뒤 직전 catalog와 fingerprint가 유지되는 회귀를 통과했다.
+- fingerprint KAT는 runtime empty `e8626e30d47cab13a00d054228b2403dee1d3db27e5620c225f83f898fc37bee`, fixture A `bd0803434d4d632da9e1b3291bcfd57050a9d35c8e3ca610dd29d3dc8de3e0b2`, authoritative-change B `378f413f0c8889f0f3286a0787767a27e8bf038f5db85b045b2f20b3c8d7e010`이다.
+- P2-1 narrow와 기존 P0/P1 전체 회귀가 통과했다. 다음 단계는 P2-2 `p2_effect_resolution.md` 작성·승인이며 승인 전 구현하지 않는다.
+
+### 3.5 다음 작업 실행 명령
 
 Windows PowerShell에서 먼저 `$env:PYTHONUTF8='1'`을 설정한다.
 
 ```powershell
 # 빠른 씬/manifest 확인
 python pipeline/scripts/play_test.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
+
+# P2-1 콘텐츠 카탈로그 narrow
+python pipeline/tests/run_p2_content_catalog.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
 
 # P1-5 결정론 회귀
 python pipeline/tests/run_p1_batch_sim_graybox.py --mode narrow --jobs 4 --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe

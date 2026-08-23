@@ -1,0 +1,21 @@
+{
+  "namespaces": [
+    {"entries": [], "namespace_id": 8},
+    {"entries": [], "namespace_id": 7},
+    {"entries": [], "namespace_id": 6},
+    {"entries": [], "namespace_id": 5},
+    {"entries": [], "namespace_id": 4},
+    {"entries": [], "namespace_id": 3},
+    {"entries": [
+      {"state_id": 1, "id": "fixture_collision", "numeric_id": 1},
+      {"state_id": 2, "id": "retired_ability", "numeric_id": 99},
+      {"state_id": 1, "id": "fixture_wall", "numeric_id": 7}
+    ], "namespace_id": 2},
+    {"entries": [
+      {"state_id": 1, "id": "fixture_puck", "numeric_id": 1},
+      {"state_id": 2, "id": "retired_puck", "numeric_id": 99},
+      {"state_id": 1, "id": "fixture_guard", "numeric_id": 10}
+    ], "namespace_id": 1}
+  ],
+  "schema_version": 1
+}

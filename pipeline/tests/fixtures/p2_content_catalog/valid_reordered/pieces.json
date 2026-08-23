@@ -1,0 +1,20 @@
+{
+  "records": [
+    {
+      "levels": [
+        {"ability_refs":[{"id":"fixture_collision","numeric_id":1},{"id":"fixture_wall","numeric_id":7}],"critical_basis_points":0,"friction_multiplier_raw":65536,"radius_raw":2097152,"mass_raw":4194304,"speed_stat":100,"attack":20,"max_hp":100,"level":1},
+        {"ability_refs":[{"id":"fixture_wall","numeric_id":7},{"id":"fixture_collision","numeric_id":1}],"critical_basis_points":500,"friction_multiplier_raw":65536,"radius_raw":2097152,"mass_raw":4194304,"speed_stat":100,"attack":30,"max_hp":150,"level":2}
+      ],
+      "flags":{"is_token":false,"counts_for_victory":true,"transformable":true,"destructible":true,"has_turn":true},
+      "id":"fixture_puck",
+      "numeric_id":1
+    },
+    {
+      "levels":[{"ability_refs":[],"critical_basis_points":0,"friction_multiplier_raw":65536,"radius_raw":2097152,"mass_raw":5242880,"speed_stat":80,"attack":15,"max_hp":140,"level":1}],
+      "flags":{"is_token":false,"counts_for_victory":true,"transformable":false,"destructible":true,"has_turn":true},
+      "id":"fixture_guard",
+      "numeric_id":10
+    }
+  ],
+  "schema_version": 1
+}

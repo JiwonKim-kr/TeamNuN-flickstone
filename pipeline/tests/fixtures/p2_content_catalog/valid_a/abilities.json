@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "records": [
+    {"numeric_id": 7, "id": "fixture_wall", "trigger_id": 8},
+    {"numeric_id": 1, "id": "fixture_collision", "trigger_id": 5}
+  ]
+}

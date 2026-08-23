@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flickstone.local/schemas/p2-catalog-v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "documents"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "documents": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind_id", "file_name", "schema_version"],
+        "properties": {
+          "kind_id": {"type": "integer", "minimum": 1, "maximum": 3},
+          "file_name": {"enum": ["id_registry.json", "pieces.json", "abilities.json"]},
+          "schema_version": {"const": 1}
+        }
+      }
+    }
+  }
+}

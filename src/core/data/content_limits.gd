@@ -1,0 +1,20 @@
+class_name ContentLimits
+extends RefCounted
+
+const FILE_MAX_BYTES: int = 4 * 1024 * 1024
+const CATALOG_MAX_BYTES: int = 16 * 1024 * 1024
+const DOCUMENT_MAX_COUNT: int = 16
+const JSON_MAX_DEPTH: int = 32
+const JSON_MAX_NODES: int = 262144
+const JSON_MAX_OBJECT_MEMBERS: int = 128
+const JSON_MAX_ARRAY_ITEMS: int = 4096
+const JSON_MAX_STRING_BYTES: int = 4096
+const FILE_NAME_MAX_BYTES: int = 64
+const REGISTRY_MAX_ENTRIES_PER_NAMESPACE: int = 4096
+const RECORD_MAX_COUNT: int = 4096
+const PIECE_LEVEL_MAX_COUNT: int = 3
+const ABILITY_REFS_MAX_COUNT: int = 32
+
+const UINT32_MAX: int = 0xFFFFFFFF
+const INT64_MAX: int = 9223372036854775807
+const INT64_MIN: int = -9223372036854775807 - 1

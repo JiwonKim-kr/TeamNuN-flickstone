@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flickstone.local/schemas/p2-id-registry-v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "namespaces"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "namespaces": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["namespace_id", "entries"],
+        "properties": {
+          "namespace_id": {"type": "integer", "minimum": 1, "maximum": 8},
+          "entries": {
+            "type": "array",
+            "maxItems": 4096,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["numeric_id", "id", "state_id"],
+              "properties": {
+                "numeric_id": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+                "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+                "state_id": {"enum": [1, 2]}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

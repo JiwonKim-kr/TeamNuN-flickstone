@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flickstone.local/schemas/p2-abilities-v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "records"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "records": {
+      "type": "array",
+      "maxItems": 4096,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["numeric_id", "id", "trigger_id"],
+        "properties": {
+          "numeric_id": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+          "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+          "trigger_id": {"type": "integer", "minimum": 1, "maximum": 13}
+        }
+      }
+    }
+  }
+}
