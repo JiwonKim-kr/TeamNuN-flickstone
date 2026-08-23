@@ -2,12 +2,14 @@
 
 | 항목 | 값 |
 |---|---|
-| status | **draft** |
+| status | **approved** |
 | drafted | 2026-08-23 |
+| approved | 2026-08-23 · 사용자 P2-E01~12 전체 승인 (`이대로 작업진행`) |
 | phase | P2-2 · 효과 실행 |
 | 선행 단계 | P2-1 콘텐츠 카탈로그 승인·구현·검증 완료 |
 | 후속 단계 | P2-3 상태이상·시너지·modifier |
-| 구현 권한 | **없음 — P2-E01~12 전체 사람 승인 뒤 `approved` 전환 필요** |
+| 구현 권한 | **P2-E01~12 승인 범위 내 구현 가능** |
+| implementation | 핵심 경로 구현·`verify --full` 19종 통과, next-wave·한도·반복 수용 테스트 보강 진행 |
 
 ## 목적
 
@@ -63,18 +65,18 @@ P2-2는 실제 제품 기물이나 밸런스 수치를 만들지 않는다. 테�
 
 | ID | 결정안 | 이유 | 상태 |
 |---|---|---|---|
-| P2-E01 | 신규 trigger 없이 P1 확정 13종만 binding | 후보 trigger의 payload·발생 시점을 추측하지 않음 | ⬜ 승인 필요 |
-| P2-E02 | ability schema v2는 ordered `conditions`와 `effects`; effect가 selector를 소유 | effect index 저작 순서를 정규 실행 순서로 보존 | ⬜ 승인 필요 |
-| P2-E03 | 조건은 `ALWAYS`, 관계 ID 존재·생존, 진영 관계, HP basis-points 비교만 활성화 | 상태·거리 DSL을 선점하지 않는 최소 유용 집합 | ⬜ 승인 필요 |
-| P2-E04 | selector는 관계 ID 4종, 전체 아군/적, 가장 가까운 아군/적만 활성화 | 안정 ID 정렬과 거리 동률을 완전히 정의 가능 | ⬜ 승인 필요 |
-| P2-E05 | 첫 원자는 DAMAGE/HEAL/KNOCKBACK/PULL/MODIFY_CT/MODIFY_VELOCITY 6종 | P1 공개 상태로 표현 가능 | ⬜ 승인 필요 |
-| P2-E06 | MODIFY_STAT/TELEPORT/SET_FLAG는 후속 명세까지 loader 거부 | P2-3·4 계약 선점 방지 | ⬜ 승인 필요 |
-| P2-E07 | 원자 수치는 정수/Q47.16 raw, overflow·범위 밖은 clamp 없이 실패 | 기존 결정론·오류 계약 유지 | ⬜ 승인 필요 |
-| P2-E08 | owner→ability ID→condition index→target ID→effect index; 새 사실은 다음 wave | P2 인덱스 정본 순서 구체화 | ⬜ 승인 필요 |
-| P2-E09 | invocation 2,048, effect application 8,192, selector result 256 한도 | P1 32 wave/4,096 record와 별도 폭발 방지 | ⬜ 승인 필요 |
-| P2-E10 | 공개 transition 전체 copy-on-write 후 단일 commit, 실패 시 RNG 포함 완전 rollback | 부분 적용과 재진입 방지 | ⬜ 승인 필요 |
-| P2-E11 | BattleSnapshot v4에 fingerprint·binding·effect sequence를 포함하고 v1~3은 빈 catalog에서만 복원 | 콘텐츠 호환성과 기존 snapshot 진단 보존 | ⬜ 승인 필요 |
-| P2-E12 | runtime JSON records는 계속 0개, non-empty 능력은 test fixture에만 둠 | 실제 콘텐츠·밸런스 발명 방지 | ⬜ 승인 필요 |
+| P2-E01 | 신규 trigger 없이 P1 확정 13종만 binding | 후보 trigger의 payload·발생 시점을 추측하지 않음 | ✅ 승인 |
+| P2-E02 | ability schema v2는 ordered `conditions`와 `effects`; effect가 selector를 소유 | effect index 저작 순서를 정규 실행 순서로 보존 | ✅ 승인 |
+| P2-E03 | 조건은 `ALWAYS`, 관계 ID 존재·생존, 진영 관계, HP basis-points 비교만 활성화 | 상태·거리 DSL을 선점하지 않는 최소 유용 집합 | ✅ 승인 |
+| P2-E04 | selector는 관계 ID 4종, 전체 아군/적, 가장 가까운 아군/적만 활성화 | 안정 ID 정렬과 거리 동률을 완전히 정의 가능 | ✅ 승인 |
+| P2-E05 | 첫 원자는 DAMAGE/HEAL/KNOCKBACK/PULL/MODIFY_CT/MODIFY_VELOCITY 6종 | P1 공개 상태로 표현 가능 | ✅ 승인 |
+| P2-E06 | MODIFY_STAT/TELEPORT/SET_FLAG는 후속 명세까지 loader 거부 | P2-3·4 계약 선점 방지 | ✅ 승인 |
+| P2-E07 | 원자 수치는 정수/Q47.16 raw, overflow·범위 밖은 clamp 없이 실패 | 기존 결정론·오류 계약 유지 | ✅ 승인 |
+| P2-E08 | owner→ability ID→condition index→target ID→effect index; 새 사실은 다음 wave | P2 인덱스 정본 순서 구체화 | ✅ 승인 |
+| P2-E09 | invocation 2,048, effect application 8,192, selector result 256 한도 | P1 32 wave/4,096 record와 별도 폭발 방지 | ✅ 승인 |
+| P2-E10 | 공개 transition 전체 copy-on-write 후 단일 commit, 실패 시 RNG 포함 완전 rollback | 부분 적용과 재진입 방지 | ✅ 승인 |
+| P2-E11 | BattleSnapshot v4에 fingerprint·binding·effect sequence를 포함하고 v1~3은 빈 catalog에서만 복원 | 콘텐츠 호환성과 기존 snapshot 진단 보존 | ✅ 승인 |
+| P2-E12 | runtime JSON records는 계속 0개, non-empty 능력은 test fixture에만 둠 | 실제 콘텐츠·밸런스 발명 방지 | ✅ 승인 |
 
 ## 데이터 계약
 
@@ -439,6 +441,14 @@ P2-2는 `src/core/sim/` 구현, scene, UI, asset, manifest를 수정하지 않�
 8. P2-1, P1, P0 회귀 뒤 Godot 활성 `verify --full`을 실행한다.
 9. 구현·검증 결과를 P2 인덱스·AGENTS·HANDOFF에 기록한다.
 
-## 승인 요청
+## 승인 기록
 
-P2-E01~12는 한 묶음 승인 대상이다. 승인 전에는 이 문서를 `draft`로 유지하고 `src/core/` 구현을 시작하지 않는다.
+P2-E01~12는 2026-08-23 사용자 지시 `승인해줄게 이대로 작업진행해`로 한 묶음 승인되었다. 구현은 이 명세의 6개 원자와 테스트 fixture 범위를 넘지 않는다.
+
+## 구현·검증 기록
+
+- schema v2, typed condition/selector/effect, immutable binding registry, 6개 효과 원자, copy-on-write rollback, 콘텐츠 지문과 BattleSnapshot v4를 구현했다.
+- 독립 Python KAT와 Godot narrow에서 6개 원자, 중복 binding, 실패 원자성, 지문 불일치, v4 재인코딩을 통과했다.
+- P2-E11 승인 참조로 P1-5 골든을 v4 hash로 이관했으며 결과·턴·틱은 변하지 않았다.
+- Godot 4.6.3 활성 `verify --full`에서 게이트 오류 0건, 자동 발견 러너 19종 전체 PASS를 확인했다(lore 미초기화 게이트 정상 SKIP).
+- 수용 기준 13·14·19의 next-wave drain, 최대 한도 경계, 1,000회 반복은 다음 보강 작업으로 명시적으로 고정한다. 해당 보강 전 P2-2 전체 완료로 판정하지 않는다.

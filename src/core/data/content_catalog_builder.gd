@@ -8,7 +8,10 @@ const REGISTRY_KEYS: PackedStringArray = ["schema_version", "namespaces"]
 const NAMESPACE_KEYS: PackedStringArray = ["namespace_id", "entries"]
 const ENTRY_KEYS: PackedStringArray = ["numeric_id", "id", "state_id"]
 const RECORD_DOCUMENT_KEYS: PackedStringArray = ["schema_version", "records"]
-const ABILITY_KEYS: PackedStringArray = ["numeric_id", "id", "trigger_id"]
+const ABILITY_KEYS: PackedStringArray = ["numeric_id", "id", "trigger_id", "conditions", "effects"]
+const CONDITION_KEYS: PackedStringArray = ["kind_id", "relation_id", "value_a", "value_b"]
+const EFFECT_KEYS: PackedStringArray = ["kind_id", "selector", "value_a", "value_b", "operation_id"]
+const SELECTOR_KEYS: PackedStringArray = ["kind_id", "relation_id", "limit"]
 const PIECE_KEYS: PackedStringArray = ["numeric_id", "id", "flags", "levels"]
 const FLAG_KEYS: PackedStringArray = ["has_turn", "destructible", "transformable", "counts_for_victory", "is_token"]
 const LEVEL_KEYS: PackedStringArray = ["level", "max_hp", "attack", "speed_stat", "mass_raw", "radius_raw", "friction_multiplier_raw", "critical_basis_points", "ability_refs"]
@@ -291,7 +294,43 @@ static func _parse_abilities(
 		var numeric_id: int = _int_field(record, "numeric_id", status, KIND, 0, ContentStatus.FieldId.NUMERIC_ID)
 		var string_id: String = _string_field(record, "id", status, KIND, numeric_id, ContentStatus.FieldId.ID)
 		var trigger_id: int = _int_field(record, "trigger_id", status, KIND, numeric_id, ContentStatus.FieldId.TRIGGER_ID)
+		var raw_conditions: Array = _array_field(record, "conditions", status, KIND, numeric_id, ContentStatus.FieldId.CONDITIONS)
+		var raw_effects: Array = _array_field(record, "effects", status, KIND, numeric_id, ContentStatus.FieldId.EFFECTS)
 		if not status.is_ok(): return false
+		if raw_conditions.size() > ContentLimits.ABILITY_CONDITIONS_MAX_COUNT or raw_effects.size() > ContentLimits.ABILITY_EFFECTS_MAX_COUNT:
+			status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, numeric_id); return false
+		var conditions: Array[AbilityConditionDefinition] = []
+		for raw_condition: Variant in raw_conditions:
+			if typeof(raw_condition) != TYPE_DICTIONARY:
+				status.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.CONDITIONS); return false
+			var condition_value: Dictionary = raw_condition as Dictionary
+			if not _require_exact_keys(condition_value, CONDITION_KEYS, status, KIND, numeric_id, ContentStatus.FieldId.CONDITIONS): return false
+			var condition: AbilityConditionDefinition = AbilityConditionDefinition.create(
+				_int_field(condition_value, "kind_id", status, KIND, numeric_id, ContentStatus.FieldId.CONDITION_KIND_ID),
+				_int_field(condition_value, "relation_id", status, KIND, numeric_id, ContentStatus.FieldId.RELATION_ID),
+				_int_field(condition_value, "value_a", status, KIND, numeric_id, ContentStatus.FieldId.VALUE_A),
+				_int_field(condition_value, "value_b", status, KIND, numeric_id, ContentStatus.FieldId.VALUE_B), status)
+			if not status.is_ok(): return false
+			conditions.append(condition)
+		var effects: Array[AbilityEffectDefinition] = []
+		for raw_effect: Variant in raw_effects:
+			if typeof(raw_effect) != TYPE_DICTIONARY:
+				status.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.EFFECTS); return false
+			var effect_value: Dictionary = raw_effect as Dictionary
+			if not _require_exact_keys(effect_value, EFFECT_KEYS, status, KIND, numeric_id, ContentStatus.FieldId.EFFECTS): return false
+			var selector_value: Dictionary = _dictionary_field(effect_value, "selector", status, KIND, numeric_id, ContentStatus.FieldId.SELECTOR)
+			if not status.is_ok() or not _require_exact_keys(selector_value, SELECTOR_KEYS, status, KIND, numeric_id, ContentStatus.FieldId.SELECTOR): return false
+			var selector: AbilitySelectorDefinition = AbilitySelectorDefinition.create(
+				_int_field(selector_value, "kind_id", status, KIND, numeric_id, ContentStatus.FieldId.SELECTOR_KIND_ID),
+				_int_field(selector_value, "relation_id", status, KIND, numeric_id, ContentStatus.FieldId.RELATION_ID),
+				_int_field(selector_value, "limit", status, KIND, numeric_id, ContentStatus.FieldId.LIMIT), status)
+			var effect: AbilityEffectDefinition = AbilityEffectDefinition.create(
+				_int_field(effect_value, "kind_id", status, KIND, numeric_id, ContentStatus.FieldId.EFFECT_KIND_ID), selector,
+				_int_field(effect_value, "value_a", status, KIND, numeric_id, ContentStatus.FieldId.VALUE_A),
+				_int_field(effect_value, "value_b", status, KIND, numeric_id, ContentStatus.FieldId.VALUE_B),
+				_int_field(effect_value, "operation_id", status, KIND, numeric_id, ContentStatus.FieldId.OPERATION_ID), status)
+			if not status.is_ok(): return false
+			effects.append(effect)
 		var registry_entry: ContentRegistryEntry = _active_registry_pair(ContentIds.Namespace.ABILITY, numeric_id, string_id, registry_by_numeric, registry_by_string, status, KIND, ContentStatus.FieldId.ID)
 		if not status.is_ok(): return false
 		if ability_by_numeric.has(numeric_id) or string_ids.has(string_id):
@@ -302,7 +341,7 @@ static func _parse_abilities(
 		if not id_status.is_ok():
 			status.fail(ContentStatus.Code.INVALID_ID, ContentStatus.Operation.CATALOG_BUILD, KIND, numeric_id)
 			return false
-		var ability: AbilityDefinition = AbilityDefinition.create(id_ref, trigger_id, status)
+		var ability: AbilityDefinition = AbilityDefinition.create(id_ref, trigger_id, conditions, effects, status)
 		if not status.is_ok(): return false
 		abilities_out.append(ability)
 		ability_by_numeric[numeric_id] = ability

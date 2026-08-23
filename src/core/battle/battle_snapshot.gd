@@ -4,13 +4,15 @@ extends RefCounted
 const MAGIC: PackedByteArray = [70, 76, 73, 67, 75, 66, 84, 76, 0]
 const LEGACY_SCHEMA_VERSION: int = 1
 const COMBAT_SCHEMA_VERSION: int = 2
-const SCHEMA_VERSION: int = 3
+const TRIGGER_SCHEMA_VERSION: int = 3
+const SCHEMA_VERSION: int = 4
 const MAX_PARTICIPANTS: int = 65535
 const MAX_COMBATANTS: int = 65535
 const MAX_COOLDOWNS: int = 65535
 const MAX_SIM_BYTES: int = 64 * 1024 * 1024
 const MAX_TRIGGER_RECORDS: int = BattleLimits.TRIGGER_MAX_RECORDS
 const MAX_MOTION_CREDITS: int = 65535
+const MAX_ABILITY_BINDINGS: int = 65535
 
 class Writer:
 	var data := PackedByteArray()
@@ -60,6 +62,9 @@ var _next_trigger_sequence: int = 1
 var _trigger_records: Array[BattleTriggerRecord] = []
 var _motion_credits: Array[BattleMotionCredit] = []
 var _sim_bytes := PackedByteArray()
+var _content_fingerprint: PackedByteArray = PackedByteArray()
+var _ability_bindings: Array[AbilityBinding] = []
+var _next_effect_sequence: int = 1
 
 
 static func capture(state: BattleState, status: SimStatus) -> BattleSnapshot:
@@ -82,6 +87,10 @@ static func capture(state: BattleState, status: SimStatus) -> BattleSnapshot:
 	snapshot._battle_result = state.battle_result(); snapshot._next_trigger_sequence = state.next_trigger_sequence()
 	for index: int in range(state.trigger_record_count()): snapshot._trigger_records.append(state.trigger_record_at(index, status))
 	for index: int in range(state.motion_credit_count()): snapshot._motion_credits.append(state.motion_credit_at(index, status))
+	snapshot._content_fingerprint = state.content_fingerprint_bytes()
+	if snapshot._content_fingerprint.is_empty(): snapshot._content_fingerprint.resize(32)
+	for index: int in range(state.ability_binding_count()): snapshot._ability_bindings.append(state.ability_binding_at(index, status))
+	snapshot._next_effect_sequence = state.next_effect_sequence()
 	if not status.is_ok(): return BattleSnapshot.new()
 	snapshot._initialized = true
 	return snapshot
@@ -119,6 +128,11 @@ func encode(status: SimStatus) -> PackedByteArray:
 	writer.u32(_motion_credits.size())
 	for item: BattleMotionCredit in _motion_credits:
 		writer.u32(item.body_id()); writer.u32(item.root_body_id()); writer.u16(item.root_faction()); writer.u32(item.source_sim_sequence()); writer.i64(item.tick())
+	writer.data.append_array(_content_fingerprint)
+	writer.u32(_ability_bindings.size())
+	for binding: AbilityBinding in _ability_bindings:
+		writer.u32(binding.owner_body_id()); writer.u32(binding.ability_numeric_id())
+	writer.u32(_next_effect_sequence)
 	writer.u32(_sim_bytes.size()); writer.data.append_array(_sim_bytes)
 	return writer.data
 
@@ -131,7 +145,7 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> BattleSnapshot:
 		if reader.u8() != expected:
 			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, reader.offset, 0); return result
 	var version: int = reader.u16()
-	if version != LEGACY_SCHEMA_VERSION and version != COMBAT_SCHEMA_VERSION and version != SCHEMA_VERSION:
+	if version != LEGACY_SCHEMA_VERSION and version != COMBAT_SCHEMA_VERSION and version != TRIGGER_SCHEMA_VERSION and version != SCHEMA_VERSION:
 		status.fail(SimStatus.Code.UNSUPPORTED_SCHEMA, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, version, SCHEMA_VERSION); return result
 	result._phase = reader.u16(); result._current_actor = reader.u32(); result._abstract_time = reader.i64(); result._last_faction = reader.u16()
 	result._normal_ticks = reader.u32(); result._forced_ticks = reader.u32(); var forced: int = reader.u8()
@@ -175,7 +189,7 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> BattleSnapshot:
 			result._cooldowns.append(DamagePairCooldown.create(low_body_id, high_body_id, next_allowed_tick, status))
 			if not status.is_ok(): return BattleSnapshot.new()
 			previous_low = low_body_id; previous_high = high_body_id
-	if version == SCHEMA_VERSION:
+	if version >= TRIGGER_SCHEMA_VERSION:
 		result._battle_result = reader.u16(); result._next_trigger_sequence = reader.u32()
 		var trigger_count: int = reader.u32()
 		if trigger_count > MAX_TRIGGER_RECORDS or trigger_count > reader.remaining() / 88:
@@ -202,6 +216,28 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> BattleSnapshot:
 			result._motion_credits.append(BattleMotionCredit.create(body_id, root_body_id, root_faction, source_sequence, tick, status))
 			if not status.is_ok(): return BattleSnapshot.new()
 			previous_credit_body = body_id
+	if version == SCHEMA_VERSION:
+		if reader.remaining() < 40:
+			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, reader.remaining(), 40); return BattleSnapshot.new()
+		result._content_fingerprint = bytes.slice(reader.offset, reader.offset + 32); reader.offset += 32
+		var binding_count: int = reader.u32()
+		if binding_count > MAX_ABILITY_BINDINGS or binding_count > reader.remaining() / 8:
+			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, binding_count, reader.remaining()); return BattleSnapshot.new()
+		var previous_owner: int = 0; var previous_ability: int = 0
+		for index: int in range(binding_count):
+			var owner_id: int = reader.u32(); var ability_id: int = reader.u32()
+			if owner_id < previous_owner or (owner_id == previous_owner and ability_id <= previous_ability):
+				status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, owner_id, ability_id); return BattleSnapshot.new()
+			result._ability_bindings.append(AbilityBinding.create(owner_id, ability_id, status))
+			if not status.is_ok(): return BattleSnapshot.new()
+			previous_owner = owner_id; previous_ability = ability_id
+		result._next_effect_sequence = reader.u32()
+		if result._next_effect_sequence < 1:
+			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, result._next_effect_sequence, 1); return BattleSnapshot.new()
+	else:
+		# Legacy snapshots predate content binding. Restore them with the canonical
+		# empty fingerprint so recapturing them as v4 is deterministic.
+		result._content_fingerprint.resize(32)
 	var sim_length: int = reader.u32()
 	if sim_length <= 0 or sim_length > MAX_SIM_BYTES or sim_length != reader.remaining():
 		status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, sim_length, reader.remaining()); return BattleSnapshot.new()
@@ -212,7 +248,7 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> BattleSnapshot:
 		status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, sim_status.code(), reader.offset); return BattleSnapshot.new()
 	var validation_status := SimStatus.new()
 	var restored: BattleState
-	if version == SCHEMA_VERSION:
+	if version >= TRIGGER_SCHEMA_VERSION:
 		restored = BattleState.restore_v3(
 			sim_snapshot.restore_world(validation_status), result._participants, result._combatants, result._cooldowns, result._phase, result._current_actor,
 			result._abstract_time, result._last_faction, result._normal_ticks, result._forced_ticks, result._forced_used,
@@ -228,6 +264,9 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> BattleSnapshot:
 	if not validation_status.is_ok():
 		status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, validation_status.code(), validation_status.operation())
 		return BattleSnapshot.new()
+	if version == SCHEMA_VERSION:
+		restored._effect_restore_content(result._content_fingerprint, result._ability_bindings, result._next_effect_sequence, validation_status)
+		if not validation_status.is_ok(): status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, validation_status.code(), validation_status.operation()); return BattleSnapshot.new()
 	result._initialized = true
 	return result
 
@@ -238,4 +277,6 @@ func restore_state(status: SimStatus) -> BattleState:
 		return BattleState.new()
 	var world: SimWorld = SimSnapshot.decode(_sim_bytes, status).restore_world(status)
 	if not status.is_ok(): return BattleState.new()
-	return BattleState.restore_v3(world, _participants, _combatants, _cooldowns, _phase, _current_actor, _abstract_time, _last_faction, _normal_ticks, _forced_ticks, _forced_used, _battle_result, _next_trigger_sequence, _trigger_records, _motion_credits, status)
+	var restored: BattleState = BattleState.restore_v3(world, _participants, _combatants, _cooldowns, _phase, _current_actor, _abstract_time, _last_faction, _normal_ticks, _forced_ticks, _forced_used, _battle_result, _next_trigger_sequence, _trigger_records, _motion_credits, status)
+	if status.is_ok(): restored._effect_restore_content(_content_fingerprint, _ability_bindings, _next_effect_sequence, status)
+	return restored

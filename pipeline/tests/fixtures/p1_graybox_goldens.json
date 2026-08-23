@@ -1,118 +1,118 @@
 {
   "schema_version": 1,
-  "approval_ref": "P1-physics-tuning-PT-01-04-2026-08-23",
+  "approval_ref": "P2-E11",
   "cases": [
     {
       "case_id": 1,
       "result": 1,
       "turn_count": 20,
       "sim_tick_count": 10699,
-      "terminal_hash": "ba0a6c315abbb4502400ed3ab473bf0e1cac0eaa57d9b381142ba2f8cdda68a3"
+      "terminal_hash": "0afb130f4dff9ae87ef51cd19c26ccdc15fc4c29444d4c2393deb4f255079574"
     },
     {
       "case_id": 2,
       "result": 1,
       "turn_count": 20,
       "sim_tick_count": 10699,
-      "terminal_hash": "ba0a6c315abbb4502400ed3ab473bf0e1cac0eaa57d9b381142ba2f8cdda68a3"
+      "terminal_hash": "0afb130f4dff9ae87ef51cd19c26ccdc15fc4c29444d4c2393deb4f255079574"
     },
     {
       "case_id": 3,
       "result": 1,
       "turn_count": 20,
       "sim_tick_count": 10699,
-      "terminal_hash": "ba0a6c315abbb4502400ed3ab473bf0e1cac0eaa57d9b381142ba2f8cdda68a3"
+      "terminal_hash": "0afb130f4dff9ae87ef51cd19c26ccdc15fc4c29444d4c2393deb4f255079574"
     },
     {
       "case_id": 4,
       "result": 1,
       "turn_count": 20,
       "sim_tick_count": 10699,
-      "terminal_hash": "ba0a6c315abbb4502400ed3ab473bf0e1cac0eaa57d9b381142ba2f8cdda68a3"
+      "terminal_hash": "0afb130f4dff9ae87ef51cd19c26ccdc15fc4c29444d4c2393deb4f255079574"
     },
     {
       "case_id": 5,
       "result": 1,
       "turn_count": 20,
       "sim_tick_count": 10699,
-      "terminal_hash": "ba0a6c315abbb4502400ed3ab473bf0e1cac0eaa57d9b381142ba2f8cdda68a3"
+      "terminal_hash": "0afb130f4dff9ae87ef51cd19c26ccdc15fc4c29444d4c2393deb4f255079574"
     },
     {
       "case_id": 6,
       "result": 1,
       "turn_count": 20,
       "sim_tick_count": 10699,
-      "terminal_hash": "ba0a6c315abbb4502400ed3ab473bf0e1cac0eaa57d9b381142ba2f8cdda68a3"
+      "terminal_hash": "0afb130f4dff9ae87ef51cd19c26ccdc15fc4c29444d4c2393deb4f255079574"
     },
     {
       "case_id": 7,
       "result": 1,
       "turn_count": 20,
       "sim_tick_count": 10699,
-      "terminal_hash": "ba0a6c315abbb4502400ed3ab473bf0e1cac0eaa57d9b381142ba2f8cdda68a3"
+      "terminal_hash": "0afb130f4dff9ae87ef51cd19c26ccdc15fc4c29444d4c2393deb4f255079574"
     },
     {
       "case_id": 8,
       "result": 1,
       "turn_count": 20,
       "sim_tick_count": 10699,
-      "terminal_hash": "ba0a6c315abbb4502400ed3ab473bf0e1cac0eaa57d9b381142ba2f8cdda68a3"
+      "terminal_hash": "0afb130f4dff9ae87ef51cd19c26ccdc15fc4c29444d4c2393deb4f255079574"
     },
     {
       "case_id": 9,
       "result": 1,
       "turn_count": 20,
       "sim_tick_count": 10699,
-      "terminal_hash": "ba0a6c315abbb4502400ed3ab473bf0e1cac0eaa57d9b381142ba2f8cdda68a3"
+      "terminal_hash": "0afb130f4dff9ae87ef51cd19c26ccdc15fc4c29444d4c2393deb4f255079574"
     },
     {
       "case_id": 10,
       "result": 1,
       "turn_count": 20,
       "sim_tick_count": 10699,
-      "terminal_hash": "ba0a6c315abbb4502400ed3ab473bf0e1cac0eaa57d9b381142ba2f8cdda68a3"
+      "terminal_hash": "0afb130f4dff9ae87ef51cd19c26ccdc15fc4c29444d4c2393deb4f255079574"
     },
     {
       "case_id": 11,
       "result": 1,
       "turn_count": 20,
       "sim_tick_count": 10699,
-      "terminal_hash": "ba0a6c315abbb4502400ed3ab473bf0e1cac0eaa57d9b381142ba2f8cdda68a3"
+      "terminal_hash": "0afb130f4dff9ae87ef51cd19c26ccdc15fc4c29444d4c2393deb4f255079574"
     },
     {
       "case_id": 12,
       "result": 1,
       "turn_count": 20,
       "sim_tick_count": 10699,
-      "terminal_hash": "ba0a6c315abbb4502400ed3ab473bf0e1cac0eaa57d9b381142ba2f8cdda68a3"
+      "terminal_hash": "0afb130f4dff9ae87ef51cd19c26ccdc15fc4c29444d4c2393deb4f255079574"
     },
     {
       "case_id": 13,
       "result": 1,
       "turn_count": 20,
       "sim_tick_count": 10699,
-      "terminal_hash": "ba0a6c315abbb4502400ed3ab473bf0e1cac0eaa57d9b381142ba2f8cdda68a3"
+      "terminal_hash": "0afb130f4dff9ae87ef51cd19c26ccdc15fc4c29444d4c2393deb4f255079574"
     },
     {
       "case_id": 14,
       "result": 1,
       "turn_count": 20,
       "sim_tick_count": 10699,
-      "terminal_hash": "ba0a6c315abbb4502400ed3ab473bf0e1cac0eaa57d9b381142ba2f8cdda68a3"
+      "terminal_hash": "0afb130f4dff9ae87ef51cd19c26ccdc15fc4c29444d4c2393deb4f255079574"
     },
     {
       "case_id": 15,
       "result": 1,
       "turn_count": 20,
       "sim_tick_count": 10699,
-      "terminal_hash": "ba0a6c315abbb4502400ed3ab473bf0e1cac0eaa57d9b381142ba2f8cdda68a3"
+      "terminal_hash": "0afb130f4dff9ae87ef51cd19c26ccdc15fc4c29444d4c2393deb4f255079574"
     },
     {
       "case_id": 16,
       "result": 1,
       "turn_count": 20,
       "sim_tick_count": 10699,
-      "terminal_hash": "ba0a6c315abbb4502400ed3ab473bf0e1cac0eaa57d9b381142ba2f8cdda68a3"
+      "terminal_hash": "0afb130f4dff9ae87ef51cd19c26ccdc15fc4c29444d4c2393deb4f255079574"
     }
   ]
 }

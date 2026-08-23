@@ -104,5 +104,19 @@ static func encode(
 		writer.u32(ability.numeric_id())
 		writer.string_utf8(ability.string_id())
 		writer.u16(ability.trigger_id())
+		writer.u16(ability.condition_count())
+		for condition_index: int in range(ability.condition_count()):
+			var condition_status := ContentStatus.new()
+			var condition: AbilityConditionDefinition = ability.condition_at(condition_index, condition_status)
+			if not condition_status.is_ok(): status.fail(ContentStatus.Code.FINGERPRINT_ERROR, ContentStatus.Operation.CANONICAL_ENCODE); return PackedByteArray()
+			writer.u16(condition.kind_id()); writer.u16(condition.relation_id()); writer.i64(condition.value_a()); writer.i64(condition.value_b())
+		writer.u16(ability.effect_count())
+		for effect_index: int in range(ability.effect_count()):
+			var effect_status := ContentStatus.new()
+			var effect: AbilityEffectDefinition = ability.effect_at(effect_index, effect_status)
+			if not effect_status.is_ok(): status.fail(ContentStatus.Code.FINGERPRINT_ERROR, ContentStatus.Operation.CANONICAL_ENCODE); return PackedByteArray()
+			var selector: AbilitySelectorDefinition = effect.selector()
+			writer.u16(effect.kind_id()); writer.u16(selector.kind_id()); writer.u16(selector.relation_id()); writer.u16(selector.limit())
+			writer.i64(effect.value_a()); writer.i64(effect.value_b()); writer.u16(effect.operation_id())
 	if not status.is_ok(): return PackedByteArray()
 	return writer.data

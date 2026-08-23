@@ -1,8 +1,8 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "documents": [
     {"kind_id": 2, "file_name": "pieces.json", "schema_version": 1},
     {"kind_id": 1, "file_name": "id_registry.json", "schema_version": 1},
-    {"kind_id": 3, "file_name": "abilities.json", "schema_version": 1}
+    {"kind_id": 3, "file_name": "abilities.json", "schema_version": 2}
   ]
 }

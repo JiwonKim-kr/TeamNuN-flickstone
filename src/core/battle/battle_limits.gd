@@ -13,6 +13,9 @@ const FORCED_DAMPING_NUMERATOR: int = 3
 const FORCED_DAMPING_DENOMINATOR: int = 4
 const TRIGGER_MAX_WAVES: int = 32
 const TRIGGER_MAX_RECORDS: int = 4096
+const EFFECT_MAX_INVOCATIONS: int = 2048
+const EFFECT_MAX_APPLICATIONS: int = 8192
+const EFFECT_CT_MAX: int = CT_THRESHOLD * 2
 
 
 static func valid_base_speed(value: int) -> bool:

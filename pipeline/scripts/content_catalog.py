@@ -35,7 +35,7 @@ EXPECTED_FILES = {
 DOCUMENTS = {
     1: ("id_registry.json", 1),
     2: ("pieces.json", 1),
-    3: ("abilities.json", 1),
+    3: ("abilities.json", 2),
 }
 
 
@@ -158,10 +158,36 @@ class Entry:
 
 
 @dataclass(frozen=True)
+class Condition:
+    kind_id: int
+    relation_id: int
+    value_a: int
+    value_b: int
+
+
+@dataclass(frozen=True)
+class Selector:
+    kind_id: int
+    relation_id: int
+    limit: int
+
+
+@dataclass(frozen=True)
+class Effect:
+    kind_id: int
+    selector: Selector
+    value_a: int
+    value_b: int
+    operation_id: int
+
+
+@dataclass(frozen=True)
 class Ability:
     numeric_id: int
     string_id: str
     trigger_id: int
+    conditions: tuple[Condition, ...]
+    effects: tuple[Effect, ...]
 
 
 @dataclass(frozen=True)
@@ -227,8 +253,8 @@ def canonical_bytes(
 ) -> bytes:
     writer = Writer()
     writer.data += b"FLICKCAT"
-    writer.u16(1)
-    writer.u16(1)
+    writer.u16(2)
+    writer.u16(2)
     writer.u16(1)
     writer.u16(8)
     for namespace_id in range(1, 9):
@@ -266,12 +292,27 @@ def canonical_bytes(
                 writer.u32(ref.numeric_id)
                 writer.string(ref.string_id)
     writer.u16(3)
-    writer.u16(1)
+    writer.u16(2)
     writer.u32(len(abilities))
     for ability in abilities:
         writer.u32(ability.numeric_id)
         writer.string(ability.string_id)
         writer.u16(ability.trigger_id)
+        writer.u16(len(ability.conditions))
+        for condition in ability.conditions:
+            writer.u16(condition.kind_id)
+            writer.u16(condition.relation_id)
+            writer.i64(condition.value_a)
+            writer.i64(condition.value_b)
+        writer.u16(len(ability.effects))
+        for effect in ability.effects:
+            writer.u16(effect.kind_id)
+            writer.u16(effect.selector.kind_id)
+            writer.u16(effect.selector.relation_id)
+            writer.u16(effect.selector.limit)
+            writer.i64(effect.value_a)
+            writer.i64(effect.value_b)
+            writer.u16(effect.operation_id)
     return bytes(writer.data)
 
 
@@ -296,7 +337,7 @@ def load_catalog(root: Path) -> Catalog:
         raise ContentError("CATALOG_LIMIT:bytes")
 
     catalog = _exact(_load_file(root, "catalog.json"), {"schema_version", "documents"}, "catalog")
-    if _integer(catalog["schema_version"], "catalog.schema_version") != 1:
+    if _integer(catalog["schema_version"], "catalog.schema_version") != 2:
         raise ContentError("UNSUPPORTED_SCHEMA:catalog")
     documents = catalog["documents"]
     if not isinstance(documents, list) or len(documents) != 3:
@@ -360,7 +401,7 @@ def load_catalog(root: Path) -> Catalog:
         return numeric
 
     abilities_doc = _exact(_load_file(root, "abilities.json"), {"schema_version", "records"}, "abilities")
-    if _integer(abilities_doc["schema_version"], "abilities.schema_version") != 1:
+    if _integer(abilities_doc["schema_version"], "abilities.schema_version") != 2:
         raise ContentError("UNSUPPORTED_SCHEMA:abilities")
     ability_records = abilities_doc["records"]
     if not isinstance(ability_records, list) or len(ability_records) > RECORD_MAX_COUNT:
@@ -369,7 +410,7 @@ def load_catalog(root: Path) -> Catalog:
     ability_ids: set[int] = set()
     ability_strings: set[str] = set()
     for raw in ability_records:
-        item = _exact(raw, {"numeric_id", "id", "trigger_id"}, "ability")
+        item = _exact(raw, {"numeric_id", "id", "trigger_id", "conditions", "effects"}, "ability")
         numeric_id = _u32(item["numeric_id"], "ability.numeric_id")
         string_id = _string_id(item["id"], "ability.id")
         trigger_id = _integer(item["trigger_id"], "ability.trigger_id")
@@ -378,9 +419,45 @@ def load_catalog(root: Path) -> Catalog:
             raise ContentError("DUPLICATE_ID:ability")
         if not 1 <= trigger_id <= 13:
             raise ContentError("INVALID_DOMAIN:trigger")
+        conditions_raw = item["conditions"]
+        if not isinstance(conditions_raw, list) or len(conditions_raw) > 16:
+            raise ContentError("CATALOG_LIMIT:conditions")
+        conditions: list[Condition] = []
+        for raw_condition in conditions_raw:
+            condition = _exact(raw_condition, {"kind_id", "relation_id", "value_a", "value_b"}, "condition")
+            kind_id = _integer(condition["kind_id"], "condition.kind_id")
+            relation_id = _integer(condition["relation_id"], "condition.relation_id")
+            value_a = _integer(condition["value_a"], "condition.value_a")
+            value_b = _integer(condition["value_b"], "condition.value_b")
+            if not 1 <= kind_id <= 7 or not 0 <= relation_id <= 4:
+                raise ContentError("INVALID_DOMAIN:condition")
+            if kind_id == 1 and (relation_id != 0 or value_a != 0 or value_b != 0):
+                raise ContentError("INVALID_DOMAIN:always")
+            if kind_id != 1 and relation_id == 0:
+                raise ContentError("INVALID_DOMAIN:relation")
+            if kind_id in (6, 7) and (not 0 <= value_a <= 10_000 or value_b != 0):
+                raise ContentError("INVALID_DOMAIN:hp_condition")
+            conditions.append(Condition(kind_id, relation_id, value_a, value_b))
+        effects_raw = item["effects"]
+        if not isinstance(effects_raw, list) or len(effects_raw) > 32:
+            raise ContentError("CATALOG_LIMIT:effects")
+        effects: list[Effect] = []
+        for raw_effect in effects_raw:
+            effect = _exact(raw_effect, {"kind_id", "selector", "value_a", "value_b", "operation_id"}, "effect")
+            selector_raw = _exact(effect["selector"], {"kind_id", "relation_id", "limit"}, "selector")
+            selector = Selector(_integer(selector_raw["kind_id"], "selector.kind_id"), _integer(selector_raw["relation_id"], "selector.relation_id"), _integer(selector_raw["limit"], "selector.limit"))
+            effect_kind = _integer(effect["kind_id"], "effect.kind_id")
+            value_a = _integer(effect["value_a"], "effect.value_a")
+            value_b = _integer(effect["value_b"], "effect.value_b")
+            operation_id = _integer(effect["operation_id"], "effect.operation_id")
+            if not 1 <= effect_kind <= 6 or not 1 <= selector.kind_id <= 8 or selector.relation_id != 0 or not 0 <= selector.limit <= 256 or operation_id != 0:
+                raise ContentError("INVALID_DOMAIN:effect")
+            if effect_kind in (1, 2, 3, 4) and (value_a <= 0 or value_b != 0):
+                raise ContentError("INVALID_DOMAIN:effect_values")
+            effects.append(Effect(effect_kind, selector, value_a, value_b, operation_id))
         ability_ids.add(numeric_id)
         ability_strings.add(string_id)
-        abilities.append(Ability(numeric_id, string_id, trigger_id))
+        abilities.append(Ability(numeric_id, string_id, trigger_id, tuple(conditions), tuple(effects)))
     abilities.sort(key=lambda item: item.numeric_id)
     ability_by_id = {item.numeric_id: item for item in abilities}
 

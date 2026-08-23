@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P2-1 완료 — P2-2 효과 실행 명세 초안 P2-E01~12 승인 대기** |
+| 현재 단계 | **P2-1 완료 — P2-2 효과 실행 핵심 구현·통합 검증 완료, 수용 범위 보강 진행** |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -90,7 +90,11 @@
 - [x] P2-1 독립 Python 기준 3종·Godot 4.6.3 narrow 23개 그룹·1,000회 반복 통과
 - [x] P2-1 반영 Godot 활성 `verify --full` — 게이트 #1~4 PASS, lore 미초기화 #5 정상 SKIP, 러너 18종 PASS
 - [x] P2-2 효과 실행 상세 명세 초안 작성 (`docs/specs/p2_effect_resolution.md`)
-- [ ] P2-2 P2-E01~12 사람 승인 — 승인 전 핵심 구현 금지
+- [x] P2-2 P2-E01~12 사람 승인 (`docs/specs/p2_effect_resolution.md`)
+- [x] P2-2 schema v2·typed condition/selector/effect·binding registry·6개 기초 원자·transition rollback·BattleSnapshot v4 구현
+- [x] P2-2 독립 Python KAT와 Godot narrow(원자성·지문 불일치·v4 복원), P2-1/P1 회귀 통과
+- [x] P2-E11 승인 참조로 P1-5 terminal golden을 snapshot v4 hash로 이관 — 결과·20턴·10,699틱 불변
+- [x] P2-2 반영 Godot 활성 `verify --full` — 게이트 #1~4 PASS, lore 미초기화 #5 정상 SKIP, 러너 19종 PASS
 
 ### 3.1 P1-2 현재 작업 기록
 
@@ -154,7 +158,7 @@
 - v1 P1-5 256-case batch를 4 workers로 완료했다. 256승·실패 0, 각 52턴·17,171틱, 총 4,395,776틱, terminal hash 1종, forced settle 0으로 PASS했다. 이 값은 아래 v2 결과로 대체되었다.
 - 수동 플레이 씬을 640×1,024 세로 전장으로 분리하고 enemy 위·player 아래에 3명씩 충분한 간격으로 배치했다. HUD 경로·입력 처리와 궤적 예측을 프레임 예산 기반 비동기 처리로 정리해 초기 정지와 드래그 렉을 해소했다.
 - PT-01~04로 기본 마찰 5/2→3/2, 반발 17/20→19/20, 기준 최대 발사 속도 1,024→1,536을 적용하고 회귀 fixture를 `p1_graybox_v2`로 올렸다. 절대상한 2,048과 피해 기준속도 1,024는 유지했다.
-- fixture v2 narrow 16은 16승·실패 0·총 171,184틱, batch 256은 256승·실패 0·총 2,738,944틱, exhaustive 1,000은 1,000승·실패 0·총 10,699,000틱이다. 전부 20턴·10,699틱, forced settle 0, terminal hash `ba0a6c315abbb4502400ed3ab473bf0e1cac0eaa57d9b381142ba2f8cdda68a3`로 일치했다.
+- fixture v2 narrow 16은 16승·실패 0·총 171,184틱, batch 256은 256승·실패 0·총 2,738,944틱, exhaustive 1,000은 1,000승·실패 0·총 10,699,000틱이다. 전부 20턴·10,699틱, forced settle 0으로 일치했다. P2-E11 snapshot v4 이관 뒤 terminal hash는 `0afb130f4dff9ae87ef51cd19c26ccdc15fc4c29444d4c2393deb4f255079574`다(이전 v3 hash `ba0a6c315abbb4502400ed3ab473bf0e1cac0eaa57d9b381142ba2f8cdda68a3`).
 - P0 상태 해시 1,000회 반복과 Godot 4.6.3 활성 `verify --full`을 완료했다. 게이트 #1~4 PASS, lore canon 미초기화 #5 정상 SKIP, 자동 발견 러너 17종 PASS다. Windows에서는 `-X utf8`이 아니라 하위 프로세스에 전파되는 `$env:PYTHONUTF8='1'`을 사용해야 한다.
 - 사용자가 세로 회색상자를 직접 플레이하고 발사·반사·충돌·피해 반응에 “문제 없음”으로 전투 감각을 승인했다.
 
@@ -164,10 +168,18 @@
 - `catalog.json`, `id_registry.json`, `pieces.json`, `abilities.json` 네 파일만 허용한다. 현재 runtime piece/ability record는 승인대로 0개다.
 - `ContentCatalogBuilder`는 registry의 숫자/문자열 ID 쌍, active/retired 상태, P1 trigger와 P0/P1 수치 범위, piece→ability 참조를 검증하고 숫자 ID 순서의 불변 사본만 공개한다.
 - `DataDB`는 전체 parse/build/fingerprint 성공 뒤에만 catalog 참조를 교체한다. 실패 reload 뒤 직전 catalog와 fingerprint가 유지되는 회귀를 통과했다.
-- fingerprint KAT는 runtime empty `e8626e30d47cab13a00d054228b2403dee1d3db27e5620c225f83f898fc37bee`, fixture A `bd0803434d4d632da9e1b3291bcfd57050a9d35c8e3ca610dd29d3dc8de3e0b2`, authoritative-change B `378f413f0c8889f0f3286a0787767a27e8bf038f5db85b045b2f20b3c8d7e010`이다.
-- P2-1 narrow와 기존 P0/P1 전체 회귀가 통과했다. P2-2 `p2_effect_resolution.md` 초안을 작성했으며 P2-E01~12 승인 전에는 구현하지 않는다.
+- schema v2 fingerprint KAT는 runtime empty `9b652d19da0c1d2f93497ca815be2a6829ebbf940a0a4f2acc121a5caafa3384`, fixture A `c1e5fd5197611ede7d7e3061bc112f466a0faf0a4203a94a04994dca7149f415`, authoritative-change B `57cdae1e59c301efea2c3ad69ae4876c015d1233623754eec914b1fa7330d059`이다.
+- P2-1 narrow와 기존 P0/P1 전체 회귀가 통과했다. P2-E01~12 승인 뒤 P2-2 핵심 구현과 첫 통합 검증까지 완료했다.
 
-### 3.5 다음 작업 실행 명령
+### 3.5 P2-2 효과 실행 구현 기록
+
+- ability/catalog schema v2와 독립 Python canonical reference를 추가하고 P2-1 fixture/runtime empty catalog를 명시적으로 v2로 이관했다.
+- immutable binding registry, typed condition·selector·effect 정의와 6개 원자(`DAMAGE`, `HEAL`, `KNOCKBACK`, `PULL`, `MODIFY_CT`, `MODIFY_VELOCITY`)를 copy-on-write resolver로 구현했다.
+- 중복 binding, 잘못된 trigger, 콘텐츠 지문 불일치에서 원본 상태가 바뀌지 않는 rollback 회귀와 BattleSnapshot v1 호환/v4 재인코딩 회귀를 통과했다.
+- runtime piece/ability records, scene, asset, manifest는 변경하지 않았다.
+- 다음 보강 작업은 effect가 만든 hit 사실의 next-wave drain, condition/selector 전 어휘·2,048/8,192/256 한도 경계, 1,000회 resolver/snapshot 반복을 각각 명시적 수용 테스트로 고정하는 것이다.
+
+### 3.6 다음 작업 실행 명령
 
 Windows PowerShell에서 먼저 `$env:PYTHONUTF8='1'`을 설정한다.
 

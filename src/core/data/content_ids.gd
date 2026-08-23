@@ -32,11 +32,11 @@ const REGISTRY_FILE: String = "id_registry.json"
 const PIECES_FILE: String = "pieces.json"
 const ABILITIES_FILE: String = "abilities.json"
 
-const CATALOG_SCHEMA_VERSION: int = 1
+const CATALOG_SCHEMA_VERSION: int = 2
 const REGISTRY_SCHEMA_VERSION: int = 1
 const PIECES_SCHEMA_VERSION: int = 1
-const ABILITIES_SCHEMA_VERSION: int = 1
-const FINGERPRINT_FORMAT_VERSION: int = 1
+const ABILITIES_SCHEMA_VERSION: int = 2
+const FINGERPRINT_FORMAT_VERSION: int = 2
 
 
 static func is_known_namespace(value: int) -> bool:

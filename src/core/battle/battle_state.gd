@@ -31,6 +31,9 @@ var _battle_result: int = BattleResult.Value.ONGOING
 var _next_trigger_sequence: int = 1
 var _last_trigger_batch: Array[BattleTriggerRecord] = []
 var _motion_credits: Array[BattleMotionCredit] = []
+var _content_fingerprint: PackedByteArray = PackedByteArray()
+var _ability_bindings: Array[AbilityBinding] = []
+var _next_effect_sequence: int = 1
 var _trigger_bus: BattleTriggerBus = BattleTriggerBus.new()
 
 
@@ -1190,6 +1193,9 @@ func copy(status: SimStatus) -> BattleState:
 	result._battle_result = _battle_result; result._next_trigger_sequence = _next_trigger_sequence
 	result._last_trigger_batch = _copy_trigger_records(_last_trigger_batch)
 	result._motion_credits = _copy_motion_credits(_motion_credits)
+	result._content_fingerprint = _content_fingerprint.duplicate()
+	for binding: AbilityBinding in _ability_bindings: result._ability_bindings.append(binding.copy())
+	result._next_effect_sequence = _next_effect_sequence
 	return result
 
 
@@ -1207,6 +1213,7 @@ func _rollback_snapshot() -> BattleState:
 	result._forced_resolve_ticks = _forced_resolve_ticks; result._forced_settle_used = _forced_settle_used
 	result._battle_result = _battle_result; result._next_trigger_sequence = _next_trigger_sequence
 	result._last_trigger_batch = _last_trigger_batch.duplicate(); result._motion_credits = _motion_credits.duplicate()
+	result._content_fingerprint = _content_fingerprint.duplicate(); result._ability_bindings = _ability_bindings.duplicate(); result._next_effect_sequence = _next_effect_sequence
 	return result
 
 
@@ -1220,6 +1227,10 @@ func _assign_from(other: BattleState) -> void:
 	_battle_result = other._battle_result; _next_trigger_sequence = other._next_trigger_sequence
 	_last_trigger_batch = other._last_trigger_batch; _motion_credits = other._motion_credits
 	_trigger_bus = BattleTriggerBus.new()
+	_content_fingerprint = other._content_fingerprint.duplicate()
+	_ability_bindings.clear()
+	for binding: AbilityBinding in other._ability_bindings: _ability_bindings.append(binding.copy())
+	_next_effect_sequence = other._next_effect_sequence
 
 
 func is_initialized() -> bool: return _initialized
@@ -1264,3 +1275,64 @@ func motion_credit_at(index: int, status: SimStatus) -> BattleMotionCredit:
 	if index < 0 or index >= _motion_credits.size():
 		status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.BATTLE_MOTION_CREDIT, index, _motion_credits.size()); return BattleMotionCredit.new()
 	return _motion_credits[index].copy()
+
+func content_fingerprint_bytes() -> PackedByteArray: return _content_fingerprint.duplicate()
+func ability_binding_count() -> int: return _ability_bindings.size()
+func ability_binding_at(index: int, status: SimStatus) -> AbilityBinding:
+	if index < 0 or index >= _ability_bindings.size(): status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.ABILITY_BIND, index, _ability_bindings.size()); return AbilityBinding.new()
+	return _ability_bindings[index].copy()
+func next_effect_sequence() -> int: return _next_effect_sequence
+
+func _effect_restore_content(fingerprint: PackedByteArray, bindings: Array[AbilityBinding], next_sequence: int, status: SimStatus) -> bool:
+	if fingerprint.size() != 32 or next_sequence < 1:
+		status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.CONTENT_SNAPSHOT_VALIDATE, fingerprint.size(), next_sequence); return false
+	var previous_owner: int = 0; var previous_ability: int = 0
+	var copied: Array[AbilityBinding] = []
+	for binding: AbilityBinding in bindings:
+		if binding == null or not binding.is_initialized() or binding.owner_body_id() < previous_owner or (binding.owner_body_id() == previous_owner and binding.ability_numeric_id() <= previous_ability):
+			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.CONTENT_SNAPSHOT_VALIDATE, 0 if binding == null else binding.owner_body_id(), 0 if binding == null else binding.ability_numeric_id()); return false
+		copied.append(binding.copy()); previous_owner = binding.owner_body_id(); previous_ability = binding.ability_numeric_id()
+	_content_fingerprint = fingerprint.duplicate(); _ability_bindings = copied; _next_effect_sequence = next_sequence
+	return true
+
+
+## P2 effect transaction helpers. EffectResolver operates on a deep state copy
+## and commits through _assign_from only after every application succeeds.
+func _effect_set_hp(body_id: int, value: int, source_body_id: int, status: SimStatus) -> bool:
+	var index: int = _find_combatant(body_id)
+	if index < 0 or source_body_id == 0:
+		status.fail(SimStatus.Code.INVALID_EFFECT_TARGET, SimStatus.Operation.EFFECT_APPLY, body_id, source_body_id); return false
+	var combatant: BattleCombatant = _combatants[index]
+	if value < 0 or value > combatant.max_hp():
+		status.fail(SimStatus.Code.EFFECT_APPLICATION_FAILED, SimStatus.Operation.EFFECT_APPLY, body_id, value); return false
+	_combatants[index] = combatant.with_current_hp(value, status)
+	if status.is_ok() and value == 0:
+		_world.destroy_body(body_id, source_body_id, status)
+		while status.is_ok() and _world.event_cursor() < _world.event_count():
+			var event: SimEvent = _world.consume_next_event(status)
+			if event.type_id() == SimEvent.TypeId.BODY_DESTROYED: _process_destroy_event(event, status)
+	return status.is_ok()
+
+
+func _effect_set_ct(body_id: int, value: int, status: SimStatus) -> bool:
+	var index: int = _find_participant(body_id)
+	if index < 0 or not _participants[index].has_turn() or value < 0 or value > BattleLimits.EFFECT_CT_MAX:
+		status.fail(SimStatus.Code.INVALID_EFFECT_TARGET, SimStatus.Operation.EFFECT_APPLY, body_id, value); return false
+	_participants[index] = _participants[index].with_ct(value, status)
+	return status.is_ok()
+
+
+func _effect_set_velocity(body_id: int, velocity: FixVec2, status: SimStatus) -> bool:
+	if velocity == null or not SimLimits.is_launch_speed_valid(velocity, status):
+		if status.is_ok(): status.fail(SimStatus.Code.EFFECT_APPLICATION_FAILED, SimStatus.Operation.EFFECT_APPLY, body_id, 0)
+		return false
+	_world.set_body_velocity(body_id, velocity, status)
+	return status.is_ok()
+
+
+func _effect_commit_from(resolved: BattleState, status: SimStatus) -> bool:
+	if not status.is_ok() or resolved == null or not resolved.is_initialized():
+		if status.is_ok(): status.fail(SimStatus.Code.EFFECT_APPLICATION_FAILED, SimStatus.Operation.EFFECT_RESOLVE_TRANSITION)
+		return false
+	_assign_from(resolved)
+	return true

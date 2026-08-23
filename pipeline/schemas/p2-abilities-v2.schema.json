@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flickstone.local/schemas/p2-abilities-v2.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "records"],
+  "properties": {
+    "schema_version": {"const": 2},
+    "records": {
+      "type": "array", "maxItems": 4096,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["numeric_id", "id", "trigger_id", "conditions", "effects"],
+        "properties": {
+          "numeric_id": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+          "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+          "trigger_id": {"type": "integer", "minimum": 1, "maximum": 13},
+          "conditions": {"type": "array", "maxItems": 16, "items": {"type": "object", "additionalProperties": false, "required": ["kind_id", "relation_id", "value_a", "value_b"], "properties": {"kind_id": {"type": "integer", "minimum": 1, "maximum": 7}, "relation_id": {"type": "integer", "minimum": 0, "maximum": 4}, "value_a": {"type": "integer"}, "value_b": {"type": "integer"}}}},
+          "effects": {"type": "array", "maxItems": 32, "items": {"type": "object", "additionalProperties": false, "required": ["kind_id", "selector", "value_a", "value_b", "operation_id"], "properties": {"kind_id": {"type": "integer", "minimum": 1, "maximum": 6}, "selector": {"type": "object", "additionalProperties": false, "required": ["kind_id", "relation_id", "limit"], "properties": {"kind_id": {"type": "integer", "minimum": 1, "maximum": 8}, "relation_id": {"const": 0}, "limit": {"type": "integer", "minimum": 0, "maximum": 256}}, "value_a": {"type": "integer"}, "value_b": {"type": "integer"}, "operation_id": {"const": 0}}}}
+        }
+      }
+    }
+  }
+}
