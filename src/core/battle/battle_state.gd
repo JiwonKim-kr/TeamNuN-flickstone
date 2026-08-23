@@ -1295,6 +1295,18 @@ func _effect_restore_content(fingerprint: PackedByteArray, bindings: Array[Abili
 	_content_fingerprint = fingerprint.duplicate(); _ability_bindings = copied; _next_effect_sequence = next_sequence
 	return true
 
+func _effect_restore_triggers(records: Array[BattleTriggerRecord], next_sequence: int, status: SimStatus) -> bool:
+	if not status.is_ok(): return false
+	if next_sequence < 1 or not UInt32Math.is_u32(next_sequence) or records.size() > BattleLimits.TRIGGER_MAX_RECORDS:
+		status.fail(SimStatus.Code.INVALID_TRIGGER_RECORD, SimStatus.Operation.EFFECT_RESOLVE_TRANSITION, next_sequence, records.size()); return false
+	var copied: Array[BattleTriggerRecord] = []; var previous_wave: int = -1; var previous_sequence: int = 0
+	for record: BattleTriggerRecord in records:
+		if record == null or not record.is_initialized() or record.wave() < previous_wave or (record.wave() == previous_wave and record.sequence() <= previous_sequence):
+			status.fail(SimStatus.Code.INVALID_TRIGGER_RECORD, SimStatus.Operation.EFFECT_RESOLVE_TRANSITION, previous_sequence, 0); return false
+		copied.append(record.copy()); previous_wave = record.wave(); previous_sequence = record.sequence()
+	_last_trigger_batch = copied; _next_trigger_sequence = next_sequence
+	return true
+
 
 ## P2 effect transaction helpers. EffectResolver operates on a deep state copy
 ## and commits through _assign_from only after every application succeeds.

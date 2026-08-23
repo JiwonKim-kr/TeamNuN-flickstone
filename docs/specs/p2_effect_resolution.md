@@ -9,7 +9,7 @@
 | 선행 단계 | P2-1 콘텐츠 카탈로그 승인·구현·검증 완료 |
 | 후속 단계 | P2-3 상태이상·시너지·modifier |
 | 구현 권한 | **P2-E01~12 승인 범위 내 구현 가능** |
-| implementation | 핵심 경로 구현·`verify --full` 19종 통과, next-wave·한도·반복 수용 테스트 보강 진행 |
+| implementation | **implemented · verified** — next-wave·원자성·전 공학 한도·1,000회 반복 및 `verify --full` 19종 통과 |
 
 ## 목적
 
@@ -451,4 +451,8 @@ P2-E01~12는 2026-08-23 사용자 지시 `승인해줄게 이대로 작업진행
 - 독립 Python KAT와 Godot narrow에서 6개 원자, 중복 binding, 실패 원자성, 지문 불일치, v4 재인코딩을 통과했다.
 - P2-E11 승인 참조로 P1-5 골든을 v4 hash로 이관했으며 결과·턴·틱은 변하지 않았다.
 - Godot 4.6.3 활성 `verify --full`에서 게이트 오류 0건, 자동 발견 러너 19종 전체 PASS를 확인했다(lore 미초기화 게이트 정상 SKIP).
-- 수용 기준 13·14·19의 next-wave drain, 최대 한도 경계, 1,000회 반복은 다음 보강 작업으로 명시적으로 고정한다. 해당 보강 전 P2-2 전체 완료로 판정하지 않는다.
+- DAMAGE가 만든 `ON_HIT_DEAL`/`ON_HIT_TAKE`를 다음 wave에서 처리하고 append-only trigger/effect sequence를 snapshot에 보존한다.
+- condition/selector 전 어휘, wave 32, record 4,096, invocation 2,048, application 8,192의 경계와 초과 rollback을 검증했다.
+- 동일 resolver fixture 1,000회와 BattleSnapshot 복원·재인코딩 바이트 일치를 검증했다.
+- 실제 1 아군 + 256/257 적군 fixture에서 selector 결과 256 성공과 257 초과 실패를 검증했다.
+- P2-E01~12 수용 범위는 구현·검증 완료되었다. 후속 상태·시너지·modifier는 P2-3 별도 승인 전 구현하지 않는다.

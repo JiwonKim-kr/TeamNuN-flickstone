@@ -17,6 +17,7 @@ These instructions apply to the entire repository.
 - P1-4 trigger bus/battle result T-01~10 is approved, implemented, and verified with Godot 4.6.3 narrow tests and `verify --full`.
 - P1-5 deterministic fixture, battle driver, batch CSV/golden/repro runner, and playable manifest-placeholder graybox scene are implemented and verified. The PT-01~04 physics baseline uses friction 3/2, restitution 19/20, and base launch speed 1,536. Godot 4.6.3 import/smoke/manifest, 16/256/1,000-case batches, current `verify --full`, and human combat-feel review pass.
 - P2-1 strict JSON, append-only content IDs, typed immutable catalog, atomic `DataDB`, and canonical SHA-256 content fingerprint are approved, implemented, and verified. Runtime piece/ability records remain empty until later P2 specs approve actual content.
+- P2-2 typed conditions/selectors, ability bindings, six base effects, next-wave hit records, atomic rollback, all approved engineering limits, BattleSnapshot v4, and 1,000-repeat determinism are approved, implemented, and verified. Runtime ability records remain empty.
 - P0 order was: FixMath/SimRng → SimWorld → collision/wall/kill zones → state-hash regression.
 - P0 and P1 use manifest-registered placeholders only.
 - Combat feel was approved on 2026-08-23. Art lock/generation/reskin and SE generation/attachment remain separate, explicitly requested follow-up work.

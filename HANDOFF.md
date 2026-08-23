@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P2-1 완료 — P2-2 효과 실행 핵심 구현·통합 검증 완료, 수용 범위 보강 진행** |
+| 현재 단계 | **P2-2 효과 실행 P2-E01~12 구현·검증 완료 — 다음은 P2-3 상태이상·시너지·modifier 명세** |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -95,6 +95,10 @@
 - [x] P2-2 독립 Python KAT와 Godot narrow(원자성·지문 불일치·v4 복원), P2-1/P1 회귀 통과
 - [x] P2-E11 승인 참조로 P1-5 terminal golden을 snapshot v4 hash로 이관 — 결과·20턴·10,699틱 불변
 - [x] P2-2 반영 Godot 활성 `verify --full` — 게이트 #1~4 PASS, lore 미초기화 #5 정상 SKIP, 러너 19종 PASS
+- [x] P2-2 DAMAGE hit 사실의 다음 wave 처리와 append-only trigger/effect sequence 구현
+- [x] P2-2 condition/selector 전 어휘, wave 32·record 4,096·invocation 2,048·application 8,192 경계/초과 rollback 검증
+- [x] P2-2 동일 fixture 1,000회와 BattleSnapshot v4 복원·재인코딩 결정성 검증
+- [x] P2-2 실제 살아 있는 body 256/257개를 사용한 selector 결과 경계·초과 fixture 통과
 
 ### 3.1 P1-2 현재 작업 기록
 
@@ -177,7 +181,9 @@
 - immutable binding registry, typed condition·selector·effect 정의와 6개 원자(`DAMAGE`, `HEAL`, `KNOCKBACK`, `PULL`, `MODIFY_CT`, `MODIFY_VELOCITY`)를 copy-on-write resolver로 구현했다.
 - 중복 binding, 잘못된 trigger, 콘텐츠 지문 불일치에서 원본 상태가 바뀌지 않는 rollback 회귀와 BattleSnapshot v1 호환/v4 재인코딩 회귀를 통과했다.
 - runtime piece/ability records, scene, asset, manifest는 변경하지 않았다.
-- 다음 보강 작업은 effect가 만든 hit 사실의 next-wave drain, condition/selector 전 어휘·2,048/8,192/256 한도 경계, 1,000회 resolver/snapshot 반복을 각각 명시적 수용 테스트로 고정하는 것이다.
+- effect가 만든 hit 사실의 next-wave drain, condition/selector 전 어휘, wave/record/invocation/application 경계·초과 rollback과 1,000회 resolver/snapshot 반복을 명시적 수용 테스트로 고정했다.
+- 실제 1 아군 + 256/257 적군 상태를 구성해 selector 결과 256 성공과 257 초과 실패를 직접 검증했다. P2-2 승인 수용 범위는 완료되었다.
+- 다음 핵심 작업은 `p2_status_synergy_modifiers.md` 초안 작성과 사람 승인이다. 승인 전 P2-3 코어 구현을 시작하지 않는다.
 
 ### 3.6 다음 작업 실행 명령
 

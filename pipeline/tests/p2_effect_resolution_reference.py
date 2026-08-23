@@ -11,11 +11,12 @@ from content_catalog import load_catalog
 def main() -> int:
     catalog = load_catalog(ROOT / "pipeline/tests/fixtures/p2_effect_resolution")
     abilities = tuple(sorted(catalog.abilities, key=lambda item: item.numeric_id))
-    assert tuple(item.numeric_id for item in abilities) == (1, 2, 3, 4, 5, 6)
+    assert tuple(item.numeric_id for item in abilities) == (1, 2, 3, 4, 5, 6, 7, 8)
     hp, max_hp, ct, velocity_x, velocity_y = 100, 100, 0, 0, 0
     applications: list[tuple[int, int, int]] = []
-    for ability in abilities:
-        assert ability.trigger_id == 5 and all(condition.kind_id == 1 or condition.kind_id == 3 for condition in ability.conditions)
+    for ability in abilities[:6]:
+        assert ability.trigger_id == (3 if ability.numeric_id == 1 else 5)
+        assert all(condition.kind_id == 1 or condition.kind_id == 3 for condition in ability.conditions)
         for effect_index, effect in enumerate(ability.effects):
             if effect.kind_id == 1: hp = max(0, hp - effect.value_a)
             elif effect.kind_id == 2: hp = min(max_hp, hp + effect.value_a)

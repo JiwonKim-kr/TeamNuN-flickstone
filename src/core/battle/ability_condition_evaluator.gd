@@ -15,7 +15,11 @@ static func matches(state: BattleState, owner_body_id: int, record: BattleTrigge
 		status.fail(SimStatus.Code.INVALID_EFFECT_DEFINITION, SimStatus.Operation.ABILITY_CONDITION_EVALUATE, owner_body_id, 0); return false
 	if condition.kind_id() == AbilityConditionDefinition.Kind.ALWAYS: return true
 	var body_id: int = _relation(owner_body_id, record, condition.relation_id())
-	if condition.kind_id() == AbilityConditionDefinition.Kind.RELATION_EXISTS: return body_id != 0
+	if condition.kind_id() == AbilityConditionDefinition.Kind.RELATION_EXISTS:
+		if body_id == 0: return false
+		var exists_status := SimStatus.new()
+		state.participant_by_body_id(body_id, exists_status); state.combatant_by_body_id(body_id, exists_status); state.world_copy(exists_status).body_by_id(body_id, exists_status)
+		return exists_status.is_ok()
 	if body_id == 0: status.fail(SimStatus.Code.INVALID_EFFECT_TARGET, SimStatus.Operation.ABILITY_CONDITION_EVALUATE, owner_body_id, condition.relation_id()); return false
 	var lookup := SimStatus.new(); var participant: BattleParticipant = state.participant_by_body_id(body_id, lookup)
 	if condition.kind_id() == AbilityConditionDefinition.Kind.RELATION_ALIVE: return lookup.is_ok()
