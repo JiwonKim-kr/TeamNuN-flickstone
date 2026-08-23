@@ -435,17 +435,17 @@ func _test_faction_and_critical_boundaries() -> void:
 		BattleCombatant.create(1, BattleParticipant.Faction.PLAYER, 100, 100, 1, critical_status),
 		_combatant(2, BattleParticipant.Faction.ENEMY, 100, 100, critical_status),
 	]
-	var rejected_status := SimStatus.new()
-	BattleState.create_with_combatants(
-		critical_world, critical_participants, critical_combatants, rejected_status
+	var accepted_status := SimStatus.new()
+	var critical_state: BattleState = BattleState.create_with_combatants(
+		critical_world, critical_participants, critical_combatants, accepted_status
 	)
 	var after: PackedByteArray = SimSnapshot.capture(
 		critical_world, critical_status
 	).encode(critical_status)
 	_check(
-		"P1-BATTLE-CRITICAL-REJECT-001",
+		"P1-BATTLE-CRITICAL-P2-ENABLE-001",
 		critical_status.is_ok()
-		and rejected_status.code() == SimStatus.Code.INVALID_COMBATANT
+		and accepted_status.is_ok() and critical_state.is_initialized()
 		and before == after
 	)
 
@@ -674,8 +674,8 @@ func _test_snapshot_compatibility() -> void:
 	var restored: BattleState = BattleSnapshot.decode(encoded, status).restore_state(status)
 	var reencoded: PackedByteArray = BattleSnapshot.capture(restored, status).encode(status)
 	_check(
-		"P1-SNAPSHOT-V4-ROUNDTRIP-001",
-		status.is_ok() and encoded[9] == 4 and encoded[10] == 0
+		"P1-SNAPSHOT-V5-ROUNDTRIP-001",
+		status.is_ok() and encoded[9] == 5 and encoded[10] == 0
 		and encoded == reencoded and restored.combatant_count() == 2
 		and restored.cooldown_count() == 1
 	)
@@ -789,7 +789,7 @@ func _initialize() -> void:
 		SimStatus.Code.INVALID_COLLISION_FACT == 27
 		and SimStatus.Operation.BATTLE_DAMAGE_EVENT == 94
 		and SimEvent.CauseId.DAMAGE == 3
-		and BattleSnapshot.SCHEMA_VERSION == 4
+		and BattleSnapshot.SCHEMA_VERSION == 5
 	)
 	_test_formula()
 	_test_collision_payload()

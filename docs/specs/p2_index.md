@@ -480,4 +480,4 @@ P2 완료는 수용 기준 1~18과 모든 하위 명세의 승인·구현·검�
 
 P2 전체 구조와 P2-A01~11은 2026-08-23 승인되었다. P2-1은 같은 날 별도 상세 승인 뒤 구현·검증을 완료했다. 하위 명세는 각각 `draft → approved` 절차를 거치며, 하위 명세 승인 전에는 해당 핵심 구현을 시작하지 않는다.
 
-P2-2 `p2_effect_resolution.md`의 P2-E01~12 승인 범위에서 schema v2, typed 실행 정의, binding, 6개 원자, next-wave, 원자적 resolver, BattleSnapshot v4, wave/record/invocation/application/selector 전 한도와 1,000회 반복 검증을 완료했다. P2-3 `p2_status_synergy_modifiers.md`의 P2-S01~20은 2026-08-24 승인되었고 다음 핵심 작업은 해당 명세 구현이다. 개별 기물 수치와 복사·무적·상태 세부는 명시된 후속 명세 승인까지 미정으로 유지한다.
+P2-2 `p2_effect_resolution.md`의 P2-E01~12 승인 범위에서 schema v2, typed 실행 정의, binding, 6개 원자, next-wave, 원자적 resolver, BattleSnapshot v4, wave/record/invocation/application/selector 전 한도와 1,000회 반복 검증을 완료했다. P2-3 `p2_status_synergy_modifiers.md`의 P2-S01~20도 2026-08-24 승인 범위에서 catalog v3, 상태 수명, 동결 시너지 tally, modifier 집계, 세 원자, CTB·피해·물리 연결, BattleSnapshot v5와 전 한도·rollback·1,000회 결정론을 구현하고 Godot 4.6.3 `verify --full` 러너 20종으로 검증했다. 개별 기물 수치와 복사·무적·상태 세부는 명시된 후속 명세 승인까지 미정으로 유지한다.

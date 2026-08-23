@@ -87,7 +87,7 @@ func reload_catalog(root_path: String, status: ContentStatus) -> bool:
 	var catalog_document: Dictionary = _parse_object(bytes_by_name[ContentIds.CATALOG_FILE], ContentIds.DocumentKind.INVALID, status)
 	if not status.is_ok(): return false
 	var source_documents: Array[ContentSourceFile] = []
-	for kind_id: int in range(ContentIds.DocumentKind.ID_REGISTRY, ContentIds.DocumentKind.ABILITIES + 1):
+	for kind_id: int in range(ContentIds.DocumentKind.ID_REGISTRY, ContentIds.DocumentKind.SYNERGIES + 1):
 		var file_name: String = ContentIds.file_for_document_kind(kind_id)
 		var root: Dictionary = _parse_object(bytes_by_name[file_name], kind_id, status)
 		if not status.is_ok(): return false
@@ -141,6 +141,18 @@ func ability_by_numeric_id(id: int, status: ContentStatus) -> AbilityDefinition:
 		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
 		return AbilityDefinition.new()
 	return _catalog.ability_by_numeric_id(id, status)
+
+func status_by_numeric_id(id: int, status: ContentStatus) -> StatusDefinition:
+	if not is_ready():
+		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
+		return StatusDefinition.new()
+	return _catalog.status_by_numeric_id(id, status)
+
+func synergy_by_numeric_id(id: int, status: ContentStatus) -> SynergyDefinition:
+	if not is_ready():
+		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
+		return SynergyDefinition.new()
+	return _catalog.synergy_by_numeric_id(id, status)
 
 
 func fingerprint_bytes(status: ContentStatus) -> PackedByteArray:

@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P2-3 상태이상·시너지·modifier P2-S01~20 승인 — 구현 대기** |
+| 현재 단계 | **P2-3 상태이상·시너지·modifier 구현·검증 완료 — 다음 P2 하위 명세 준비** |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -99,6 +99,11 @@
 - [x] P2-2 condition/selector 전 어휘, wave 32·record 4,096·invocation 2,048·application 8,192 경계/초과 rollback 검증
 - [x] P2-2 동일 fixture 1,000회와 BattleSnapshot v4 복원·재인코딩 결정성 검증
 - [x] P2-2 실제 살아 있는 body 256/257개를 사용한 selector 결과 경계·초과 fixture 통과
+- [x] P2-3 catalog v3·pieces v2·abilities v3·statuses/synergies v1과 canonical fingerprint v3 구현
+- [x] P2-3 상태 수명·시너지 tally·modifier 집계·CTB/피해/물리 연결·세 원자·BattleSnapshot v5 구현
+- [x] P2-3 body 64·전투 4,096·transition 1,024 경계/초과 rollback과 동일 fixture 1,000회 검증
+- [x] P2-S18 근거로 P1-5 terminal snapshot 골든을 v5로 이관. 결과·턴 수·sim tick은 불변
+- [x] P2-3 반영 Godot 4.6.3 `verify --full` — 게이트 #1~4 PASS, lore 미초기화 #5 정상 SKIP, 러너 20종 PASS
 
 ### 3.1 P1-2 현재 작업 기록
 
@@ -183,9 +188,19 @@
 - runtime piece/ability records, scene, asset, manifest는 변경하지 않았다.
 - effect가 만든 hit 사실의 next-wave drain, condition/selector 전 어휘, wave/record/invocation/application 경계·초과 rollback과 1,000회 resolver/snapshot 반복을 명시적 수용 테스트로 고정했다.
 - 실제 1 아군 + 256/257 적군 상태를 구성해 selector 결과 256 성공과 257 초과 실패를 직접 검증했다. P2-2 승인 수용 범위는 완료되었다.
-- 다음 핵심 작업은 `p2_status_synergy_modifiers.md` 초안 작성과 사람 승인이다. 승인 전 P2-3 코어 구현을 시작하지 않는다.
+- P2-3 승인 범위 구현이 완료되었다. runtime piece/ability/status/synergy records는 후속 콘텐츠 승인 전까지 계속 비어 있다.
 
-### 3.6 다음 작업 실행 명령
+### 3.6 P2-3 상태·시너지·modifier 구현 기록
+
+- catalog v3는 6개 strict JSON 문서와 append-only ID registry를 원자적으로 로드하며, 독립 Python과 Godot canonical bytes/fingerprint가 일치한다.
+- 상태는 정렬된 불변 인스턴스로 보관한다. `SINGLE`/`STACKED`/`INDEPENDENT`, 네 refresh 정책, source 병합, `TARGET_TURNS`/`BATTLE`/`CHARGES`, 네 해제 경로를 구현했다.
+- 시너지 tally는 비토큰 초기 배치에서 진영별로 동결하며, 토큰은 계수에서 제외하되 효과는 받는다. `BOTH_FACTIONS`, 누적 tier, count cap을 fixture로 검증했다.
+- 유효값은 ADD 합산 뒤 RATIO bp를 한 번 반올림한다. CTB는 사본의 유효 speed를 사용하고, 물리 3종은 `AIM→RESOLVE`에서만 materialize한다.
+- 피해 경로는 유효 공격·치명타·비율·고정 modifier를 P1 `DamageContext`에 연결한다. 치명타는 `(purpose=2, attacker body ID, collision sequence)` 비소비 서브스트림으로 판정한다.
+- `APPLY_STATUS`·`REMOVE_STATUS`·`MODIFY_STAT`, 상태 변경 리포트, transition rollback, Snapshot v5와 fingerprint mismatch 복원을 구현했다.
+- P2-3 narrow, P2-1/P2-2, P0/P1 회귀와 Godot 4.6.3 `verify --full` 자동 발견 러너 20종이 통과했다.
+
+### 3.7 다음 작업 실행 명령
 
 Windows PowerShell에서 먼저 `$env:PYTHONUTF8='1'`을 설정한다.
 
@@ -195,6 +210,9 @@ python pipeline/scripts/play_test.py --godot pipeline/artifacts/godot-4.6.3/Godo
 
 # P2-1 콘텐츠 카탈로그 narrow
 python pipeline/tests/run_p2_content_catalog.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
+
+# P2-3 상태·시너지·modifier narrow
+python pipeline/tests/run_p2_status_synergy_modifiers.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
 
 # P1-5 결정론 회귀
 python pipeline/tests/run_p1_batch_sim_graybox.py --mode narrow --jobs 4 --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe

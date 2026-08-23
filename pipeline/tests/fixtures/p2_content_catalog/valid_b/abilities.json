@@ -1,1 +1,19 @@
-{"schema_version":2,"records":[{"numeric_id":1,"id":"fixture_collision","trigger_id":5,"conditions":[{"kind_id":1,"relation_id":0,"value_a":0,"value_b":0}],"effects":[]}]}
+{
+  "schema_version": 3,
+  "records": [
+    {
+      "numeric_id": 1,
+      "id": "fixture_collision",
+      "trigger_id": 5,
+      "conditions": [
+        {
+          "kind_id": 1,
+          "relation_id": 0,
+          "value_a": 0,
+          "value_b": 0
+        }
+      ],
+      "effects": []
+    }
+  ]
+}

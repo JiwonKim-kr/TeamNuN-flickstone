@@ -35,6 +35,13 @@ var _content_fingerprint: PackedByteArray = PackedByteArray()
 var _ability_bindings: Array[AbilityBinding] = []
 var _next_effect_sequence: int = 1
 var _trigger_bus: BattleTriggerBus = BattleTriggerBus.new()
+var _turn_index: int = 0
+var _content_catalog: ContentCatalog = ContentCatalog.new()
+var _piece_identities: Array[BattlePieceIdentity] = []
+var _synergy_tally: SynergyTally = SynergyTally.new()
+var _statuses: StatusCollection = StatusCollection.new()
+var _modifier_resolver: ModifierResolver = ModifierResolver.new()
+var _base_body_stats: Array[BattleBaseBodyStats] = []
 
 
 static func _participant_less(left: BattleParticipant, right: BattleParticipant) -> bool:
@@ -137,7 +144,6 @@ static func _create_internal(
 		if (
 			not combatant.is_initialized()
 			or combatant.current_hp() <= 0
-			or combatant.critical_basis_points() != 0
 			or (
 				index > 0
 				and sorted_combatants[index - 1].body_id() == combatant.body_id()
@@ -326,7 +332,6 @@ func _validate(status: SimStatus) -> bool:
 		if (
 			not combatant.is_initialized()
 			or combatant.current_hp() <= 0
-			or combatant.critical_basis_points() != 0
 			or (
 				index > 0
 				and _combatants[index - 1].body_id() >= combatant.body_id()
@@ -482,6 +487,7 @@ func _transfer_motion_credit(attacker_id: int, victim_id: int, source_sequence: 
 
 
 func _remove_body_state(body_id: int) -> void:
+	_statuses.remove_target(body_id)
 	var participant_index: int = _find_participant(body_id)
 	if participant_index >= 0:
 		_participants.remove_at(participant_index)
@@ -497,12 +503,24 @@ func _remove_body_state(body_id: int) -> void:
 	if credit_index >= 0: _motion_credits.remove_at(credit_index)
 
 
+func _effective_participants(status: SimStatus) -> Array[BattleParticipant]:
+	var result: Array[BattleParticipant] = []
+	for participant: BattleParticipant in _participants:
+		if not _modifier_resolver.is_initialized(): result.append(participant.copy()); continue
+		var aggregate: ModifierAggregate = _modifier_resolver.aggregate(participant.body_id(), ModifierKind.Value.SPEED_STAT, _statuses, status)
+		var speed: int = EffectiveStats.resolve(participant.speed_stat(), aggregate, ModifierKind.Value.SPEED_STAT, status)
+		result.append(participant.with_effective_speed_stat(speed, status))
+		if not status.is_ok(): return []
+	return result
+
+
 func _select_actor(status: SimStatus) -> bool:
-	var selection: CtbScheduler.Selection = CtbScheduler.select_next(_participants, _abstract_time, _last_acted_faction, status)
+	var effective: Array[BattleParticipant] = _effective_participants(status)
+	var selection: CtbScheduler.Selection = CtbScheduler.select_next(effective, _abstract_time, _last_acted_faction, status)
 	if not status.is_ok(): return false
-	_participants = selection.participants
+	for index: int in range(_participants.size()): _participants[index] = _participants[index].with_ct(selection.participants[index].ct(), status)
 	_abstract_time = selection.abstract_time
-	_current_actor_body_id = _participants[selection.actor_index].body_id()
+	_current_actor_body_id = selection.participants[selection.actor_index].body_id()
 	_phase = Phase.TURN_START
 	return true
 
@@ -522,33 +540,34 @@ func _resolve_damage_direction(
 		attacker_mass_raw: int,
 		victim_mass_raw: int,
 		impact_speed_raw: int,
+		collision_sequence: int,
 		status: SimStatus
 ) -> DamageResult:
-	if (
-		attacker.critical_basis_points() != 0
-		or victim.critical_basis_points() != 0
-	):
-		status.fail(
-			SimStatus.Code.INVALID_COMBATANT,
-			SimStatus.Operation.BATTLE_DAMAGE_EVENT,
-			attacker.body_id(),
-			attacker.critical_basis_points()
-		)
-		return DamageResult.new()
+	var attack: int = attacker.attack(); var critical_bp: int = attacker.critical_basis_points(); var outgoing_bp: int = 0; var incoming_bp: int = 0; var fixed_increase: int = 0; var fixed_reduction: int = 0
+	if _modifier_resolver.is_initialized():
+		attack = EffectiveStats.resolve(attacker.attack(), _modifier_resolver.aggregate(attacker.body_id(), ModifierKind.Value.ATTACK, _statuses, status), ModifierKind.Value.ATTACK, status)
+		critical_bp = EffectiveStats.resolve(attacker.critical_basis_points(), _modifier_resolver.aggregate(attacker.body_id(), ModifierKind.Value.CRITICAL_BASIS_POINTS, _statuses, status), ModifierKind.Value.CRITICAL_BASIS_POINTS, status)
+		outgoing_bp = EffectiveStats.resolve(0, _modifier_resolver.aggregate(attacker.body_id(), ModifierKind.Value.DAMAGE_OUTGOING_RATIO_BONUS, _statuses, status), ModifierKind.Value.DAMAGE_OUTGOING_RATIO_BONUS, status)
+		incoming_bp = EffectiveStats.resolve(0, _modifier_resolver.aggregate(victim.body_id(), ModifierKind.Value.DAMAGE_INCOMING_RATIO_REDUCTION, _statuses, status), ModifierKind.Value.DAMAGE_INCOMING_RATIO_REDUCTION, status)
+		fixed_increase = EffectiveStats.resolve(0, _modifier_resolver.aggregate(attacker.body_id(), ModifierKind.Value.DAMAGE_FIXED_INCREASE, _statuses, status), ModifierKind.Value.DAMAGE_FIXED_INCREASE, status)
+		fixed_reduction = EffectiveStats.resolve(0, _modifier_resolver.aggregate(victim.body_id(), ModifierKind.Value.DAMAGE_FIXED_REDUCTION, _statuses, status), ModifierKind.Value.DAMAGE_FIXED_REDUCTION, status)
+		if not status.is_ok(): return DamageResult.new()
+	var critical_applied: bool = BattleRandom.for_collision_critical(_world, attacker.body_id(), collision_sequence, status).chance(critical_bp, 10000, status)
+	if not status.is_ok(): return DamageResult.new()
 	var context: DamageContext = DamageContext.create(
 		attacker.body_id(),
 		victim.body_id(),
-		attacker.attack(),
+		attack,
 		victim.current_hp(),
 		attacker_mass_raw,
 		victim_mass_raw,
 		impact_speed_raw,
 		_same_non_neutral_faction(attacker, victim),
-		false,
-		0,
-		0,
-		0,
-		0,
+		critical_applied,
+		FixMath.from_ratio(outgoing_bp, 10000, status),
+		FixMath.from_ratio(incoming_bp, 10000, status),
+		fixed_increase,
+		fixed_reduction,
 		status
 	)
 	return DamageCalculator.resolve(context, status)
@@ -714,6 +733,7 @@ func _process_collision_event(
 			source_mass_raw,
 			target_mass_raw,
 			event.value_a(),
+			event.sequence(),
 			status
 		)
 		dealt_damage = status.is_ok() and source_result.has_damage()
@@ -728,6 +748,7 @@ func _process_collision_event(
 			target_mass_raw,
 			source_mass_raw,
 			event.value_a(),
+			event.sequence(),
 			status
 		)
 		dealt_damage = status.is_ok() and target_result.has_damage()
@@ -742,6 +763,7 @@ func _process_collision_event(
 			source_mass_raw,
 			target_mass_raw,
 			event.value_a(),
+			event.sequence(),
 			status
 		)
 		var target_to_source: DamageResult = _resolve_damage_direction(
@@ -750,6 +772,7 @@ func _process_collision_event(
 			target_mass_raw,
 			source_mass_raw,
 			event.value_a(),
+			event.sequence(),
 			status
 		)
 		dealt_damage = (
@@ -1024,6 +1047,7 @@ func commit_launch_velocity(launch_velocity: FixVec2, status: SimStatus) -> bool
 		return false
 	var backup: BattleState = copy(SimStatus.new())
 	_begin_trigger_transition()
+	if not _materialize_physical_stats(status): _assign_from(backup); return false
 	var next_world: SimWorld = _world._transaction_copy(status)
 	next_world.set_body_velocity(_current_actor_body_id, launch_velocity, status)
 	if not status.is_ok() or not _consume_actor(status): _assign_from(backup); return false
@@ -1124,6 +1148,7 @@ func complete_turn_end(status: SimStatus) -> bool:
 	if not _apply_barrier(status): _assign_from(backup); return false
 	_emit_trigger(BattleTriggerId.Value.ON_TURN_END, 0, _current_actor_body_id, 0, 0, SimEvent.CauseId.NONE, FixVec2.zero(), FixVec2.zero(), 0, 0, status)
 	if not _finish_trigger_transition(status): _assign_from(backup); return false
+	_turn_index += 1
 	_phase = Phase.CHECK
 	return true
 
@@ -1154,6 +1179,7 @@ func resolve_check(status: SimStatus) -> bool:
 		return true
 	_battle_result = computed
 	_phase = Phase.BATTLE_END
+	_statuses.clear()
 	_motion_credits.clear()
 	_emit_trigger(BattleTriggerId.Value.ON_BATTLE_END, 0, 0, 0, 0, SimEvent.CauseId.NONE, FixVec2.zero(), FixVec2.zero(), computed, 0, status)
 	if not _finish_trigger_transition(status): _assign_from(backup); return false
@@ -1167,7 +1193,7 @@ func preview(count: int, status: SimStatus) -> Array[CtbPreviewEntry]:
 		status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.CTB_PREVIEW, count, BattleLimits.PREVIEW_MAX_COUNT)
 		return []
 	if _phase == Phase.BATTLE_END: return []
-	var local: Array[BattleParticipant] = _copy_participants(_participants)
+	var local: Array[BattleParticipant] = _effective_participants(status)
 	var local_last: int = _last_acted_faction
 	if _phase == Phase.TURN_START or _phase == Phase.AIM:
 		var index: int = _find_participant(_current_actor_body_id)
@@ -1196,6 +1222,10 @@ func copy(status: SimStatus) -> BattleState:
 	result._content_fingerprint = _content_fingerprint.duplicate()
 	for binding: AbilityBinding in _ability_bindings: result._ability_bindings.append(binding.copy())
 	result._next_effect_sequence = _next_effect_sequence
+	result._turn_index = _turn_index; result._content_catalog = _content_catalog.copy() if _content_catalog.is_initialized() else ContentCatalog.new()
+	for identity: BattlePieceIdentity in _piece_identities: result._piece_identities.append(identity.copy())
+	result._synergy_tally = _synergy_tally.copy(); result._statuses = _statuses.copy(); result._modifier_resolver = _modifier_resolver.copy()
+	for base_stats: BattleBaseBodyStats in _base_body_stats: result._base_body_stats.append(base_stats.copy())
 	return result
 
 
@@ -1214,6 +1244,7 @@ func _rollback_snapshot() -> BattleState:
 	result._battle_result = _battle_result; result._next_trigger_sequence = _next_trigger_sequence
 	result._last_trigger_batch = _last_trigger_batch.duplicate(); result._motion_credits = _motion_credits.duplicate()
 	result._content_fingerprint = _content_fingerprint.duplicate(); result._ability_bindings = _ability_bindings.duplicate(); result._next_effect_sequence = _next_effect_sequence
+	result._turn_index = _turn_index; result._content_catalog = _content_catalog; result._piece_identities = _piece_identities.duplicate(); result._synergy_tally = _synergy_tally; result._statuses = _statuses.copy(); result._modifier_resolver = _modifier_resolver; result._base_body_stats = _base_body_stats.duplicate()
 	return result
 
 
@@ -1231,7 +1262,86 @@ func _assign_from(other: BattleState) -> void:
 	_ability_bindings.clear()
 	for binding: AbilityBinding in other._ability_bindings: _ability_bindings.append(binding.copy())
 	_next_effect_sequence = other._next_effect_sequence
+	_turn_index = other._turn_index; _content_catalog = other._content_catalog; _piece_identities = other._piece_identities; _synergy_tally = other._synergy_tally; _statuses = other._statuses; _modifier_resolver = other._modifier_resolver; _base_body_stats = other._base_body_stats
 
+
+func attach_content(catalog: ContentCatalog, identities: Array[BattlePieceIdentity], bindings: Array[AbilityBinding], status: SimStatus) -> bool:
+	if not status.is_ok() or not _require_phase(Phase.BATTLE_START, SimStatus.Operation.BATTLE_PIECE_IDENTITY_READ, status): return false
+	if catalog == null or not catalog.is_initialized() or _content_catalog.is_initialized(): status.fail(SimStatus.Code.INVALID_BATTLE_STATE, SimStatus.Operation.BATTLE_PIECE_IDENTITY_READ); return false
+	var sorted: Array[BattlePieceIdentity] = []; var previous_body: int = 0
+	for identity: BattlePieceIdentity in identities:
+		if identity == null or not identity.is_initialized(): status.fail(SimStatus.Code.INVALID_PIECE_IDENTITY, SimStatus.Operation.BATTLE_PIECE_IDENTITY_READ); return false
+		sorted.append(identity.copy())
+	sorted.sort_custom(func(a: BattlePieceIdentity, b: BattlePieceIdentity) -> bool: return a.body_id() < b.body_id())
+	var bases: Array[BattleBaseBodyStats] = []
+	for identity: BattlePieceIdentity in sorted:
+		if identity.body_id() <= previous_body: status.fail(SimStatus.Code.INVALID_PIECE_IDENTITY, SimStatus.Operation.BATTLE_PIECE_IDENTITY_READ, identity.body_id(), previous_body); return false
+		var world_status := SimStatus.new(); var body: SimBody = _world.body_by_id(identity.body_id(), world_status)
+		var content_status := ContentStatus.new(); var piece: PieceDefinition = catalog.piece_by_numeric_id(identity.piece_numeric_id(), content_status)
+		if not world_status.is_ok() or not content_status.is_ok() or piece.is_token() != identity.is_token(): status.fail(SimStatus.Code.INVALID_PIECE_IDENTITY, SimStatus.Operation.BATTLE_PIECE_IDENTITY_READ, identity.body_id(), identity.piece_numeric_id()); return false
+		bases.append(BattleBaseBodyStats.create(identity.body_id(), body.mass_raw(), body.radius_raw(), body.friction_multiplier_raw(), status)); previous_body = identity.body_id()
+	var tally: SynergyTally = SynergyTallyBuilder.build(catalog, sorted, status)
+	var resolver: ModifierResolver = ModifierResolver.build(catalog, sorted, tally, status)
+	var registry: AbilityRegistry = AbilityRegistry.bind(catalog, bindings, status)
+	if not status.is_ok() or not registry.is_initialized(): return false
+	_content_catalog = catalog.copy(); _piece_identities = sorted; _base_body_stats = bases; _synergy_tally = tally; _modifier_resolver = resolver
+	_content_fingerprint = catalog.fingerprint_bytes(); _ability_bindings.clear()
+	for index: int in range(registry.binding_count()): _ability_bindings.append(registry.binding_at(index, status))
+	return status.is_ok()
+
+func _materialize_physical_stats(status: SimStatus) -> bool:
+	if not _modifier_resolver.is_initialized(): return true
+	var next_world: SimWorld = _world._transaction_copy(status)
+	for base_stats: BattleBaseBodyStats in _base_body_stats:
+		var mass: int = EffectiveStats.resolve(base_stats.mass_raw(), _modifier_resolver.aggregate(base_stats.body_id(), ModifierKind.Value.MASS_RAW, _statuses, status), ModifierKind.Value.MASS_RAW, status)
+		var radius: int = EffectiveStats.resolve(base_stats.radius_raw(), _modifier_resolver.aggregate(base_stats.body_id(), ModifierKind.Value.RADIUS_RAW, _statuses, status), ModifierKind.Value.RADIUS_RAW, status)
+		var friction: int = EffectiveStats.resolve(base_stats.friction_multiplier_raw(), _modifier_resolver.aggregate(base_stats.body_id(), ModifierKind.Value.FRICTION_MULTIPLIER_RAW, _statuses, status), ModifierKind.Value.FRICTION_MULTIPLIER_RAW, status)
+		next_world.set_body_physical_stats(base_stats.body_id(), radius, mass, friction, status)
+		if not status.is_ok(): return false
+	_world = next_world; return true
+
+func _effect_apply_status(target_body_id: int, source_body_id: int, status_id: int, stacks: int, status: SimStatus) -> bool:
+	return _effect_apply_status_change(target_body_id, source_body_id, status_id, stacks, status) > 0
+
+func _effect_apply_status_change(target_body_id: int, source_body_id: int, status_id: int, stacks: int, status: SimStatus) -> int:
+	if not _content_catalog.is_initialized() or _find_combatant(target_body_id) < 0: status.fail(SimStatus.Code.INVALID_EFFECT_TARGET, SimStatus.Operation.STATUS_APPLY, target_body_id, status_id); return 0
+	var cs := ContentStatus.new(); var definition: StatusDefinition = _content_catalog.status_by_numeric_id(status_id, cs)
+	if not cs.is_ok(): status.fail(SimStatus.Code.INVALID_STATUS_DEFINITION, SimStatus.Operation.STATUS_APPLY, target_body_id, status_id); return 0
+	var updated: bool = _statuses.would_update(definition, target_body_id, source_body_id)
+	if not _statuses.apply(definition, target_body_id, source_body_id, stacks, _turn_index, status): return 0
+	return 2 if updated else 1
+
+func _effect_remove_status(target_body_id: int, status_id: int, stacks: int, status: SimStatus) -> int:
+	if not _content_catalog.is_initialized(): status.fail(SimStatus.Code.INVALID_STATUS_DEFINITION, SimStatus.Operation.STATUS_REMOVE, target_body_id, status_id); return 0
+	var cs := ContentStatus.new(); var definition: StatusDefinition = _content_catalog.status_by_numeric_id(status_id, cs)
+	if not cs.is_ok(): status.fail(SimStatus.Code.INVALID_STATUS_DEFINITION, SimStatus.Operation.STATUS_REMOVE, target_body_id, status_id); return 0
+	return _statuses.remove(target_body_id, status_id, stacks, status, definition)
+
+func _effect_modify_stat(target_body_id: int, kind_id: int, delta: int, status: SimStatus) -> bool:
+	if kind_id == ModifierKind.Value.SPEED_STAT:
+		var index: int = _find_participant(target_body_id)
+		if index < 0 or not FixMath.can_add_int(_participants[index].speed_stat(), delta): status.fail(SimStatus.Code.INVALID_EFFECT_TARGET, SimStatus.Operation.EFFECT_APPLY, target_body_id, kind_id); return false
+		var value: int = _participants[index].speed_stat() + delta
+		if not BattleLimits.valid_base_speed(value): status.fail(SimStatus.Code.MODIFIER_RANGE_VIOLATION, SimStatus.Operation.EFFECT_APPLY, kind_id, value); return false
+		_participants[index] = _participants[index].with_speed_stat(value, status); return status.is_ok()
+	var combatant_index: int = _find_combatant(target_body_id)
+	if combatant_index < 0: status.fail(SimStatus.Code.INVALID_EFFECT_TARGET, SimStatus.Operation.EFFECT_APPLY, target_body_id, kind_id); return false
+	var combatant: BattleCombatant = _combatants[combatant_index]; var attack: int = combatant.attack(); var critical: int = combatant.critical_basis_points()
+	if kind_id == ModifierKind.Value.ATTACK:
+		if not FixMath.can_add_int(attack, delta): status.fail(SimStatus.Code.INT64_OVERFLOW, SimStatus.Operation.EFFECT_APPLY); return false
+		attack += delta
+	elif kind_id == ModifierKind.Value.CRITICAL_BASIS_POINTS:
+		if not FixMath.can_add_int(critical, delta): status.fail(SimStatus.Code.INT64_OVERFLOW, SimStatus.Operation.EFFECT_APPLY); return false
+		critical += delta
+	else: status.fail(SimStatus.Code.INVALID_MODIFIER_DEFINITION, SimStatus.Operation.EFFECT_APPLY, target_body_id, kind_id); return false
+	if not DamageLimits.valid_stat(attack) or not DamageLimits.valid_critical_basis_points(critical): status.fail(SimStatus.Code.MODIFIER_RANGE_VIOLATION, SimStatus.Operation.EFFECT_APPLY, kind_id, attack if kind_id == ModifierKind.Value.ATTACK else critical); return false
+	_combatants[combatant_index] = combatant.with_base_stats(attack, critical, status); return status.is_ok()
+
+func _status_expire_turn_end(body_id: int, status: SimStatus) -> Array[int]:
+	if not _content_catalog.is_initialized(): return [0, 0]
+	# TURN_END records are resolved after complete_turn_end advances the global
+	# index, so compare against the turn that just completed.
+	return _statuses.expire_target_turn(body_id, maxi(0, _turn_index - 1), _content_catalog, status)
 
 func is_initialized() -> bool: return _initialized
 func phase() -> int: return _phase
@@ -1282,6 +1392,19 @@ func ability_binding_at(index: int, status: SimStatus) -> AbilityBinding:
 	if index < 0 or index >= _ability_bindings.size(): status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.ABILITY_BIND, index, _ability_bindings.size()); return AbilityBinding.new()
 	return _ability_bindings[index].copy()
 func next_effect_sequence() -> int: return _next_effect_sequence
+func turn_index() -> int: return _turn_index
+func status_count() -> int: return _statuses.count()
+func status_at(index: int, status: SimStatus) -> StatusInstance: return _statuses.item_at(index, status)
+func next_status_sequence() -> int: return _statuses.next_sequence()
+func piece_identity_count() -> int: return _piece_identities.size()
+func piece_identity_at(index: int, status: SimStatus) -> BattlePieceIdentity:
+	if index < 0 or index >= _piece_identities.size(): status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.BATTLE_PIECE_IDENTITY_READ, index, _piece_identities.size()); return BattlePieceIdentity.new()
+	return _piece_identities[index].copy()
+func synergy_tally_copy() -> SynergyTally: return _synergy_tally.copy()
+func base_body_stats_count() -> int: return _base_body_stats.size()
+func base_body_stats_at(index: int, status: SimStatus) -> BattleBaseBodyStats:
+	if index < 0 or index >= _base_body_stats.size(): status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.BATTLE_PHYSICAL_STATS_APPLY, index, _base_body_stats.size()); return BattleBaseBodyStats.new()
+	return _base_body_stats[index].copy()
 
 func _effect_restore_content(fingerprint: PackedByteArray, bindings: Array[AbilityBinding], next_sequence: int, status: SimStatus) -> bool:
 	if fingerprint.size() != 32 or next_sequence < 1:
@@ -1294,6 +1417,25 @@ func _effect_restore_content(fingerprint: PackedByteArray, bindings: Array[Abili
 		copied.append(binding.copy()); previous_owner = binding.owner_body_id(); previous_ability = binding.ability_numeric_id()
 	_content_fingerprint = fingerprint.duplicate(); _ability_bindings = copied; _next_effect_sequence = next_sequence
 	return true
+
+func _status_restore_snapshot(turn_index: int, identities: Array[BattlePieceIdentity], tally: SynergyTally, statuses: Array[StatusInstance], next_status_sequence: int, bases: Array[BattleBaseBodyStats], status: SimStatus) -> bool:
+	if turn_index < 0 or tally == null: status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.CONTENT_SNAPSHOT_VALIDATE, turn_index, 0); return false
+	var collection := StatusCollection.new()
+	if not collection.restore(statuses, next_status_sequence, status): return false
+	_piece_identities.clear(); _base_body_stats.clear(); var previous: int = 0
+	for identity: BattlePieceIdentity in identities:
+		if identity == null or not identity.is_initialized() or identity.body_id() <= previous: status.fail(SimStatus.Code.INVALID_PIECE_IDENTITY, SimStatus.Operation.CONTENT_SNAPSHOT_VALIDATE); return false
+		_piece_identities.append(identity.copy()); previous = identity.body_id()
+	previous = 0
+	for base_stats: BattleBaseBodyStats in bases:
+		if base_stats == null or not base_stats.is_initialized() or base_stats.body_id() <= previous: status.fail(SimStatus.Code.MODIFIER_RANGE_VIOLATION, SimStatus.Operation.CONTENT_SNAPSHOT_VALIDATE); return false
+		_base_body_stats.append(base_stats.copy()); previous = base_stats.body_id()
+	_turn_index = turn_index; _synergy_tally = tally.copy(); _statuses = collection; return true
+
+func _status_bind_restored_catalog(catalog: ContentCatalog, status: SimStatus) -> bool:
+	if catalog == null or not catalog.is_initialized() or catalog.fingerprint_bytes() != _content_fingerprint:
+		status.fail(SimStatus.Code.CONTENT_FINGERPRINT_MISMATCH, SimStatus.Operation.CONTENT_SNAPSHOT_VALIDATE); return false
+	_content_catalog = catalog.copy(); _modifier_resolver = ModifierResolver.build(_content_catalog, _piece_identities, _synergy_tally, status); return status.is_ok()
 
 func _effect_restore_triggers(records: Array[BattleTriggerRecord], next_sequence: int, status: SimStatus) -> bool:
 	if not status.is_ok(): return false

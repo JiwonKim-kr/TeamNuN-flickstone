@@ -6,6 +6,8 @@ var _catalog_schema_version: int = 0
 var _registry_entries: Array[ContentRegistryEntry] = []
 var _pieces: Array[PieceDefinition] = []
 var _abilities: Array[AbilityDefinition] = []
+var _statuses: Array[StatusDefinition] = []
+var _synergies: Array[SynergyDefinition] = []
 var _compatibility_bytes: PackedByteArray = PackedByteArray()
 var _fingerprint: PackedByteArray = PackedByteArray()
 var _initialized: bool = false
@@ -16,6 +18,8 @@ static func create(
 		registry_entries: Array[ContentRegistryEntry],
 		pieces: Array[PieceDefinition],
 		abilities: Array[AbilityDefinition],
+		statuses: Array[StatusDefinition],
+		synergies: Array[SynergyDefinition],
 		compatibility_bytes: PackedByteArray,
 		fingerprint: PackedByteArray,
 		status: ContentStatus
@@ -40,6 +44,12 @@ static func create(
 			status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.CATALOG_BUILD)
 			return ContentCatalog.new()
 		result._abilities.append(ability.copy())
+	for definition: StatusDefinition in statuses:
+		if definition == null or not definition.is_initialized(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.CATALOG_BUILD); return ContentCatalog.new()
+		result._statuses.append(definition.copy())
+	for definition: SynergyDefinition in synergies:
+		if definition == null or not definition.is_initialized(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.CATALOG_BUILD); return ContentCatalog.new()
+		result._synergies.append(definition.copy())
 	result._catalog_schema_version = catalog_schema_version
 	result._compatibility_bytes = compatibility_bytes.duplicate()
 	result._fingerprint = fingerprint.duplicate()
@@ -50,13 +60,15 @@ static func create(
 func copy() -> ContentCatalog:
 	if not _initialized: return ContentCatalog.new()
 	var status := ContentStatus.new()
-	return create(_catalog_schema_version, _registry_entries, _pieces, _abilities, _compatibility_bytes, _fingerprint, status)
+	return create(_catalog_schema_version, _registry_entries, _pieces, _abilities, _statuses, _synergies, _compatibility_bytes, _fingerprint, status)
 
 
 func is_initialized() -> bool: return _initialized
 func catalog_schema_version() -> int: return _catalog_schema_version
 func piece_count() -> int: return _pieces.size()
 func ability_count() -> int: return _abilities.size()
+func status_count() -> int: return _statuses.size()
+func synergy_count() -> int: return _synergies.size()
 func registry_entry_count() -> int: return _registry_entries.size()
 func fingerprint_bytes() -> PackedByteArray: return _fingerprint.duplicate()
 func compatibility_bytes_for_test() -> PackedByteArray: return _compatibility_bytes.duplicate()
@@ -85,6 +97,14 @@ func ability_at(index: int, status: ContentStatus) -> AbilityDefinition:
 		status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.ABILITIES)
 		return AbilityDefinition.new()
 	return _abilities[index].copy()
+
+func status_at(index: int, status: ContentStatus) -> StatusDefinition:
+	if index < 0 or index >= _statuses.size(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.STATUSES); return StatusDefinition.new()
+	return _statuses[index].copy()
+
+func synergy_at(index: int, status: ContentStatus) -> SynergyDefinition:
+	if index < 0 or index >= _synergies.size(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.SYNERGIES); return SynergyDefinition.new()
+	return _synergies[index].copy()
 
 
 func registry_entry_at(index: int, status: ContentStatus) -> ContentRegistryEntry:
@@ -119,6 +139,26 @@ func ability_by_numeric_id(id: int, status: ContentStatus) -> AbilityDefinition:
 		else: high = middle - 1
 	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.ABILITIES, id)
 	return AbilityDefinition.new()
+
+func status_by_numeric_id(id: int, status: ContentStatus) -> StatusDefinition:
+	for item: StatusDefinition in _statuses:
+		if item.numeric_id() == id: return item.copy()
+		if item.numeric_id() > id: break
+	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.STATUSES, id)
+	return StatusDefinition.new()
+
+func synergy_by_numeric_id(id: int, status: ContentStatus) -> SynergyDefinition:
+	for item: SynergyDefinition in _synergies:
+		if item.numeric_id() == id: return item.copy()
+		if item.numeric_id() > id: break
+	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.SYNERGIES, id)
+	return SynergyDefinition.new()
+
+func synergy_by_tag_numeric_id(id: int, status: ContentStatus) -> SynergyDefinition:
+	for item: SynergyDefinition in _synergies:
+		if item.tag_ref().numeric_id() == id: return item.copy()
+	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.SYNERGIES, id)
+	return SynergyDefinition.new()
 
 
 func piece_by_string_id(id: String, status: ContentStatus) -> PieceDefinition:

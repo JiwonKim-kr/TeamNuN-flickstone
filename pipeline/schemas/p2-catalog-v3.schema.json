@@ -1,0 +1,4 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://flickstone.local/schemas/p2-catalog-v3.schema.json",
+  "type":"object","additionalProperties":false,"required":["schema_version","documents"],"properties":{"schema_version":{"const":3},"documents":{"type":"array","minItems":5,"maxItems":5}}
+}

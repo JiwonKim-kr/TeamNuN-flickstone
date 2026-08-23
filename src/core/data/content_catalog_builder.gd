@@ -12,10 +12,14 @@ const ABILITY_KEYS: PackedStringArray = ["numeric_id", "id", "trigger_id", "cond
 const CONDITION_KEYS: PackedStringArray = ["kind_id", "relation_id", "value_a", "value_b"]
 const EFFECT_KEYS: PackedStringArray = ["kind_id", "selector", "value_a", "value_b", "operation_id"]
 const SELECTOR_KEYS: PackedStringArray = ["kind_id", "relation_id", "limit"]
-const PIECE_KEYS: PackedStringArray = ["numeric_id", "id", "flags", "levels"]
+const PIECE_KEYS: PackedStringArray = ["numeric_id", "id", "flags", "tag_refs", "levels"]
 const FLAG_KEYS: PackedStringArray = ["has_turn", "destructible", "transformable", "counts_for_victory", "is_token"]
 const LEVEL_KEYS: PackedStringArray = ["level", "max_hp", "attack", "speed_stat", "mass_raw", "radius_raw", "friction_multiplier_raw", "critical_basis_points", "ability_refs"]
 const REF_KEYS: PackedStringArray = ["numeric_id", "id"]
+const STATUS_KEYS: PackedStringArray = ["numeric_id", "id", "stack_policy_id", "max_stacks", "duration_kind_id", "default_duration", "max_duration", "refresh_policy_id", "merge_sources", "modifiers"]
+const SYNERGY_KEYS: PackedStringArray = ["numeric_id", "id", "tag_ref", "tag_kind_id", "scope_id", "count_cap", "tiers"]
+const MODIFIER_KEYS: PackedStringArray = ["kind_id", "operation_id", "value_mode_id", "value"]
+const TIER_KEYS: PackedStringArray = ["min_count", "modifiers"]
 
 
 static func _registry_less(left: ContentRegistryEntry, right: ContentRegistryEntry) -> bool:
@@ -131,7 +135,7 @@ static func _validate_catalog_document(catalog: Dictionary, source_documents: Ar
 		return false
 	var documents: Array = _array_field(catalog, "documents", status, 0, 0, ContentStatus.FieldId.DOCUMENTS)
 	if not status.is_ok(): return false
-	if documents.size() != 3 or documents.size() > ContentLimits.DOCUMENT_MAX_COUNT or source_documents.size() != 3:
+	if documents.size() != 5 or documents.size() > ContentLimits.DOCUMENT_MAX_COUNT or source_documents.size() != 5:
 		status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.DOCUMENT_VALIDATE, 0, 0, ContentStatus.FieldId.DOCUMENTS)
 		return false
 	var seen: Dictionary = {}
@@ -154,7 +158,7 @@ static func _validate_catalog_document(catalog: Dictionary, source_documents: Ar
 			status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE, kind_id)
 			return false
 		seen[kind_id] = true
-	for kind_id: int in range(ContentIds.DocumentKind.ID_REGISTRY, ContentIds.DocumentKind.ABILITIES + 1):
+	for kind_id: int in range(ContentIds.DocumentKind.ID_REGISTRY, ContentIds.DocumentKind.SYNERGIES + 1):
 		if not seen.has(kind_id):
 			status.fail(ContentStatus.Code.MISSING_KEY, ContentStatus.Operation.DOCUMENT_VALIDATE, kind_id)
 			return false
@@ -207,7 +211,7 @@ static func _parse_registry(
 		if raw_entries.size() > ContentLimits.REGISTRY_MAX_ENTRIES_PER_NAMESPACE:
 			status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.ID_REGISTER, KIND, 0, ContentStatus.FieldId.ENTRIES)
 			return false
-		if namespace_id > ContentIds.Namespace.ABILITY and not raw_entries.is_empty():
+		if namespace_id >= ContentIds.Namespace.PROJECTILE and namespace_id <= ContentIds.Namespace.MAP and not raw_entries.is_empty():
 			status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.ID_REGISTER, KIND, 0, ContentStatus.FieldId.ENTRIES)
 			return false
 		for raw_entry: Variant in raw_entries:
@@ -268,6 +272,7 @@ static func _parse_abilities(
 		root: Dictionary,
 		registry_by_numeric: Dictionary,
 		registry_by_string: Dictionary,
+		status_by_numeric: Dictionary,
 		abilities_out: Array[AbilityDefinition],
 		ability_by_numeric: Dictionary,
 		status: ContentStatus
@@ -330,6 +335,10 @@ static func _parse_abilities(
 				_int_field(effect_value, "value_b", status, KIND, numeric_id, ContentStatus.FieldId.VALUE_B),
 				_int_field(effect_value, "operation_id", status, KIND, numeric_id, ContentStatus.FieldId.OPERATION_ID), status)
 			if not status.is_ok(): return false
+			if (effect.kind_id() == AbilityEffectDefinition.Kind.APPLY_STATUS or effect.kind_id() == AbilityEffectDefinition.Kind.REMOVE_STATUS) and not status_by_numeric.has(effect.value_a()):
+				status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.REFERENCE_RESOLVE, KIND, numeric_id, ContentStatus.FieldId.VALUE_A); return false
+			if effect.kind_id() == AbilityEffectDefinition.Kind.APPLY_STATUS and effect.value_b() > (status_by_numeric[effect.value_a()] as StatusDefinition).max_stacks():
+				status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.VALUE_B); return false
 			effects.append(effect)
 		var registry_entry: ContentRegistryEntry = _active_registry_pair(ContentIds.Namespace.ABILITY, numeric_id, string_id, registry_by_numeric, registry_by_string, status, KIND, ContentStatus.FieldId.ID)
 		if not status.is_ok(): return false
@@ -451,6 +460,22 @@ static func _parse_pieces(
 		var counts_for_victory: bool = _bool_field(flags, "counts_for_victory", status, KIND, numeric_id, ContentStatus.FieldId.COUNTS_FOR_VICTORY)
 		var is_token: bool = _bool_field(flags, "is_token", status, KIND, numeric_id, ContentStatus.FieldId.IS_TOKEN)
 		if not status.is_ok(): return false
+		var raw_tags: Array = _array_field(record, "tag_refs", status, KIND, numeric_id, ContentStatus.FieldId.TAG_REFS)
+		if not status.is_ok(): return false
+		if raw_tags.size() > ContentLimits.PIECE_TAG_REFS_MAX_COUNT: status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.TAG_REFS); return false
+		var tag_refs: Array[ContentIdRef] = []; var seen_tags: Dictionary = {}
+		for raw_tag: Variant in raw_tags:
+			if typeof(raw_tag) != TYPE_DICTIONARY: status.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.REFERENCE_RESOLVE, KIND, numeric_id, ContentStatus.FieldId.TAG_REFS); return false
+			var tag_value: Dictionary = raw_tag as Dictionary
+			if not _require_exact_keys(tag_value, REF_KEYS, status, KIND, numeric_id, ContentStatus.FieldId.TAG_REFS): return false
+			var tag_numeric_id: int = _int_field(tag_value, "numeric_id", status, KIND, numeric_id, ContentStatus.FieldId.TAG_REFS)
+			var tag_string_id: String = _string_field(tag_value, "id", status, KIND, numeric_id, ContentStatus.FieldId.TAG_REFS)
+			var tag_entry: ContentRegistryEntry = _active_registry_pair(ContentIds.Namespace.TAG, tag_numeric_id, tag_string_id, registry_by_numeric, registry_by_string, status, KIND, ContentStatus.FieldId.TAG_REFS)
+			if not status.is_ok() or seen_tags.has(tag_numeric_id):
+				if status.is_ok(): status.fail(ContentStatus.Code.DUPLICATE_ID, ContentStatus.Operation.REFERENCE_RESOLVE, KIND, numeric_id, ContentStatus.FieldId.TAG_REFS)
+				return false
+			seen_tags[tag_numeric_id] = true; tag_refs.append(ContentIdRef.create(tag_entry.numeric_id(), tag_entry.string_id(), status))
+		tag_refs.sort_custom(_ref_less)
 
 		var raw_levels: Array = _array_field(record, "levels", status, KIND, numeric_id, ContentStatus.FieldId.LEVELS)
 		if not status.is_ok(): return false
@@ -497,7 +522,7 @@ static func _parse_pieces(
 			levels.append(level_definition)
 
 		var id_ref: ContentIdRef = ContentIdRef.create(registry_entry.numeric_id(), registry_entry.string_id(), status)
-		var piece: PieceDefinition = PieceDefinition.create(id_ref, has_turn, destructible, transformable, counts_for_victory, is_token, levels, status)
+		var piece: PieceDefinition = PieceDefinition.create(id_ref, has_turn, destructible, transformable, counts_for_victory, is_token, tag_refs, levels, status)
 		if not status.is_ok(): return false
 		pieces_out.append(piece)
 		piece_by_numeric[numeric_id] = piece
@@ -506,10 +531,93 @@ static func _parse_pieces(
 	return true
 
 
+static func _parse_modifier(raw: Variant, kind: int, record_id: int, status: ContentStatus) -> StatusModifierDefinition:
+	if typeof(raw) != TYPE_DICTIONARY: status.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.DOCUMENT_VALIDATE, kind, record_id, ContentStatus.FieldId.MODIFIERS); return StatusModifierDefinition.new()
+	var value: Dictionary = raw as Dictionary
+	if not _require_exact_keys(value, MODIFIER_KEYS, status, kind, record_id, ContentStatus.FieldId.MODIFIERS): return StatusModifierDefinition.new()
+	return StatusModifierDefinition.create(
+		_int_field(value, "kind_id", status, kind, record_id, ContentStatus.FieldId.MODIFIER_KIND_ID),
+		_int_field(value, "operation_id", status, kind, record_id, ContentStatus.FieldId.OPERATION_ID),
+		_int_field(value, "value_mode_id", status, kind, record_id, ContentStatus.FieldId.VALUE_MODE_ID),
+		_int_field(value, "value", status, kind, record_id, ContentStatus.FieldId.VALUE_A), status)
+
+
+static func _parse_statuses(root: Dictionary, registry_by_numeric: Dictionary, registry_by_string: Dictionary, output: Array[StatusDefinition], by_numeric: Dictionary, status: ContentStatus) -> bool:
+	const KIND: int = ContentIds.DocumentKind.STATUSES
+	if not _require_exact_keys(root, RECORD_DOCUMENT_KEYS, status, KIND): return false
+	if _int_field(root, "schema_version", status, KIND, 0, ContentStatus.FieldId.SCHEMA_VERSION) != ContentIds.STATUSES_SCHEMA_VERSION: status.fail(ContentStatus.Code.UNSUPPORTED_SCHEMA, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND); return false
+	var records: Array = _array_field(root, "records", status, KIND, 0, ContentStatus.FieldId.RECORDS); var string_ids: Dictionary = {}
+	if records.size() > ContentLimits.RECORD_MAX_COUNT: status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND); return false
+	for raw: Variant in records:
+		if typeof(raw) != TYPE_DICTIONARY: status.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND); return false
+		var record: Dictionary = raw as Dictionary
+		if not _require_exact_keys(record, STATUS_KEYS, status, KIND): return false
+		var numeric_id: int = _int_field(record, "numeric_id", status, KIND, 0, ContentStatus.FieldId.NUMERIC_ID); var string_id: String = _string_field(record, "id", status, KIND, numeric_id, ContentStatus.FieldId.ID)
+		var entry: ContentRegistryEntry = _active_registry_pair(ContentIds.Namespace.STATUS, numeric_id, string_id, registry_by_numeric, registry_by_string, status, KIND, ContentStatus.FieldId.ID)
+		if not status.is_ok() or by_numeric.has(numeric_id) or string_ids.has(string_id):
+			if status.is_ok(): status.fail(ContentStatus.Code.DUPLICATE_ID, ContentStatus.Operation.CATALOG_BUILD, KIND, numeric_id)
+			return false
+		var raw_modifiers: Array = _array_field(record, "modifiers", status, KIND, numeric_id, ContentStatus.FieldId.MODIFIERS)
+		if raw_modifiers.size() > ContentLimits.STATUS_MODIFIERS_MAX_COUNT: status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, numeric_id); return false
+		var modifiers: Array[StatusModifierDefinition] = []
+		for raw_modifier: Variant in raw_modifiers:
+			modifiers.append(_parse_modifier(raw_modifier, KIND, numeric_id, status))
+			if not status.is_ok(): return false
+		var id_ref: ContentIdRef = ContentIdRef.create(entry.numeric_id(), entry.string_id(), status)
+		var definition: StatusDefinition = StatusDefinition.create(id_ref,
+			_int_field(record, "stack_policy_id", status, KIND, numeric_id, ContentStatus.FieldId.STACK_POLICY_ID), _int_field(record, "max_stacks", status, KIND, numeric_id, ContentStatus.FieldId.MAX_STACKS),
+			_int_field(record, "duration_kind_id", status, KIND, numeric_id, ContentStatus.FieldId.DURATION_KIND_ID), _int_field(record, "default_duration", status, KIND, numeric_id, ContentStatus.FieldId.DEFAULT_DURATION),
+			_int_field(record, "max_duration", status, KIND, numeric_id, ContentStatus.FieldId.MAX_DURATION), _int_field(record, "refresh_policy_id", status, KIND, numeric_id, ContentStatus.FieldId.REFRESH_POLICY_ID),
+			_bool_field(record, "merge_sources", status, KIND, numeric_id, ContentStatus.FieldId.MERGE_SOURCES), modifiers, status)
+		if not status.is_ok(): return false
+		output.append(definition); by_numeric[numeric_id] = definition; string_ids[string_id] = true
+	output.sort_custom(func(a: StatusDefinition, b: StatusDefinition) -> bool: return a.numeric_id() < b.numeric_id()); return true
+
+
+static func _parse_synergies(root: Dictionary, registry_by_numeric: Dictionary, registry_by_string: Dictionary, output: Array[SynergyDefinition], by_numeric: Dictionary, status: ContentStatus) -> bool:
+	const KIND: int = ContentIds.DocumentKind.SYNERGIES
+	if not _require_exact_keys(root, RECORD_DOCUMENT_KEYS, status, KIND): return false
+	if _int_field(root, "schema_version", status, KIND, 0, ContentStatus.FieldId.SCHEMA_VERSION) != ContentIds.SYNERGIES_SCHEMA_VERSION: status.fail(ContentStatus.Code.UNSUPPORTED_SCHEMA, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND); return false
+	var records: Array = _array_field(root, "records", status, KIND, 0, ContentStatus.FieldId.RECORDS); var string_ids: Dictionary = {}; var tag_ids: Dictionary = {}
+	if records.size() > ContentLimits.RECORD_MAX_COUNT: status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND); return false
+	for raw: Variant in records:
+		if typeof(raw) != TYPE_DICTIONARY: status.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND); return false
+		var record: Dictionary = raw as Dictionary
+		if not _require_exact_keys(record, SYNERGY_KEYS, status, KIND): return false
+		var numeric_id: int = _int_field(record, "numeric_id", status, KIND, 0, ContentStatus.FieldId.NUMERIC_ID); var string_id: String = _string_field(record, "id", status, KIND, numeric_id, ContentStatus.FieldId.ID)
+		var entry: ContentRegistryEntry = _active_registry_pair(ContentIds.Namespace.SYNERGY, numeric_id, string_id, registry_by_numeric, registry_by_string, status, KIND, ContentStatus.FieldId.ID)
+		var tag_value: Dictionary = _dictionary_field(record, "tag_ref", status, KIND, numeric_id, ContentStatus.FieldId.TAG_REF)
+		if not _require_exact_keys(tag_value, REF_KEYS, status, KIND, numeric_id, ContentStatus.FieldId.TAG_REF): return false
+		var tag_numeric_id: int = _int_field(tag_value, "numeric_id", status, KIND, numeric_id, ContentStatus.FieldId.TAG_REF); var tag_string_id: String = _string_field(tag_value, "id", status, KIND, numeric_id, ContentStatus.FieldId.TAG_REF)
+		var tag_entry: ContentRegistryEntry = _active_registry_pair(ContentIds.Namespace.TAG, tag_numeric_id, tag_string_id, registry_by_numeric, registry_by_string, status, KIND, ContentStatus.FieldId.TAG_REF)
+		if not status.is_ok() or by_numeric.has(numeric_id) or string_ids.has(string_id) or tag_ids.has(tag_numeric_id):
+			if status.is_ok(): status.fail(ContentStatus.Code.DUPLICATE_ID, ContentStatus.Operation.CATALOG_BUILD, KIND, numeric_id)
+			return false
+		var raw_tiers: Array = _array_field(record, "tiers", status, KIND, numeric_id, ContentStatus.FieldId.TIERS)
+		if raw_tiers.size() > ContentLimits.SYNERGY_TIERS_MAX_COUNT: status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, numeric_id); return false
+		var tiers: Array[SynergyTierDefinition] = []
+		for raw_tier: Variant in raw_tiers:
+			if typeof(raw_tier) != TYPE_DICTIONARY: status.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, numeric_id); return false
+			var tier_value: Dictionary = raw_tier as Dictionary
+			if not _require_exact_keys(tier_value, TIER_KEYS, status, KIND, numeric_id, ContentStatus.FieldId.TIERS): return false
+			var raw_modifiers: Array = _array_field(tier_value, "modifiers", status, KIND, numeric_id, ContentStatus.FieldId.MODIFIERS); var modifiers: Array[StatusModifierDefinition] = []
+			if raw_modifiers.size() > ContentLimits.SYNERGY_TIER_MODIFIERS_MAX_COUNT: status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, numeric_id); return false
+			for raw_modifier: Variant in raw_modifiers: modifiers.append(_parse_modifier(raw_modifier, KIND, numeric_id, status))
+			tiers.append(SynergyTierDefinition.create(_int_field(tier_value, "min_count", status, KIND, numeric_id, ContentStatus.FieldId.MIN_COUNT), modifiers, status))
+			if not status.is_ok(): return false
+		var id_ref: ContentIdRef = ContentIdRef.create(entry.numeric_id(), entry.string_id(), status); var tag_ref: ContentIdRef = ContentIdRef.create(tag_entry.numeric_id(), tag_entry.string_id(), status)
+		var definition: SynergyDefinition = SynergyDefinition.create(id_ref, tag_ref, _int_field(record, "tag_kind_id", status, KIND, numeric_id, ContentStatus.FieldId.TAG_KIND_ID), _int_field(record, "scope_id", status, KIND, numeric_id, ContentStatus.FieldId.SCOPE_ID), _int_field(record, "count_cap", status, KIND, numeric_id, ContentStatus.FieldId.COUNT_CAP), tiers, status)
+		if not status.is_ok(): return false
+		output.append(definition); by_numeric[numeric_id] = definition; string_ids[string_id] = true; tag_ids[tag_numeric_id] = true
+	output.sort_custom(func(a: SynergyDefinition, b: SynergyDefinition) -> bool: return a.numeric_id() < b.numeric_id()); return true
+
+
 static func _validate_active_registry_coverage(
 		entries: Array[ContentRegistryEntry],
 		piece_by_numeric: Dictionary,
 		ability_by_numeric: Dictionary,
+		status_by_numeric: Dictionary,
+		synergy_by_numeric: Dictionary,
 		status: ContentStatus
 ) -> bool:
 	for entry: ContentRegistryEntry in entries:
@@ -522,6 +630,12 @@ static func _validate_active_registry_coverage(
 			if not ability_by_numeric.has(entry.numeric_id()):
 				status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.CATALOG_BUILD, ContentIds.DocumentKind.ABILITIES, entry.numeric_id())
 				return false
+		elif entry.namespace_id() == ContentIds.Namespace.STATUS:
+			if not status_by_numeric.has(entry.numeric_id()): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.CATALOG_BUILD, ContentIds.DocumentKind.STATUSES, entry.numeric_id()); return false
+		elif entry.namespace_id() == ContentIds.Namespace.SYNERGY:
+			if not synergy_by_numeric.has(entry.numeric_id()): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.CATALOG_BUILD, ContentIds.DocumentKind.SYNERGIES, entry.numeric_id()); return false
+		elif entry.namespace_id() == ContentIds.Namespace.TAG:
+			pass
 		else:
 			status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.ID_REGISTER, ContentIds.DocumentKind.ID_REGISTRY, entry.numeric_id())
 			return false
@@ -538,27 +652,33 @@ static func build(
 	var registry_root: Dictionary = _root_for_kind(source_documents, ContentIds.DocumentKind.ID_REGISTRY, status)
 	var pieces_root: Dictionary = _root_for_kind(source_documents, ContentIds.DocumentKind.PIECES, status)
 	var abilities_root: Dictionary = _root_for_kind(source_documents, ContentIds.DocumentKind.ABILITIES, status)
+	var statuses_root: Dictionary = _root_for_kind(source_documents, ContentIds.DocumentKind.STATUSES, status)
+	var synergies_root: Dictionary = _root_for_kind(source_documents, ContentIds.DocumentKind.SYNERGIES, status)
 	if not status.is_ok(): return ContentCatalog.new()
 
 	var registry_entries: Array[ContentRegistryEntry] = []
 	var registry_by_numeric: Dictionary = {}
 	var registry_by_string: Dictionary = {}
 	if not _parse_registry(registry_root, registry_entries, registry_by_numeric, registry_by_string, status): return ContentCatalog.new()
+	var statuses: Array[StatusDefinition] = []; var status_by_numeric: Dictionary = {}
+	if not _parse_statuses(statuses_root, registry_by_numeric, registry_by_string, statuses, status_by_numeric, status): return ContentCatalog.new()
+	var synergies: Array[SynergyDefinition] = []; var synergy_by_numeric: Dictionary = {}
+	if not _parse_synergies(synergies_root, registry_by_numeric, registry_by_string, synergies, synergy_by_numeric, status): return ContentCatalog.new()
 
 	var abilities: Array[AbilityDefinition] = []
 	var ability_by_numeric: Dictionary = {}
-	if not _parse_abilities(abilities_root, registry_by_numeric, registry_by_string, abilities, ability_by_numeric, status): return ContentCatalog.new()
+	if not _parse_abilities(abilities_root, registry_by_numeric, registry_by_string, status_by_numeric, abilities, ability_by_numeric, status): return ContentCatalog.new()
 
 	var pieces: Array[PieceDefinition] = []
 	var piece_by_numeric: Dictionary = {}
 	if not _parse_pieces(pieces_root, registry_by_numeric, registry_by_string, ability_by_numeric, pieces, piece_by_numeric, status): return ContentCatalog.new()
-	if not _validate_active_registry_coverage(registry_entries, piece_by_numeric, ability_by_numeric, status): return ContentCatalog.new()
+	if not _validate_active_registry_coverage(registry_entries, piece_by_numeric, ability_by_numeric, status_by_numeric, synergy_by_numeric, status): return ContentCatalog.new()
 
-	var compatibility_bytes: PackedByteArray = ContentCanonicalEncoder.encode(registry_entries, pieces, abilities, status)
+	var compatibility_bytes: PackedByteArray = ContentCanonicalEncoder.encode(registry_entries, pieces, abilities, statuses, synergies, status)
 	if not status.is_ok(): return ContentCatalog.new()
 	var sim_status := SimStatus.new()
 	var fingerprint: PackedByteArray = SimStateHash.sha256(compatibility_bytes, sim_status)
 	if not sim_status.is_ok() or fingerprint.size() != 32:
 		status.fail(ContentStatus.Code.FINGERPRINT_ERROR, ContentStatus.Operation.SHA256)
 		return ContentCatalog.new()
-	return ContentCatalog.create(ContentIds.CATALOG_SCHEMA_VERSION, registry_entries, pieces, abilities, compatibility_bytes, fingerprint, status)
+	return ContentCatalog.create(ContentIds.CATALOG_SCHEMA_VERSION, registry_entries, pieces, abilities, statuses, synergies, compatibility_bytes, fingerprint, status)

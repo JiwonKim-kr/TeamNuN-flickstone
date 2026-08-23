@@ -31,11 +31,15 @@ EXPECTED_FILES = {
     "id_registry.json",
     "pieces.json",
     "abilities.json",
+    "statuses.json",
+    "synergies.json",
 }
 DOCUMENTS = {
     1: ("id_registry.json", 1),
-    2: ("pieces.json", 1),
-    3: ("abilities.json", 2),
+    2: ("pieces.json", 2),
+    3: ("abilities.json", 3),
+    4: ("statuses.json", 1),
+    5: ("synergies.json", 1),
 }
 
 
@@ -149,6 +153,19 @@ def _u32(value: Any, label: str) -> int:
     return result
 
 
+def _modifier(raw: Any, label: str) -> "Modifier":
+    item = _exact(raw, {"kind_id", "operation_id", "value_mode_id", "value"}, label)
+    kind_id = _integer(item["kind_id"], f"{label}.kind_id")
+    operation_id = _integer(item["operation_id"], f"{label}.operation_id")
+    value_mode_id = _integer(item["value_mode_id"], f"{label}.value_mode_id")
+    value = _integer(item["value"], f"{label}.value")
+    if not 1 <= kind_id <= 10 or operation_id not in (1, 2) or value_mode_id not in (1, 2):
+        raise ContentError(f"INVALID_DOMAIN:{label}")
+    if 4 <= kind_id <= 7 and operation_id != 1:
+        raise ContentError(f"INVALID_DOMAIN:{label}.damage_operation")
+    return Modifier(kind_id, operation_id, value_mode_id, value)
+
+
 @dataclass(frozen=True)
 class Entry:
     namespace_id: int
@@ -214,7 +231,47 @@ class Piece:
     numeric_id: int
     string_id: str
     flags: tuple[bool, bool, bool, bool, bool]
+    tag_refs: tuple[Ref, ...]
     levels: tuple[Level, ...]
+
+
+@dataclass(frozen=True)
+class Modifier:
+    kind_id: int
+    operation_id: int
+    value_mode_id: int
+    value: int
+
+
+@dataclass(frozen=True)
+class StatusDefinition:
+    numeric_id: int
+    string_id: str
+    stack_policy_id: int
+    max_stacks: int
+    duration_kind_id: int
+    default_duration: int
+    max_duration: int
+    refresh_policy_id: int
+    merge_sources: bool
+    modifiers: tuple[Modifier, ...]
+
+
+@dataclass(frozen=True)
+class SynergyTier:
+    min_count: int
+    modifiers: tuple[Modifier, ...]
+
+
+@dataclass(frozen=True)
+class SynergyDefinition:
+    numeric_id: int
+    string_id: str
+    tag_ref: Ref
+    tag_kind_id: int
+    scope_id: int
+    count_cap: int
+    tiers: tuple[SynergyTier, ...]
 
 
 @dataclass(frozen=True)
@@ -222,6 +279,8 @@ class Catalog:
     entries: tuple[Entry, ...]
     pieces: tuple[Piece, ...]
     abilities: tuple[Ability, ...]
+    statuses: tuple[StatusDefinition, ...]
+    synergies: tuple[SynergyDefinition, ...]
     compatibility_bytes: bytes
     fingerprint: bytes
 
@@ -249,12 +308,13 @@ class Writer:
 
 
 def canonical_bytes(
-    entries: tuple[Entry, ...], pieces: tuple[Piece, ...], abilities: tuple[Ability, ...]
+    entries: tuple[Entry, ...], pieces: tuple[Piece, ...], abilities: tuple[Ability, ...],
+    statuses: tuple[StatusDefinition, ...] = (), synergies: tuple[SynergyDefinition, ...] = ()
 ) -> bytes:
     writer = Writer()
     writer.data += b"FLICKCAT"
-    writer.u16(2)
-    writer.u16(2)
+    writer.u16(3)
+    writer.u16(3)
     writer.u16(1)
     writer.u16(8)
     for namespace_id in range(1, 9):
@@ -265,15 +325,20 @@ def canonical_bytes(
             writer.u32(entry.numeric_id)
             writer.string(entry.string_id)
             writer.u8(entry.state_id)
+
+    writer.u16(4)
     writer.u16(2)
     writer.u16(2)
-    writer.u16(1)
     writer.u32(len(pieces))
     for piece in pieces:
         writer.u32(piece.numeric_id)
         writer.string(piece.string_id)
         flags = sum((1 << index) for index, enabled in enumerate(piece.flags) if enabled)
         writer.u32(flags)
+        writer.u16(len(piece.tag_refs))
+        for ref in piece.tag_refs:
+            writer.u32(ref.numeric_id)
+            writer.string(ref.string_id)
         writer.u8(len(piece.levels))
         for level in piece.levels:
             writer.u8(level.level)
@@ -292,7 +357,7 @@ def canonical_bytes(
                 writer.u32(ref.numeric_id)
                 writer.string(ref.string_id)
     writer.u16(3)
-    writer.u16(2)
+    writer.u16(3)
     writer.u32(len(abilities))
     for ability in abilities:
         writer.u32(ability.numeric_id)
@@ -313,6 +378,45 @@ def canonical_bytes(
             writer.i64(effect.value_a)
             writer.i64(effect.value_b)
             writer.u16(effect.operation_id)
+    writer.u16(4)
+    writer.u16(1)
+    writer.u32(len(statuses))
+    for definition in statuses:
+        writer.u32(definition.numeric_id)
+        writer.string(definition.string_id)
+        writer.u16(definition.stack_policy_id)
+        writer.u16(definition.max_stacks)
+        writer.u16(definition.duration_kind_id)
+        writer.u32(definition.default_duration)
+        writer.u32(definition.max_duration)
+        writer.u16(definition.refresh_policy_id)
+        writer.u8(1 if definition.merge_sources else 0)
+        writer.u16(len(definition.modifiers))
+        for modifier in definition.modifiers:
+            writer.u16(modifier.kind_id)
+            writer.u16(modifier.operation_id)
+            writer.u16(modifier.value_mode_id)
+            writer.i64(modifier.value)
+    writer.u16(5)
+    writer.u16(1)
+    writer.u32(len(synergies))
+    for definition in synergies:
+        writer.u32(definition.numeric_id)
+        writer.string(definition.string_id)
+        writer.u32(definition.tag_ref.numeric_id)
+        writer.string(definition.tag_ref.string_id)
+        writer.u16(definition.tag_kind_id)
+        writer.u16(definition.scope_id)
+        writer.u16(definition.count_cap)
+        writer.u16(len(definition.tiers))
+        for tier in definition.tiers:
+            writer.u16(tier.min_count)
+            writer.u16(len(tier.modifiers))
+            for modifier in tier.modifiers:
+                writer.u16(modifier.kind_id)
+                writer.u16(modifier.operation_id)
+                writer.u16(modifier.value_mode_id)
+                writer.i64(modifier.value)
     return bytes(writer.data)
 
 
@@ -337,10 +441,10 @@ def load_catalog(root: Path) -> Catalog:
         raise ContentError("CATALOG_LIMIT:bytes")
 
     catalog = _exact(_load_file(root, "catalog.json"), {"schema_version", "documents"}, "catalog")
-    if _integer(catalog["schema_version"], "catalog.schema_version") != 2:
+    if _integer(catalog["schema_version"], "catalog.schema_version") != 3:
         raise ContentError("UNSUPPORTED_SCHEMA:catalog")
     documents = catalog["documents"]
-    if not isinstance(documents, list) or len(documents) != 3:
+    if not isinstance(documents, list) or len(documents) != 5:
         raise ContentError("INVALID_DOMAIN:documents")
     seen_documents: set[int] = set()
     for raw in documents:
@@ -372,7 +476,7 @@ def load_catalog(root: Path) -> Catalog:
             raise ContentError("DUPLICATE_ID:namespace")
         if not isinstance(raw_entries, list) or len(raw_entries) > RECORD_MAX_COUNT:
             raise ContentError("CATALOG_LIMIT:entries")
-        if namespace_id > 2 and raw_entries:
+        if namespace_id in range(5, 8) and raw_entries:
             raise ContentError("INVALID_DOMAIN:inactive_namespace")
         seen_namespaces.add(namespace_id)
         for raw_entry in raw_entries:
@@ -401,7 +505,7 @@ def load_catalog(root: Path) -> Catalog:
         return numeric
 
     abilities_doc = _exact(_load_file(root, "abilities.json"), {"schema_version", "records"}, "abilities")
-    if _integer(abilities_doc["schema_version"], "abilities.schema_version") != 2:
+    if _integer(abilities_doc["schema_version"], "abilities.schema_version") != 3:
         raise ContentError("UNSUPPORTED_SCHEMA:abilities")
     ability_records = abilities_doc["records"]
     if not isinstance(ability_records, list) or len(ability_records) > RECORD_MAX_COUNT:
@@ -450,10 +554,19 @@ def load_catalog(root: Path) -> Catalog:
             value_a = _integer(effect["value_a"], "effect.value_a")
             value_b = _integer(effect["value_b"], "effect.value_b")
             operation_id = _integer(effect["operation_id"], "effect.operation_id")
-            if not 1 <= effect_kind <= 6 or not 1 <= selector.kind_id <= 8 or selector.relation_id != 0 or not 0 <= selector.limit <= 256 or operation_id != 0:
+            if effect_kind not in (1, 2, 3, 4, 5, 6, 7, 10, 11) or not 1 <= selector.kind_id <= 8 or selector.relation_id != 0 or not 0 <= selector.limit <= 256:
                 raise ContentError("INVALID_DOMAIN:effect")
             if effect_kind in (1, 2, 3, 4) and (value_a <= 0 or value_b != 0):
                 raise ContentError("INVALID_DOMAIN:effect_values")
+            if effect_kind == 7:
+                if value_a not in (1, 2, 3) or value_b == 0 or operation_id != 1:
+                    raise ContentError("INVALID_DOMAIN:modify_stat")
+            elif operation_id != 0:
+                raise ContentError("INVALID_DOMAIN:effect_operation")
+            if effect_kind == 10 and (value_a <= 0 or value_b <= 0):
+                raise ContentError("INVALID_DOMAIN:apply_status")
+            if effect_kind == 11 and (value_a <= 0 or value_b < 0):
+                raise ContentError("INVALID_DOMAIN:remove_status")
             effects.append(Effect(effect_kind, selector, value_a, value_b, operation_id))
         ability_ids.add(numeric_id)
         ability_strings.add(string_id)
@@ -462,7 +575,7 @@ def load_catalog(root: Path) -> Catalog:
     ability_by_id = {item.numeric_id: item for item in abilities}
 
     pieces_doc = _exact(_load_file(root, "pieces.json"), {"schema_version", "records"}, "pieces")
-    if _integer(pieces_doc["schema_version"], "pieces.schema_version") != 1:
+    if _integer(pieces_doc["schema_version"], "pieces.schema_version") != 2:
         raise ContentError("UNSUPPORTED_SCHEMA:pieces")
     piece_records = pieces_doc["records"]
     if not isinstance(piece_records, list) or len(piece_records) > RECORD_MAX_COUNT:
@@ -471,7 +584,7 @@ def load_catalog(root: Path) -> Catalog:
     piece_ids: set[int] = set()
     piece_strings: set[str] = set()
     for raw in piece_records:
-        item = _exact(raw, {"numeric_id", "id", "flags", "levels"}, "piece")
+        item = _exact(raw, {"numeric_id", "id", "flags", "tag_refs", "levels"}, "piece")
         numeric_id = _u32(item["numeric_id"], "piece.numeric_id")
         string_id = _string_id(item["id"], "piece.id")
         active_pair(1, numeric_id, string_id)
@@ -482,6 +595,17 @@ def load_catalog(root: Path) -> Catalog:
         if any(not isinstance(flags_raw[name], bool) for name in flag_names):
             raise ContentError("INVALID_TYPE:flag")
         flags = tuple(flags_raw[name] for name in flag_names)
+        tag_refs_raw = item["tag_refs"]
+        if not isinstance(tag_refs_raw, list) or len(tag_refs_raw) > 8:
+            raise ContentError("CATALOG_LIMIT:tag_refs")
+        tag_refs: list[Ref] = []
+        for raw_ref in tag_refs_raw:
+            ref = _exact(raw_ref, {"numeric_id", "id"}, "tag_ref")
+            ref_numeric = _u32(ref["numeric_id"], "tag_ref.numeric_id")
+            ref_string = _string_id(ref["id"], "tag_ref.id")
+            active_pair(8, ref_numeric, ref_string)
+            tag_refs.append(Ref(ref_numeric, ref_string))
+        tag_refs.sort(key=lambda ref: ref.numeric_id)
         levels_raw = item["levels"]
         if not isinstance(levels_raw, list) or not 1 <= len(levels_raw) <= 3:
             raise ContentError("INVALID_DOMAIN:levels")
@@ -522,8 +646,89 @@ def load_catalog(root: Path) -> Catalog:
             levels.append(Level(ability_refs=tuple(refs), **values))
         piece_ids.add(numeric_id)
         piece_strings.add(string_id)
-        pieces.append(Piece(numeric_id, string_id, flags, tuple(levels)))
+        pieces.append(Piece(numeric_id, string_id, flags, tuple(tag_refs), tuple(levels)))
     pieces.sort(key=lambda item: item.numeric_id)
+
+    statuses_doc = _exact(_load_file(root, "statuses.json"), {"schema_version", "records"}, "statuses")
+    if _integer(statuses_doc["schema_version"], "statuses.schema_version") != 1:
+        raise ContentError("UNSUPPORTED_SCHEMA:statuses")
+    status_records = statuses_doc["records"]
+    if not isinstance(status_records, list) or len(status_records) > RECORD_MAX_COUNT:
+        raise ContentError("CATALOG_LIMIT:statuses")
+    statuses: list[StatusDefinition] = []
+    status_ids: set[int] = set()
+    status_strings: set[str] = set()
+    for raw in status_records:
+        item = _exact(raw, {"numeric_id", "id", "stack_policy_id", "max_stacks", "duration_kind_id", "default_duration", "max_duration", "refresh_policy_id", "merge_sources", "modifiers"}, "status")
+        numeric_id = _u32(item["numeric_id"], "status.numeric_id")
+        string_id = _string_id(item["id"], "status.id")
+        active_pair(3, numeric_id, string_id)
+        if numeric_id in status_ids or string_id in status_strings:
+            raise ContentError("DUPLICATE_ID:status")
+        stack_policy_id = _integer(item["stack_policy_id"], "status.stack_policy_id")
+        max_stacks = _integer(item["max_stacks"], "status.max_stacks")
+        duration_kind_id = _integer(item["duration_kind_id"], "status.duration_kind_id")
+        default_duration = _integer(item["default_duration"], "status.default_duration")
+        max_duration = _integer(item["max_duration"], "status.max_duration")
+        refresh_policy_id = _integer(item["refresh_policy_id"], "status.refresh_policy_id")
+        merge_sources = item["merge_sources"]
+        modifiers_raw = item["modifiers"]
+        if stack_policy_id not in (1, 2, 3) or not 1 <= max_stacks <= 99 or duration_kind_id not in (1, 2, 3) or refresh_policy_id not in (1, 2, 3, 4) or not isinstance(merge_sources, bool):
+            raise ContentError("INVALID_DOMAIN:status")
+        duration_max = 99 if duration_kind_id == 3 else 1024
+        if duration_kind_id == 2:
+            if default_duration != 0 or max_duration != 0:
+                raise ContentError("INVALID_DOMAIN:battle_duration")
+        elif not 1 <= default_duration <= max_duration <= duration_max:
+            raise ContentError("INVALID_DOMAIN:status_duration")
+        if not isinstance(modifiers_raw, list) or len(modifiers_raw) > 8:
+            raise ContentError("CATALOG_LIMIT:status_modifiers")
+        modifiers = tuple(_modifier(raw_modifier, "status_modifier") for raw_modifier in modifiers_raw)
+        statuses.append(StatusDefinition(numeric_id, string_id, stack_policy_id, max_stacks, duration_kind_id, default_duration, max_duration, refresh_policy_id, merge_sources, modifiers))
+        status_ids.add(numeric_id); status_strings.add(string_id)
+    statuses.sort(key=lambda item: item.numeric_id)
+
+    synergies_doc = _exact(_load_file(root, "synergies.json"), {"schema_version", "records"}, "synergies")
+    if _integer(synergies_doc["schema_version"], "synergies.schema_version") != 1:
+        raise ContentError("UNSUPPORTED_SCHEMA:synergies")
+    synergy_records = synergies_doc["records"]
+    if not isinstance(synergy_records, list) or len(synergy_records) > RECORD_MAX_COUNT:
+        raise ContentError("CATALOG_LIMIT:synergies")
+    synergies: list[SynergyDefinition] = []
+    synergy_ids: set[int] = set(); synergy_strings: set[str] = set(); synergy_tags: set[int] = set()
+    for raw in synergy_records:
+        item = _exact(raw, {"numeric_id", "id", "tag_ref", "tag_kind_id", "scope_id", "count_cap", "tiers"}, "synergy")
+        numeric_id = _u32(item["numeric_id"], "synergy.numeric_id")
+        string_id = _string_id(item["id"], "synergy.id")
+        active_pair(4, numeric_id, string_id)
+        tag_raw = _exact(item["tag_ref"], {"numeric_id", "id"}, "synergy.tag_ref")
+        tag_ref = Ref(_u32(tag_raw["numeric_id"], "tag.numeric_id"), _string_id(tag_raw["id"], "tag.id"))
+        active_pair(8, tag_ref.numeric_id, tag_ref.string_id)
+        tag_kind_id = _integer(item["tag_kind_id"], "synergy.tag_kind_id")
+        scope_id = _integer(item["scope_id"], "synergy.scope_id")
+        count_cap = _integer(item["count_cap"], "synergy.count_cap")
+        tiers_raw = item["tiers"]
+        if numeric_id in synergy_ids or string_id in synergy_strings or tag_ref.numeric_id in synergy_tags:
+            raise ContentError("DUPLICATE_ID:synergy")
+        if tag_kind_id not in (1, 2) or scope_id not in (1, 2) or not 2 <= count_cap <= 64 or not isinstance(tiers_raw, list) or len(tiers_raw) > 16:
+            raise ContentError("INVALID_DOMAIN:synergy")
+        tiers: list[SynergyTier] = []; previous_min = 0
+        for raw_tier in tiers_raw:
+            tier = _exact(raw_tier, {"min_count", "modifiers"}, "synergy_tier")
+            min_count = _integer(tier["min_count"], "tier.min_count")
+            modifiers_raw = tier["modifiers"]
+            if not max(previous_min, 1) < min_count <= count_cap or not isinstance(modifiers_raw, list) or len(modifiers_raw) > 8:
+                raise ContentError("INVALID_DOMAIN:synergy_tier")
+            tiers.append(SynergyTier(min_count, tuple(_modifier(raw_modifier, "synergy_modifier") for raw_modifier in modifiers_raw)))
+            previous_min = min_count
+        synergies.append(SynergyDefinition(numeric_id, string_id, tag_ref, tag_kind_id, scope_id, count_cap, tuple(tiers)))
+        synergy_ids.add(numeric_id); synergy_strings.add(string_id); synergy_tags.add(tag_ref.numeric_id)
+    synergies.sort(key=lambda item: item.numeric_id)
+
+    for ability in abilities:
+        for effect in ability.effects:
+            if effect.kind_id in (10, 11) and effect.value_a not in status_ids:
+                raise ContentError("MISSING_REFERENCE:status")
 
     for entry in entries:
         if entry.state_id != 1:
@@ -532,12 +737,18 @@ def load_catalog(root: Path) -> Catalog:
             raise ContentError("MISSING_REFERENCE:piece_definition")
         if entry.namespace_id == 2 and entry.numeric_id not in ability_ids:
             raise ContentError("MISSING_REFERENCE:ability_definition")
+        if entry.namespace_id == 3 and entry.numeric_id not in status_ids:
+            raise ContentError("MISSING_REFERENCE:status_definition")
+        if entry.namespace_id == 4 and entry.numeric_id not in synergy_ids:
+            raise ContentError("MISSING_REFERENCE:synergy_definition")
 
     entries_tuple = tuple(entries)
     pieces_tuple = tuple(pieces)
     abilities_tuple = tuple(abilities)
-    encoded = canonical_bytes(entries_tuple, pieces_tuple, abilities_tuple)
-    return Catalog(entries_tuple, pieces_tuple, abilities_tuple, encoded, hashlib.sha256(encoded).digest())
+    statuses_tuple = tuple(statuses)
+    synergies_tuple = tuple(synergies)
+    encoded = canonical_bytes(entries_tuple, pieces_tuple, abilities_tuple, statuses_tuple, synergies_tuple)
+    return Catalog(entries_tuple, pieces_tuple, abilities_tuple, statuses_tuple, synergies_tuple, encoded, hashlib.sha256(encoded).digest())
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -553,7 +764,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.canonical_hex:
         print(f"canonical_hex={catalog.compatibility_bytes.hex()}")
     print(f"fingerprint={catalog.fingerprint.hex()}")
-    print(f"pieces={len(catalog.pieces)} abilities={len(catalog.abilities)} registry_entries={len(catalog.entries)}")
+    print(f"pieces={len(catalog.pieces)} abilities={len(catalog.abilities)} statuses={len(catalog.statuses)} synergies={len(catalog.synergies)} registry_entries={len(catalog.entries)}")
     print("CONTENT_CATALOG_RESULT: PASS")
     return 0
 

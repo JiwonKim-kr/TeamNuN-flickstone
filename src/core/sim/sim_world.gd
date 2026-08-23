@@ -942,6 +942,13 @@ func set_body_velocity(
 	if status.is_ok():
 		_bodies[index] = updated
 
+func set_body_physical_stats(body_id: int, radius_raw: int, mass_raw: int, friction_multiplier_raw: int, status: SimStatus) -> void:
+	if not _require_initialized(status, SimStatus.Operation.WORLD_BODY_UPDATE): return
+	var index: int = _find_body_index(body_id)
+	if index < 0: status.fail(SimStatus.Code.NOT_FOUND, SimStatus.Operation.WORLD_BODY_UPDATE, body_id, 0); return
+	var updated: SimBody = _bodies[index].with_physical_stats(radius_raw, mass_raw, friction_multiplier_raw, status)
+	if status.is_ok(): _bodies[index] = updated
+
 
 func _compose_zone_effects(
 		body: SimBody, status: SimStatus, include_acceleration: bool = true

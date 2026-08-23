@@ -1,9 +1,35 @@
 {
-  "schema_version": 1,
-  "records": [{
-    "numeric_id": 1,
-    "id": "fixture_puck",
-    "flags": {"has_turn": true, "destructible": true, "transformable": true, "counts_for_victory": true, "is_token": false},
-    "levels": [{"level": 1, "max_hp": 101, "attack": 20, "speed_stat": 100, "mass_raw": 4194304, "radius_raw": 2097152, "friction_multiplier_raw": 65536, "critical_basis_points": 0, "ability_refs": [{"numeric_id": 1, "id": "fixture_collision"}]}]
-  }]
+  "schema_version": 2,
+  "records": [
+    {
+      "numeric_id": 1,
+      "id": "fixture_puck",
+      "flags": {
+        "has_turn": true,
+        "destructible": true,
+        "transformable": true,
+        "counts_for_victory": true,
+        "is_token": false
+      },
+      "levels": [
+        {
+          "level": 1,
+          "max_hp": 101,
+          "attack": 20,
+          "speed_stat": 100,
+          "mass_raw": 4194304,
+          "radius_raw": 2097152,
+          "friction_multiplier_raw": 65536,
+          "critical_basis_points": 0,
+          "ability_refs": [
+            {
+              "numeric_id": 1,
+              "id": "fixture_collision"
+            }
+          ]
+        }
+      ],
+      "tag_refs": []
+    }
+  ]
 }

@@ -17,7 +17,7 @@ static func _append_damage_records(records: Array[BattleTriggerRecord], next_seq
 	if not status.is_ok(): return
 	next_sequence[0] += 1; records.append(deal); records.append(take)
 
-static func _apply(state: BattleState, owner_id: int, target_id: int, record: BattleTriggerRecord, effect: AbilityEffectDefinition, status: SimStatus) -> bool:
+static func _apply(state: BattleState, owner_id: int, target_id: int, record: BattleTriggerRecord, effect: AbilityEffectDefinition, status_change: Array[int], status: SimStatus) -> bool:
 	var combatant: BattleCombatant
 	var body: SimBody
 	var world: SimWorld
@@ -48,6 +48,14 @@ static func _apply(state: BattleState, owner_id: int, target_id: int, record: Ba
 			if effect.kind_id() == AbilityEffectDefinition.Kind.PULL: direction = direction.negated(status)
 			var delta: FixVec2 = direction.normalized(status).scaled(effect.value_a(), status)
 			return state._effect_set_velocity(target_id, body.velocity().add(delta, status), status)
+		AbilityEffectDefinition.Kind.APPLY_STATUS:
+			status_change[0] = state._effect_apply_status_change(target_id, owner_id, effect.value_a(), effect.value_b(), status)
+			return status.is_ok() and status_change[0] > 0
+		AbilityEffectDefinition.Kind.REMOVE_STATUS:
+			if state._effect_remove_status(target_id, effect.value_a(), effect.value_b(), status) > 0: status_change[0] = 3
+			return status.is_ok()
+		AbilityEffectDefinition.Kind.MODIFY_STAT:
+			return state._effect_modify_stat(target_id, effect.value_a(), effect.value_b(), status)
 	status.fail(SimStatus.Code.INVALID_EFFECT_DEFINITION, SimStatus.Operation.EFFECT_APPLY, target_id, effect.kind_id()); return false
 
 static func resolve_transition(state: BattleState, registry: AbilityRegistry, records: Array[BattleTriggerRecord], content_fingerprint: PackedByteArray, status: SimStatus) -> EffectResolutionReport:
@@ -58,7 +66,7 @@ static func resolve_transition(state: BattleState, registry: AbilityRegistry, re
 		status.fail(SimStatus.Code.CONTENT_FINGERPRINT_MISMATCH, SimStatus.Operation.EFFECT_RESOLVE_TRANSITION); return EffectResolutionReport.new()
 	if records.size() > BattleLimits.TRIGGER_MAX_RECORDS:
 		status.fail(SimStatus.Code.EFFECT_LIMIT_EXCEEDED, SimStatus.Operation.EFFECT_RESOLVE_TRANSITION, records.size(), BattleLimits.TRIGGER_MAX_RECORDS); return EffectResolutionReport.new()
-	var local: BattleState = state.copy(status); var invocations: int = 0; var applications: Array[EffectApplication] = []
+	var local: BattleState = state.copy(status); var invocations: int = 0; var applications: Array[EffectApplication] = []; var status_applications: int = 0; var status_updates: int = 0; var status_removals: int = 0; var status_changes: int = 0
 	var queue: Array[BattleTriggerRecord] = []; var generated: Array[BattleTriggerRecord] = []
 	for input_record: BattleTriggerRecord in records:
 		if input_record == null or not input_record.is_initialized(): status.fail(SimStatus.Code.INVALID_TRIGGER_RECORD, SimStatus.Operation.EFFECT_RESOLVE_TRANSITION); return EffectResolutionReport.new()
@@ -94,7 +102,12 @@ static func resolve_transition(state: BattleState, registry: AbilityRegistry, re
 						var hp_before: int = -1
 						if effect.kind_id() == AbilityEffectDefinition.Kind.DAMAGE:
 							hp_before = local.combatant_by_body_id(target_id, status).current_hp()
-						if not status.is_ok() or not _apply(local, binding.owner_body_id(), target_id, record, effect, status): break
+						var status_change: Array[int] = [0]
+						if not status.is_ok() or not _apply(local, binding.owner_body_id(), target_id, record, effect, status_change, status): break
+						if status_change[0] == 1: status_applications += 1; status_changes += 1
+						elif status_change[0] == 2: status_updates += 1; status_changes += 1
+						elif status_change[0] == 3: status_removals += 1; status_changes += 1
+						if status_changes > BattleLimits.STATUS_MAX_CHANGES_PER_TRANSITION: status.fail(SimStatus.Code.STATUS_LIMIT_EXCEEDED, SimStatus.Operation.EFFECT_RESOLVE_TRANSITION, status_changes, BattleLimits.STATUS_MAX_CHANGES_PER_TRANSITION); break
 						applications.append(EffectApplication.create(binding.owner_body_id(), ability.numeric_id(), effect_index, target_id, effect.kind_id()))
 						if hp_before >= 0:
 							var hp_after: int = 0
@@ -108,6 +121,14 @@ static func resolve_transition(state: BattleState, registry: AbilityRegistry, re
 			if not status.is_ok(): break
 		if not status.is_ok(): break
 	if not status.is_ok(): return EffectResolutionReport.new()
+	var expired_bodies: Dictionary = {}
+	for record: BattleTriggerRecord in queue:
+		if record.trigger_id() == BattleTriggerId.Value.ON_TURN_END and record.phase() == BattleState.Phase.TURN_END and record.subject_body_id() > 0 and not expired_bodies.has(record.subject_body_id()):
+			var expiration_changes: Array[int] = local._status_expire_turn_end(record.subject_body_id(), status)
+			status_updates += expiration_changes[0]; status_removals += expiration_changes[1]
+			status_changes += expiration_changes[0] + expiration_changes[1]; expired_bodies[record.subject_body_id()] = true
+			if status_changes > BattleLimits.STATUS_MAX_CHANGES_PER_TRANSITION: status.fail(SimStatus.Code.STATUS_LIMIT_EXCEEDED, SimStatus.Operation.EFFECT_RESOLVE_TRANSITION, status_changes, BattleLimits.STATUS_MAX_CHANGES_PER_TRANSITION); break
+	if not status.is_ok(): return EffectResolutionReport.new()
 	var binding_copies: Array[AbilityBinding] = []
 	for binding_index: int in range(registry.binding_count()): binding_copies.append(registry.binding_at(binding_index, status))
 	if applications.size() > UInt32Math.U32_MAX - local.next_effect_sequence():
@@ -116,4 +137,4 @@ static func resolve_transition(state: BattleState, registry: AbilityRegistry, re
 	generated.sort_custom(_record_less)
 	local._effect_restore_triggers(generated, next_trigger_sequence[0], status)
 	state._effect_commit_from(local, status)
-	return EffectResolutionReport.create(invocations, applications, generated) if status.is_ok() else EffectResolutionReport.new()
+	return EffectResolutionReport.create(invocations, applications, generated, status_applications, status_updates, status_removals) if status.is_ok() else EffectResolutionReport.new()

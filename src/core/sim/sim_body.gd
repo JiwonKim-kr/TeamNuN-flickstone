@@ -240,6 +240,10 @@ func with_motion(
 func with_velocity(velocity: FixVec2, status: SimStatus) -> SimBody:
 	return with_motion(_position, velocity, status)
 
+func with_physical_stats(radius_raw: int, mass_raw: int, friction_multiplier_raw: int, status: SimStatus) -> SimBody:
+	if not _validate(_id, _id == 0, _position, _velocity, radius_raw, mass_raw, friction_multiplier_raw, status): return SimBody.new()
+	return _build(_id, _alive, _destructible, _position, _velocity, radius_raw, mass_raw, friction_multiplier_raw)
+
 
 func copy() -> SimBody:
 	return _build(

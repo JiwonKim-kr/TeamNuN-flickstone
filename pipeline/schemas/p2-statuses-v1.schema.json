@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flickstone.local/schemas/p2-statuses-v1.schema.json",
+  "$defs": {"modifier": {"type":"object","additionalProperties":false,"required":["kind_id","operation_id","value_mode_id","value"],"properties":{"kind_id":{"type":"integer","minimum":1,"maximum":10},"operation_id":{"type":"integer","minimum":1,"maximum":2},"value_mode_id":{"type":"integer","minimum":1,"maximum":2},"value":{"type":"integer"}}}},
+  "type":"object","additionalProperties":false,"required":["schema_version","records"],
+  "properties":{"schema_version":{"const":1},"records":{"type":"array","maxItems":4096,"items":{"type":"object","additionalProperties":false,"required":["numeric_id","id","stack_policy_id","max_stacks","duration_kind_id","default_duration","max_duration","refresh_policy_id","merge_sources","modifiers"],"properties":{"numeric_id":{"type":"integer","minimum":1,"maximum":4294967295},"id":{"type":"string","pattern":"^[a-z][a-z0-9_]{0,63}$"},"stack_policy_id":{"type":"integer","minimum":1,"maximum":3},"max_stacks":{"type":"integer","minimum":1,"maximum":99},"duration_kind_id":{"type":"integer","minimum":1,"maximum":3},"default_duration":{"type":"integer","minimum":0,"maximum":1024},"max_duration":{"type":"integer","minimum":0,"maximum":1024},"refresh_policy_id":{"type":"integer","minimum":1,"maximum":4},"merge_sources":{"type":"boolean"},"modifiers":{"type":"array","maxItems":8,"items":{"$ref":"#/$defs/modifier"}}}}}}
+}

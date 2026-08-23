@@ -129,6 +129,14 @@ func copy() -> BattleParticipant:
 func with_ct(value: int, status: SimStatus) -> BattleParticipant:
 	return _create_checked(_body_id, false, _faction, _has_turn, _controllable, _counts_for_victory, _speed_stat, value, status)
 
+func with_speed_stat(value: int, status: SimStatus) -> BattleParticipant:
+	return _create_checked(_body_id, false, _faction, _has_turn, _controllable, _counts_for_victory, value, _ct, status)
+
+func with_effective_speed_stat(value: int, status: SimStatus) -> BattleParticipant:
+	if not status.is_ok() or value < 1 or value > 2000:
+		status.fail(SimStatus.Code.MODIFIER_RANGE_VIOLATION, SimStatus.Operation.EFFECTIVE_STAT_RESOLVE, _body_id, value); return BattleParticipant.new()
+	return _build(_body_id, _faction, _has_turn, _controllable, _counts_for_victory, value, _ct)
+
 
 func is_initialized() -> bool: return _initialized
 func body_id() -> int: return _body_id

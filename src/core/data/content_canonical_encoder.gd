@@ -37,6 +37,8 @@ static func encode(
 		registry_entries: Array[ContentRegistryEntry],
 		pieces: Array[PieceDefinition],
 		abilities: Array[AbilityDefinition],
+		statuses: Array[StatusDefinition],
+		synergies: Array[SynergyDefinition],
 		status: ContentStatus
 ) -> PackedByteArray:
 	if not status.is_ok(): return PackedByteArray()
@@ -58,7 +60,7 @@ static func encode(
 			writer.string_utf8(entry.string_id())
 			writer.u8(entry.state_id())
 
-	writer.u16(2)
+	writer.u16(4)
 	writer.u16(ContentIds.DocumentKind.PIECES)
 	writer.u16(ContentIds.PIECES_SCHEMA_VERSION)
 	writer.u32(pieces.size())
@@ -72,6 +74,11 @@ static func encode(
 		if piece.counts_for_victory(): flags |= 1 << 3
 		if piece.is_token(): flags |= 1 << 4
 		writer.u32(flags)
+		writer.u16(piece.tag_ref_count())
+		for tag_index: int in range(piece.tag_ref_count()):
+			var tag_status := ContentStatus.new(); var tag_ref: ContentIdRef = piece.tag_ref_at(tag_index, tag_status)
+			if not tag_status.is_ok(): status.fail(ContentStatus.Code.FINGERPRINT_ERROR, ContentStatus.Operation.CANONICAL_ENCODE); return PackedByteArray()
+			writer.u32(tag_ref.numeric_id()); writer.string_utf8(tag_ref.string_id())
 		writer.u8(piece.level_count())
 		for level_index: int in range(piece.level_count()):
 			var level_status := ContentStatus.new()
@@ -118,5 +125,26 @@ static func encode(
 			var selector: AbilitySelectorDefinition = effect.selector()
 			writer.u16(effect.kind_id()); writer.u16(selector.kind_id()); writer.u16(selector.relation_id()); writer.u16(selector.limit())
 			writer.i64(effect.value_a()); writer.i64(effect.value_b()); writer.u16(effect.operation_id())
+
+	writer.u16(ContentIds.DocumentKind.STATUSES); writer.u16(ContentIds.STATUSES_SCHEMA_VERSION); writer.u32(statuses.size())
+	for definition: StatusDefinition in statuses:
+		writer.u32(definition.numeric_id()); writer.string_utf8(definition.string_id()); writer.u16(definition.stack_policy_id()); writer.u16(definition.max_stacks())
+		writer.u16(definition.duration_kind_id()); writer.u32(definition.default_duration()); writer.u32(definition.max_duration()); writer.u16(definition.refresh_policy_id()); writer.u8(1 if definition.merge_sources() else 0)
+		writer.u16(definition.modifier_count())
+		for index: int in range(definition.modifier_count()):
+			var cs := ContentStatus.new(); var modifier: StatusModifierDefinition = definition.modifier_at(index, cs)
+			if not cs.is_ok(): status.fail(ContentStatus.Code.FINGERPRINT_ERROR, ContentStatus.Operation.CANONICAL_ENCODE); return PackedByteArray()
+			writer.u16(modifier.kind_id()); writer.u16(modifier.operation_id()); writer.u16(modifier.value_mode_id()); writer.i64(modifier.value())
+
+	writer.u16(ContentIds.DocumentKind.SYNERGIES); writer.u16(ContentIds.SYNERGIES_SCHEMA_VERSION); writer.u32(synergies.size())
+	for definition: SynergyDefinition in synergies:
+		writer.u32(definition.numeric_id()); writer.string_utf8(definition.string_id()); var tag_ref: ContentIdRef = definition.tag_ref(); writer.u32(tag_ref.numeric_id()); writer.string_utf8(tag_ref.string_id())
+		writer.u16(definition.tag_kind_id()); writer.u16(definition.scope_id()); writer.u16(definition.count_cap()); writer.u16(definition.tier_count())
+		for tier_index: int in range(definition.tier_count()):
+			var cs := ContentStatus.new(); var tier: SynergyTierDefinition = definition.tier_at(tier_index, cs)
+			if not cs.is_ok(): status.fail(ContentStatus.Code.FINGERPRINT_ERROR, ContentStatus.Operation.CANONICAL_ENCODE); return PackedByteArray()
+			writer.u16(tier.min_count()); writer.u16(tier.modifier_count())
+			for modifier_index: int in range(tier.modifier_count()):
+				var modifier: StatusModifierDefinition = tier.modifier_at(modifier_index, cs); writer.u16(modifier.kind_id()); writer.u16(modifier.operation_id()); writer.u16(modifier.value_mode_id()); writer.i64(modifier.value())
 	if not status.is_ok(): return PackedByteArray()
 	return writer.data

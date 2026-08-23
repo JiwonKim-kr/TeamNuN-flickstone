@@ -165,6 +165,9 @@ func with_current_hp(value: int, status: SimStatus) -> BattleCombatant:
 		status
 	)
 
+func with_base_stats(attack: int, critical_basis_points: int, status: SimStatus) -> BattleCombatant:
+	return _create_checked(_body_id, false, _faction, _current_hp, _max_hp, attack, critical_basis_points, status)
+
 
 func copy() -> BattleCombatant:
 	if not _initialized:

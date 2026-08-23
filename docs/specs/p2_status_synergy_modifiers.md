@@ -637,3 +637,12 @@ U-11b 태그 배정 · U-20 무적 면역 · U-21 고정 체력 계수 · U-36 �
 P2-S01~20은 2026-08-24 사용자 지시 `승인 상태로 전환해`로 한 묶음 승인되었다. 구현은 이 명세의 fixture-only 범위와 명시된 비범위를 넘지 않는다.
 
 > [review 승인 2026-08-24] 사람 검수 승인.
+
+## 구현·검증 기록
+
+- catalog v3, pieces v2, abilities v3, statuses/synergies v1과 canonical fingerprint v3를 구현했다. runtime status/synergy records는 승인대로 비어 있다.
+- 상태 수명·정렬·중첩·갱신·해제, 진영별 동결 tally, 누적 tier/count cap, 단일 modifier 집계 경계를 구현했다.
+- `APPLY_STATUS`·`REMOVE_STATUS`·`MODIFY_STAT`, CTB 유효 speed, P1 피해 입력과 결정적 치명타, `AIM→RESOLVE` 물리 materialize를 연결했다.
+- BattleSnapshot v5, content fingerprint mismatch, body 64·전투 4,096·transition 1,024 한도와 byte-for-byte rollback을 검증했다.
+- 독립 Python canonical reference와 Godot narrow가 일치하며, 동일 fixture 1,000회, P0/P1/P2 회귀, Godot 4.6.3 `verify --full` 자동 발견 러너 20종이 통과했다.
+- P1-5 terminal hash는 P2-S18 Snapshot v5 승인 마이그레이션으로 `b7ebf05c0ad30200f95582b6f9774b1e11341471f9aeef293fb1f0c87d5569a2`로 갱신했다. 전투 결과 1, 20턴, 10,699 sim tick은 변하지 않았다.
