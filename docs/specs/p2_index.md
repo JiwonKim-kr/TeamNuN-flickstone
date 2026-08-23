@@ -97,7 +97,7 @@ P2는 P1의 결정론적 전투 골격에 콘텐츠 정의, 능력 실행, 상�
 | 순서 | 하위 명세 | 상태 | 완료 조건 |
 |---|---|---|---|
 | 1 | `p2_content_catalog.md` | approved · implemented · verified · 2026-08-23 | JSON I/O와 타입 검증, 안정 ID, 원자적 카탈로그, 콘텐츠 지문 |
-| 2 | `p2_effect_resolution.md` | 미작성 | 트리거→능력→효과의 고정 순서, 조건·대상·기초 효과 원자, rollback |
+| 2 | [`p2_effect_resolution.md`](p2_effect_resolution.md) | **draft** · 2026-08-23 · P2-E01~12 승인 대기 | 트리거→능력→효과의 고정 순서, 조건·대상·기초 효과 원자, rollback |
 | 3 | `p2_status_synergy_modifiers.md` | 미작성 | 상태 수명, passive 재평가, 태그 계수, P1 계산 입력 modifier 결합 |
 | 4 | `p2_dynamic_piece_mechanics.md` | 미작성 | spawn·projectile·attachment·transform·copy 등 승인된 고급 키워드 |
 | 5 | `p2_maps_enemies_environment.md` | 미작성 | 맵·슬롯·존·적 override를 데이터에서 전투 fixture로 구성 |
@@ -480,4 +480,4 @@ P2 완료는 수용 기준 1~18과 모든 하위 명세의 승인·구현·검�
 
 P2 전체 구조와 P2-A01~11은 2026-08-23 승인되었다. P2-1은 같은 날 별도 상세 승인 뒤 구현·검증을 완료했다. 하위 명세는 각각 `draft → approved` 절차를 거치며, 하위 명세 승인 전에는 해당 핵심 구현을 시작하지 않는다.
 
-다음 작업은 P2-2 `p2_effect_resolution.md` 상세 초안과 승인이다. 개별 기물 수치와 복사·무적·상태 세부는 해당 하위 명세까지 미정으로 유지하며, P2-2 승인 전 핵심 구현은 시작하지 않는다.
+P2-2 `p2_effect_resolution.md` 상세 초안이 작성되었고 P2-E01~12 사람 승인을 기다린다. 개별 기물 수치와 복사·무적·상태 세부는 해당 하위 명세까지 미정으로 유지하며, P2-2 승인 전 핵심 구현은 시작하지 않는다.
