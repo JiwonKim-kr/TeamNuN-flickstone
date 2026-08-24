@@ -1234,6 +1234,15 @@ func advance_resolve(status: SimStatus) -> bool:
 	if (not _forced_settle_used or _forced_resolve_ticks > 0) and _world.is_quiescent(mode, status) and _pending.is_empty() and _world.event_cursor() == _world.event_count():
 		_phase = Phase.TURN_END
 		return _finish_trigger_transition(status)
+	if _pending.is_empty() and _world.event_cursor() == _world.event_count() and ResolvePacingPolicy.should_settle(_world, status):
+		var settled_world: SimWorld = _world._transaction_copy(status)
+		for index: int in range(settled_world.body_count()):
+			var settled_body: SimBody = settled_world.body_at(index, status)
+			if not settled_body.velocity().is_zero(): settled_world.set_body_velocity(settled_body.id(), FixVec2.zero(), status)
+		if not status.is_ok(): _assign_from(backup); return false
+		_world = settled_world
+		_phase = Phase.TURN_END
+		return _finish_trigger_transition(status)
 	if _forced_settle_used and _forced_resolve_ticks >= BattleLimits.FORCED_RESOLVE_MAX_TICKS:
 		var blocker: int = 0
 		for index: int in range(_world.body_count()):

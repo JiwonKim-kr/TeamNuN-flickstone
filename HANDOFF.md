@@ -124,6 +124,10 @@
 - [x] enemies v2·catalog/fingerprint v6 이관, runtime 적 3종 COMMON 배정, 독립 Python 기준 검증 통과
 - [x] Godot 활성 P2/P3 narrow와 quick `verify --full`, P2-6 terminal 32행 골든 재생성
 - [ ] COMMON/ELITE/BOSS의 실수 폭과 벽 반사/KILL 활용 사람 플레이 검수
+- [x] 사용자 재승인에 따라 `vmax <= 20`에서 현재 위치 즉시 정지 후 TURN_END로 전환하는 권위 RESOLVE 컷오프 구현
+- [x] P1 컷오프 경계 narrow 19개와 Godot import·main scene smoke·manifest 통과
+- [ ] 권위 종단값 변경에 따른 전체·batch narrow 회귀 재실행 — 2026-08-24 장시간 무출력 대기로 수동 중단
+- [ ] 저속 즉시 정산의 턴 템포와 KILL 존 인접 상황 사람 검수
 
 ### 3.1 P1-2 현재 작업 기록
 

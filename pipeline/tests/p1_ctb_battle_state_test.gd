@@ -14,6 +14,7 @@ const CtbSchedulerScript := preload("res://src/core/battle/ctb_scheduler.gd")
 const BattleMutationRequestScript := preload("res://src/core/battle/battle_mutation_request.gd")
 const BattleStateScript := preload("res://src/core/battle/battle_state.gd")
 const BattleSnapshotScript := preload("res://src/core/battle/battle_snapshot.gd")
+const ResolvePacingPolicyScript := preload("res://src/core/battle/resolve_pacing_policy.gd")
 
 var _failures: int = 0
 
@@ -152,7 +153,7 @@ func _test_forced_settle_boundary() -> void:
 	]
 	var state: BattleState = BattleState.create(_frictionless_world(status), participants, status)
 	state.complete_battle_start(status); state.complete_turn_start(status)
-	state.commit_launch_velocity(FixVec2.from_ints(1, 0, status), status)
+	state.commit_launch_velocity(FixVec2.from_ints(21, 0, status), status)
 	var calls: int = 0
 	while status.is_ok() and state.phase() == BattleState.Phase.RESOLVE and calls < 1201:
 		state.advance_resolve(status); calls += 1
@@ -164,10 +165,28 @@ func _test_forced_settle_boundary() -> void:
 		"calls=%d normal=%d forced=%d" % [calls, state.normal_resolve_ticks(), state.forced_resolve_ticks()]
 	)
 
+func _test_outcome_sensitive_settle() -> void:
+	var status := SimStatus.new()
+	var world: SimWorld = _frictionless_world(status)
+	world.set_body_velocity(1, FixVec2.from_ints(20, 0, status), status)
+	_check("P1-OUTCOME-SETTLE-THRESHOLD-001", status.is_ok() and ResolvePacingPolicy.should_settle(world, status))
+	world.set_body_velocity(1, FixVec2.from_raw(20 * FixMath.SCALE + 1, 0), status)
+	_check("P1-OUTCOME-SETTLE-ABOVE-001", status.is_ok() and not ResolvePacingPolicy.should_settle(world, status))
+
+	var participants: Array[BattleParticipant] = [BattleParticipant.create(1, BattleParticipant.Faction.PLAYER, true, true, true, 100, status)]
+	var state: BattleState = BattleState.create(_frictionless_world(status), participants, status)
+	state.complete_battle_start(status); state.complete_turn_start(status)
+	state.commit_launch_velocity(FixVec2.from_ints(20, 0, status), status)
+	var before_position: FixVec2 = state.world_copy(status).body_by_id(1, status).position()
+	state.advance_resolve(status)
+	var after_body: SimBody = state.world_copy(status).body_by_id(1, status)
+	_check("P1-OUTCOME-SETTLE-TURN-END-001", status.is_ok() and state.phase() == BattleState.Phase.TURN_END and after_body.velocity().is_zero() and after_body.position().is_equal(before_position))
+
 func _initialize() -> void:
 	print("== P1-1 CTB / BattleState ==")
 	_test_enums_and_scheduler(); _test_state_preview_and_snapshot(); _test_sim_snapshot_decode()
 	_test_launch_resolve_and_mutation(); _test_rejections_are_stable()
 	_test_forced_settle_boundary()
+	_test_outcome_sensitive_settle()
 	if _failures == 0: print("P1_CTB_BATTLE_STATE_RESULT: PASS"); quit(0)
 	else: print("P1_CTB_BATTLE_STATE_RESULT: FAIL (%d)" % _failures); quit(1)

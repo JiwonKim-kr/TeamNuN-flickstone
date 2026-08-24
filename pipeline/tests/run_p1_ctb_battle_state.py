@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 TEST = "res://pipeline/tests/p1_ctb_battle_state_test.gd"
 CORE = (
     "battle_limits.gd", "battle_participant.gd", "battle_mutation_request.gd",
-    "ctb_preview_entry.gd", "ctb_scheduler.gd", "battle_state.gd", "battle_snapshot.gd",
+    "ctb_preview_entry.gd", "ctb_scheduler.gd", "resolve_pacing_policy.gd", "battle_state.gd", "battle_snapshot.gd",
 )
 
 

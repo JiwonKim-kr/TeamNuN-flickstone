@@ -102,6 +102,7 @@
 | D-45 | P0 상태 해시 | 정규 인코딩한 `SimSnapshot` 바이트를 **SHA-256**으로 독립 해시한다. 내부값은 32바이트, 외부 표기는 소문자 64자리 16진수다. 범용 `hash()`를 금지하고 상태 해시를 게임 판정·RNG에 재사용하지 않는다 |
 | D-46 | P1 CTB 기준 | CT 임계값 10,000, 기본 속도 50~200(기본 100), 초과 CT→속도→진영 교대→body ID 순 동률 해소, 현재 행동자 제외 10회 예보, 런타임 참여자 초기 CT 0을 사용한다 (`p1_ctb_battle_state.md` C-01~05) |
 | D-47 | P1 턴·RESOLVE 안전 경계 | 명시 phase 1~7과 안정 mutation barrier를 사용한다. 정상 RESOLVE 960틱 뒤 3/4 강제 감속을 최대 240틱 적용하며, 이후 미정지는 정상 결과가 아니라 `RESOLVE_DEADLOCK` 실패다 (`p1_ctb_battle_state.md` C-06~07) |
+| D-48 | 저속 RESOLVE 즉시 정산 | 살아 있는 모든 기물의 `vmax`가 20 이하가 되는 즉시 현재 위치에서 속도를 0으로 확정하고 TURN_END로 전환한다. 이후의 충돌·벽·소멸 가능성보다 턴 템포를 우선한다 (`p1_outcome_sensitive_settle.md`) |
 | D-48 | P1 전투 스냅샷 | P0 `SimSnapshot` schema v1을 변경하지 않고 별도 `BattleSnapshot`에 정규 P0 바이트를 내장한다. 전투 권위 필드 추가는 BattleSnapshot 버전으로 관리한다 (`p1_ctb_battle_state.md` C-08) |
 | D-49 | P1 피해 해결 기준 | 기준속도 1,024, 피해임계 64, 질량비 제곱근·1/2~2 clamp, 아군 1/2, 크리티컬 2배(비율 감소 뒤·아군 전), 재충돌 12틱, 속력 동률 양방향 동시 피해를 사용한다. P1-3 구현·검증 완료 (`p1_damage_resolution.md` R-01~10) |
 

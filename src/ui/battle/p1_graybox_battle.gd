@@ -54,6 +54,7 @@ func _process(_delta: float) -> void:
 				break
 			if Time.get_ticks_usec() - frame_started >= RESOLVE_FRAME_BUDGET_USEC:
 				break
+	else:
 		_advance_noninteractive_phases()
 	_sync_view()
 
