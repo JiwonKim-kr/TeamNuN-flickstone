@@ -24,9 +24,10 @@ CLAUDE.md 의 검증 게이트를 한 번에 실행하고 게이트별 PASS/FAIL
 
   (.uid/.import/.gitkeep/.gitignore 등 Godot·VCS 부산물, __pycache__/.godot 등은 제외)
 
+--demo: 위 게이트에 더해 데모 기간 대표 회귀 러너만 실행한다.
 --full: 위 게이트에 더해 pipeline/tests/run_*.py 러너 전부를 자동 발견해 실행한다.
-        무한 재귀 방지: 자식 러너 실행 시 환경변수 ARTIFICER_IN_VERIFY_FULL=1 을 심고,
-        이미 그 안에서 다시 --full 이 호출되면 러너 실행을 생략(게이트만)한다.
+        두 프로필 모두 자식 러너에 ARTIFICER_IN_VERIFY_FULL=1 을 심고, 중첩 호출은
+        러너 재실행을 생략해 무한 재귀를 막는다.
 
 종료 코드: 0 = 전체 통과(SKIP 포함), 1 = 게이트/러너 위반, 2 = 실행 오류.
 stdlib 만 사용 (Python 3.14).
@@ -47,8 +48,18 @@ import godot_process  # noqa: E402
 import manifest as manifest_mod  # noqa: E402
 import play_test as play_test_mod  # noqa: E402
 
-# --full 재귀 가드 환경변수
+# --demo/--full 러너 재귀 가드 환경변수 (기존 공개 이름 유지)
 IN_FULL_ENV = "ARTIFICER_IN_VERIFY_FULL"
+DEMO_RUNNER_NAMES = (
+    "run_font_coverage.py",
+    "run_orchestration_pipeline.py",
+    "run_p0_determinism.py",
+    "run_p2_content_graybox.py",
+    "run_p3_ai_shot_selection.py",
+    "run_placeholder_pipeline.py",
+    "run_play_pipeline.py",
+    "run_web_export.py",
+)
 
 
 def _repo_root() -> Path:
@@ -338,7 +349,7 @@ def _stage_to_gate(num: int, name: str, stage) -> Gate:
 
 
 # ---------------------------------------------------------------------------
-# --full: 러너 자동 발견/실행
+# --demo/--full: 러너 자동 발견/실행
 # ---------------------------------------------------------------------------
 # 러너 실패 원인으로 볼 만한 줄. "error 0" 같은 요약 카운트는 잡지 않도록 좁게 둔다.
 _FAILURE_LINE = re.compile(
@@ -451,8 +462,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--godot", default=os.environ.get("GODOT_BIN", "godot"))
     parser.add_argument("--skip-godot", action="store_true",
                         help="Godot 스테이지(게이트 1·2) 생략")
-    parser.add_argument("--full", action="store_true",
-                        help="게이트에 더해 pipeline/tests/run_*.py 러너 전부 실행")
+    runner_profile = parser.add_mutually_exclusive_group()
+    runner_profile.add_argument(
+        "--demo",
+        action="store_true",
+        help="게이트에 더해 데모 핵심 회귀 러너만 실행",
+    )
+    runner_profile.add_argument(
+        "--full",
+        action="store_true",
+        help="게이트에 더해 pipeline/tests/run_*.py 러너 전부 실행",
+    )
     parser.add_argument("--json", action="store_true", help="JSON 요약 출력")
     args = parser.parse_args(argv)
 
@@ -482,19 +502,28 @@ def main(argv: list[str] | None = None) -> int:
 
     gate_failures = sum(1 for g in gates if g.status == "FAIL")
 
-    # ---- --full: 러너 실행 (재귀 가드) ----
+    # ---- --demo/--full: 러너 실행 (재귀 가드) ----
     runner_failures = 0
     runner_results: list[tuple[str, bool]] = []
-    if args.full:
+    run_runners = args.demo or args.full
+    profile_name = "full" if args.full else "demo"
+    if run_runners:
         nested = os.environ.get(IN_FULL_ENV) == "1"
         tests_dir = project_dir / "pipeline" / "tests"
         print("-" * 64)
         if nested:
-            print("[i] --full (중첩): 이미 verify --full 안에서 호출됨 → "
+            print(f"[i] --{profile_name} (중첩): 이미 verify 러너 실행 안에서 호출됨 → "
                   "러너 재실행 생략 (무한 재귀 방지). 게이트만 검사합니다.")
         else:
             runners = discover_runners(tests_dir)
-            print(f"[i] --full: 테스트 러너 {len(runners)}종 실행")
+            if args.demo:
+                demo_names = set(DEMO_RUNNER_NAMES)
+                runners = [runner for runner in runners if runner.name in demo_names]
+                missing = sorted(demo_names - {runner.name for runner in runners})
+                if missing:
+                    print(f"[FAIL] --demo 구성 러너 누락: {', '.join(missing)}")
+                    runner_failures += len(missing)
+            print(f"[i] --{profile_name}: 테스트 러너 {len(runners)}종 실행")
             child_env = dict(os.environ)
             child_env[IN_FULL_ENV] = "1"
             child_env["GODOT_BIN"] = (
@@ -528,12 +557,12 @@ def main(argv: list[str] | None = None) -> int:
         rc = 2
     elif gate_failures or runner_failures:
         print(f"결과: 게이트 실패 {gate_failures}건"
-              + (f" · 러너 실패 {runner_failures}건" if args.full else ""))
+              + (f" · 러너 실패 {runner_failures}건" if run_runners else ""))
         rc = 1
     else:
         skips = sum(1 for g in gates if g.status == "SKIP")
         print(f"결과: 전체 통과 (게이트 {len(gates)}개 중 SKIP {skips}개)"
-              + (f" · 러너 {len(runner_results)}종 통과" if args.full else ""))
+              + (f" · 러너 {len(runner_results)}종 통과" if run_runners else ""))
         rc = 0
 
     if args.json:
@@ -544,6 +573,7 @@ def main(argv: list[str] | None = None) -> int:
                 {"num": g.num, "name": g.name, "status": g.status, "lines": g.lines}
                 for g in gates
             ],
+            "demo": args.demo,
             "full": args.full,
             "runners": [{"name": n, "ok": ok} for n, ok in runner_results],
             "exit_code": rc,

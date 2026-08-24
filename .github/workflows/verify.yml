@@ -1,8 +1,8 @@
 # CI — 검증 게이트 (verify) 자동 실행
 #
-# HANDOFF §2: CI 는 Phase 4 에서 GitHub Actions 로 도입한다(Phase 2 로컬 verify 의
-# 자동화판). push/PR 마다 로컬 `verify.py --full` 과 동일한 게이트 + 러너 전부를
-# ubuntu-latest 에서 재검증한다.
+# 데모 기간의 push/PR은 기본 게이트 + 대표 회귀 8종을 quick 프로필로 실행한다.
+# 전체 25종, P0 1,000회 결정론, Windows 교차 검증은 workflow_dispatch의
+# release 프로필로 명시 실행한다. 정식 릴리스 전에는 release 성공이 필요하다.
 #
 # 이 워크플로는 GitHub 러너에서만 실행되므로 로컬에서 검증할 수 없다.
 # ⚠️ 첫 push(또는 PR)에서 실제로 초록불이 뜨는지 확인이 필요하다. 특히:
@@ -15,8 +15,26 @@ name: verify
 
 on:
   push:
+    paths-ignore:
+      - "**/*.md"
   pull_request:
-  workflow_dispatch:   # 아래 visual(스크린샷) job 을 수동으로 트리거하기 위함
+    paths-ignore:
+      - "**/*.md"
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "검증 강도 (demo=빠른 반복, release=1,000회+Windows)"
+        required: true
+        default: demo
+        type: choice
+        options:
+          - demo
+          - release
+      run_visual:
+        description: "xvfb 스크린샷 검증도 실행"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   verify:
@@ -82,19 +100,31 @@ jobs:
         working-directory: pipeline/scripts/se_node
         run: npm ci
 
-      # 로컬 `verify` 와 동일한 통합 게이트 + 러너 전부.
-      # verify.py --full: 게이트 1~5 + pipeline/tests/run_*.py 전 러너
+      # verify.py --demo: 게이트 1~5 + 대표 회귀 8종, P0 quick 반복.
+      # verify.py --full: 게이트 1~5 + pipeline/tests/run_*.py 전 러너.
       # (자식 러너 실행 시 ARTIFICER_IN_VERIFY_FULL 가드로 무한 재귀 방지).
       #
       # 주: play test 의 스크린샷(시각) 스테이지는 옵트인(--screenshot)이라
       # 여기서 실행되지 않는다. 실제 렌더는 무겁고 GUI/xvfb 가 필요하므로
       # 기본 게이트를 느리게/불안정하게 만들지 않도록 아래 별도 visual job 으로 분리했다.
-      - name: Run verify --full
+      - name: Run demo verify
+        if: github.event_name != 'workflow_dispatch' || inputs.profile == 'demo'
+        env:
+          FLICKSTONE_CI_PROFILE: demo
+          P0_ALLOW_QUICK: "1"
+          P0_REPEAT_COUNT: "20"
+          P0_PERMUTATION_COUNT: "3"
+          FLICKSTONE_P2_CONTENT_PROFILE: quick
+        run: python3 pipeline/scripts/verify.py --demo
+
+      - name: Run release verify --full
+        if: github.event_name == 'workflow_dispatch' && inputs.profile == 'release'
         run: python3 pipeline/scripts/verify.py --full
 
   # P0-4 cross-platform determinism gate. Keep this intentionally small:
   # checkout + Python + the pinned Godot build only.
   determinism-windows:
+    if: github.event_name == 'workflow_dispatch' && inputs.profile == 'release'
     runs-on: windows-latest
     env:
       GODOT_VERSION: "4.6.3"
@@ -162,7 +192,7 @@ jobs:
   #      - Godot 이 xvfb-run 하위에서 뷰포트를 캡처하는지(SHOT_SAVED 마커)
   #    실패 시 apt 패키지(libgl1-mesa-dri 등)나 LIBGL_ALWAYS_SOFTWARE 조정이 필요할 수 있다.
   visual:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.run_visual
     runs-on: ubuntu-latest
     env:
       GODOT_VERSION: "4.6.3"

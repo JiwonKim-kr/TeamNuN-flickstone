@@ -26,6 +26,22 @@ SNAPSHOT_RE = re.compile(
 )
 SCENARIO_ID_RE = re.compile(r"^[a-z0-9_]+$")
 SEED_RE = re.compile(r"^[0-9a-f]{16}$")
+DEMO_CI_PROFILE = "demo"
+DEMO_REPEAT_COUNT = "20"
+DEMO_PERMUTATION_COUNT = "3"
+
+
+def _ci_quick_profile_error(env: dict[str, str]) -> str | None:
+    """Reject accidental weakening of CI outside the approved demo profile."""
+    if not env.get("CI") or env.get("P0_ALLOW_QUICK") != "1":
+        return None
+    if env.get("FLICKSTONE_CI_PROFILE") != DEMO_CI_PROFILE:
+        return "CI quick mode requires FLICKSTONE_CI_PROFILE=demo"
+    if env.get("P0_REPEAT_COUNT") != DEMO_REPEAT_COUNT:
+        return f"demo CI requires P0_REPEAT_COUNT={DEMO_REPEAT_COUNT}"
+    if env.get("P0_PERMUTATION_COUNT") != DEMO_PERMUTATION_COUNT:
+        return f"demo CI requires P0_PERMUTATION_COUNT={DEMO_PERMUTATION_COUNT}"
+    return None
 
 
 def _reject_float(value: str) -> None:
@@ -298,8 +314,9 @@ def main(argv: list[str] | None = None) -> int:
         print("[FAIL] --approval-ref is valid only with --update-goldens", file=sys.stderr)
         return 2
 
-    if os.environ.get("CI") and os.environ.get("P0_ALLOW_QUICK") == "1":
-        print("[FAIL] P0_ALLOW_QUICK is forbidden in CI", file=sys.stderr)
+    quick_profile_error = _ci_quick_profile_error(dict(os.environ))
+    if quick_profile_error is not None:
+        print(f"[FAIL] {quick_profile_error}", file=sys.stderr)
         return 2
 
     if os.environ.get(SKIP_GODOT_ENV) == "1":
@@ -336,8 +353,11 @@ def main(argv: list[str] | None = None) -> int:
     print("[PASS] GODOT-IMPORT")
 
     output = result.stdout + result.stderr
+    profile_lines = [
+        line for line in output.splitlines() if line.startswith("[INFO] DET-PROFILE")
+    ]
     checks = [line for line in output.splitlines() if line.startswith(("[PASS]", "[FAIL]"))]
-    for line in checks:
+    for line in profile_lines + checks:
         print(f"  {line}")
     if result.returncode != 0 or "P0_DETERMINISM_RESULT: PASS" not in output:
         print("P0_DETERMINISM_RUNNER_RESULT: FAIL (Godot contract tests)")

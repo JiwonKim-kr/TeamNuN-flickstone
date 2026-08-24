@@ -558,6 +558,7 @@ func _initialize() -> void:
 	var permutation_count: int = 30
 	if OS.has_environment("P0_PERMUTATION_COUNT"):
 		permutation_count = int(OS.get_environment("P0_PERMUTATION_COUNT"))
+	print("[INFO] DET-PROFILE permutations=%d" % permutation_count)
 	var permutations_ok: bool = true
 	for raw_scenario: Variant in scenarios:
 		var scenario: Dictionary = raw_scenario
@@ -579,6 +580,7 @@ func _initialize() -> void:
 	var repeat_count: int = 1000
 	if OS.has_environment("P0_REPEAT_COUNT"):
 		repeat_count = int(OS.get_environment("P0_REPEAT_COUNT"))
+	print("[INFO] DET-PROFILE repeats=%d" % repeat_count)
 	var repeat_ok: bool = true
 	var chain: Dictionary
 	for raw_scenario: Variant in scenarios:
@@ -595,7 +597,7 @@ func _initialize() -> void:
 		if not repeat_ok:
 			break
 	_check(
-		"DET-REPEAT-1000-001",
+		"DET-REPEAT-COUNT-001",
 		repeat_ok and (repeat_count == 1000 or quick_allowed)
 	)
 

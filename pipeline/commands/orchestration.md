@@ -93,15 +93,16 @@
 "의미 검사는 Claude 몫"임을 안내한다. 세계 규칙 vs 세력/인물 서술의 **의미적 모순**은
 스크립트가 아닌 Claude 가 canon 을 읽고 판단한다.
 
-**옵션**: `--skip-godot`(게이트 1·2 생략), `--full`(게이트에 더해
-`pipeline/tests/run_*.py` 러너 전부 자동 발견·실행), `--json`.
-**재귀 방지**: `--full` 은 자식 러너 실행 시 `ARTIFICER_IN_VERIFY_FULL=1` 을 심고,
-이미 그 안에서 다시 `--full` 이 호출되면 러너 실행을 생략(게이트만)한다.
+**옵션**: `--skip-godot`(게이트 1·2 생략), `--demo`(대표 회귀 8종),
+`--full`(`pipeline/tests/run_*.py` 전부 자동 발견·실행), `--json`. `--demo`와
+`--full`은 동시에 사용할 수 없다.
+**재귀 방지**: `--demo`/`--full`은 자식 러너 실행 시
+`ARTIFICER_IN_VERIFY_FULL=1`을 심고, 중첩 호출에서는 러너 실행을 생략한다.
 
 종료 코드: `0`=전체 통과(SKIP 포함), `1`=게이트/러너 위반, `2`=실행 오류.
 
 **처리 플로우**:
-1. **생성(실행)**: `python3 pipeline/scripts/verify.py [--full]`.
+1. **생성(실행)**: `python3 pipeline/scripts/verify.py [--demo | --full]`.
 2. **판단/통합**: 게이트별 PASS/FAIL/SKIP 을 해석한다. 게이트 5 가 기계 검사만
    수행했다면 Claude 가 canon 의미 모순을 추가 판단해 **통합 판정**을 낸다.
 3. **보고**: 실패 게이트의 원인(임포트 로그/스모크/네이밍 위반 `파일:항목`/정합성/
@@ -176,10 +177,11 @@ lore init → play spec → [승인] → play build → play test
 
 ## CI (GitHub Actions)
 
-- `.github/workflows/verify.yml` 가 push/PR 에서 `verify.py --full` 을 실행한다
-  (ubuntu-latest: Python 3.12+, Node 20, ffmpeg(apt), Godot 4.6.3 headless).
-- 로컬 `verify` 와 동일한 게이트 + 러너 전부를 CI 에서 재검증한다. (HANDOFF §2:
-  CI 는 Phase 4 에서 GitHub Actions 로 도입 — Phase 2 로컬 verify 의 자동화판)
+- `.github/workflows/verify.yml` 가 데모 기간 push/PR에서 `verify.py --demo`를 실행한다
+  (기본 게이트 + 대표 회귀 8종, P0 반복 20회·순열 3회). 문서 전용 변경은 생략한다.
+- Actions 수동 실행에서 `release` 프로필을 고르면 Ubuntu 전체 25종·1,000회 정밀
+  검증과 별도 Windows 결정론 검증을 실행한다. 정식 릴리스 전에는 이 프로필 통과가 필수다.
+- 시각 스크린샷 job은 수동 `run_visual` 입력을 켠 경우에만 실행한다.
 
 ## 관련 파일
 
@@ -194,5 +196,5 @@ lore init → play spec → [승인] → play build → play test
 | `pipeline/scripts/review.py` | 검수 큐 + approve/reject 반영 (manifest.py/문서 경유) |
 | `pipeline/scripts/play_test.py` | 게이트 1·2·4 스테이지 (verify 가 재사용) |
 | `pipeline/scripts/lore_check.py` | 게이트 5 기계 검사 (verify 가 재사용) |
-| `.github/workflows/verify.yml` | CI — push/PR 에서 `verify.py --full` |
+| `.github/workflows/verify.yml` | CI — 데모 quick 자동 검증 / release 정밀 수동 검증 |
 | `pipeline/tests/run_orchestration_pipeline.py` | verify·status·review 자동 테스트 + 회귀 |

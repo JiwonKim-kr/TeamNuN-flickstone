@@ -16,7 +16,9 @@ run_se_pipeline 와 같은 스타일(단일 파일·번호 섹션·check 헬퍼�
                                    원본 저장소 불변 확인.
   [5] verify --full 재귀 가드      : 중첩 --full 이 러너 재실행을 생략하는지 +
                                    discover_runners 목록 확인 (무한루프 방지).
-  [6] 회귀                        : 기존 러너 4종 통과 유지
+  [6] 데모 CI 프로필              : push/PR quick, 수동 release, 시각 opt-in,
+                                   P0 CI quick 오용 방지 계약.
+  [7] 회귀                        : 기존 러너 4종 통과 유지
                                    (verify --full 안에서 호출되면 중복 실행 생략).
 
 CLAUDE.md 규칙: 실데이터(assets/, scenes/, pipeline/manifest.json, src/core/,
@@ -40,6 +42,7 @@ SCRIPTS = TESTS_DIR.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 import status as status_mod  # noqa: E402
 import verify as verify_mod  # noqa: E402
+import run_p0_determinism as p0_determinism_mod  # noqa: E402
 
 PASS = "PASS"
 FAIL = "FAIL"
@@ -362,10 +365,51 @@ def section_full_guard() -> None:
 
 
 # ---------------------------------------------------------------------------
-# [6] 회귀 (기존 러너 4종 통과 유지)
+# [6] 데모 CI 프로필
+# ---------------------------------------------------------------------------
+def section_demo_ci_profile() -> None:
+    print("\n[6] 데모 CI 프로필 — quick 기본 + release 수동")
+    workflow = (REPO_ROOT / ".github" / "workflows" / "verify.yml").read_text(
+        encoding="utf-8"
+    )
+    check("문서 전용 push/PR 제외", '"**/*.md"' in workflow)
+    check("수동 demo/release 선택 제공",
+          "profile:" in workflow and "- demo" in workflow and "- release" in workflow)
+    check("demo CI 반복 20·순열 3",
+          'P0_REPEAT_COUNT: "20"' in workflow
+          and 'P0_PERMUTATION_COUNT: "3"' in workflow)
+    check("demo 대표 회귀 프로필 사용", "verify.py --demo" in workflow)
+    check("release만 Windows 결정론 실행",
+          "inputs.profile == 'release'" in workflow
+          and "determinism-windows:" in workflow)
+    check("시각 검증 명시적 opt-in", "inputs.run_visual" in workflow)
+
+    base = {"CI": "true", "P0_ALLOW_QUICK": "1"}
+    check("프로필 없는 CI quick 거부",
+          p0_determinism_mod._ci_quick_profile_error(base) is not None)
+    approved = {
+        **base,
+        "FLICKSTONE_CI_PROFILE": "demo",
+        "P0_REPEAT_COUNT": "20",
+        "P0_PERMUTATION_COUNT": "3",
+    }
+    check("승인된 demo CI quick 허용",
+          p0_determinism_mod._ci_quick_profile_error(approved) is None)
+    check("demo 반복량 임의 축소 거부",
+          p0_determinism_mod._ci_quick_profile_error(
+              {**approved, "P0_REPEAT_COUNT": "1"}
+          ) is not None)
+    discovered = {runner.name for runner in verify_mod.discover_runners(TESTS_DIR)}
+    configured = set(verify_mod.DEMO_RUNNER_NAMES)
+    check("demo 대표 회귀 8종 고정", len(configured) == 8)
+    check("demo 구성 러너 전부 존재", configured <= discovered)
+
+
+# ---------------------------------------------------------------------------
+# [7] 회귀 (기존 러너 4종 통과 유지)
 # ---------------------------------------------------------------------------
 def section_regression() -> None:
-    print("\n[6] 회귀 — 기존 러너 4종 통과 유지")
+    print("\n[7] 회귀 — 기존 러너 4종 통과 유지")
     if UNDER_FULL:
         print("  [SKIP] verify --full 안에서 호출됨 — 러너는 verify --full 이 직접 실행하므로 중복 생략")
         return
@@ -389,6 +433,7 @@ def main() -> int:
     section_status()
     section_review()
     section_full_guard()
+    section_demo_ci_profile()
     section_regression()
 
     print("\n" + "=" * 64)

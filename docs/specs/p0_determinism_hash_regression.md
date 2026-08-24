@@ -4,6 +4,7 @@
 |---|---|
 | status | **approved** |
 | approved | 2026-08-18 · 사용자 승인 |
+| CI 프로필 수정 승인 | 2026-08-25 · 데모 quick 자동 / release 정밀 수동 |
 | phase | P0 · 결정론적 시뮬레이션 코어 |
 | 선행 명세 | P0-1~3 승인·구현 |
 | 후속 명세 | P1 전투 루프 명세 |
@@ -124,11 +125,14 @@
 
 ### 6. CI 구성
 
-- 기존 Ubuntu `verify` job은 `verify --full`을 통해 P0-4 러너와 체크인된 골든을 검사한다.
-- 기존 job을 OS matrix로 바꾸지 않고, 의존성이 작은 별도 `determinism-windows` job을 `windows-latest`에 추가한다.
+- 데모 기간의 push/PR Ubuntu `verify` job은 5개 기본 게이트와 대표 회귀 8종을 실행하는 `verify.py --demo`를 사용한다. P0 반복은 20회, 고정 permutation은 3회로 줄이고 문서 파일만 바뀐 push/PR은 실행하지 않는다. 대표 회귀는 폰트, 오케스트레이션, P0 결정론, P2 콘텐츠 회색상자, P3 AI, 플레이스홀더, play 파이프라인, Web export 계약이다. 이 예외는 2026-08-25 사용자 승인으로 기존 CI 정밀 실행 기준을 대체한다.
+- 전체 25개 러너와 P0 1,000회 반복·30개 고정 permutation의 정밀 Ubuntu 검증은 `workflow_dispatch`의 `release` 프로필에서 실행한다.
+- 기존 job을 OS matrix로 바꾸지 않고, 의존성이 작은 별도 `determinism-windows` job을 `windows-latest`에 유지하되 `release` 프로필에서만 실행한다.
 - Windows job은 checkout, Python 3.12, Godot 4.6.3만 준비하고 `run_p0_determinism.py`를 직접 실행한다. Node·ffmpeg·시각 테스트는 설치하지 않는다.
 - 두 OS는 동일한 `p0_golden_hashes.json`과 순수 GDScript SHA-256 결과를 비교한다. Python 참조 해시도 각 job에서 검사한다.
 - 실패 시 콘솔에 scenario ID, seed, Godot·OS, 최초 불일치 tick, 기대·실제 해시를 출력하고 최소 재현 JSON과 실제 snapshot bytes를 `pipeline/artifacts/determinism_failure/`에 남긴다.
+- CI quick은 `FLICKSTONE_CI_PROFILE=demo`와 정확한 20회·3개 값이 모두 있을 때만 허용한다. 골든 갱신은 이전과 같이 모든 CI 및 quick 실행에서 금지한다.
+- 정식 릴리스 전에는 수동 `release` 프로필의 Ubuntu 전체 검증과 Windows 교차 결정론 검증을 모두 통과해야 한다. 정식 릴리스 단계에 진입하면 자동 CI 기본값을 다시 정밀 프로필로 올릴지 재검토한다.
 
 ## 수용 기준
 
@@ -141,8 +145,8 @@
 7. 각 P0 상태 필드 민감도 검사에서 단일 필드 변경이 해시 입력과 결과에 반영된다.
 8. snapshot→restore의 정규 바이트가 원본과 같고 양쪽을 120틱 더 진행한 틱별 해시도 같다.
 9. 골든 불일치는 scenario ID, seed, 최초 불일치 tick, 기대·실제 해시와 재현 파일을 남긴다.
-10. `run_p0_determinism.py`가 `verify --full`에서 자동 발견된다.
-11. Ubuntu 전체 verify와 별도 Windows 결정론 job이 동일한 골든을 통과한다.
+10. `run_p0_determinism.py`가 `verify --demo`와 `verify --full`에서 실행된다.
+11. 수동 `release` 프로필에서 Ubuntu 전체 verify와 별도 Windows 결정론 job이 동일한 골든을 통과한다.
 12. 골든 갱신은 명시적 플래그·승인 참조·전후 요약 없이는 실행되지 않으며 CI에서 갱신할 수 없다.
 
 ## 승인 결과

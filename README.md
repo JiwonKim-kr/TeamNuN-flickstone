@@ -8,7 +8,7 @@ TeamNuN의 탑다운 픽셀아트 물리 전술 로그라이트 프로젝트입�
 
 - 엔진: Godot 4.6.x / GDScript
 - 대상 플랫폼: PC(Steam) 우선, 제출 검수용 웹 프리뷰 제공
-- 개발 단계: P3 전투 수직 슬라이스와 사람 플레이 검수 완료, P4 웹 공개 프리뷰 구축 중
+- 개발 단계: P3 전투 수직 슬라이스와 사람 플레이 검수 완료, P4 웹 공개 프리뷰 배포·검수 완료
 - 아트 정책: 현재 회색상자는 매니페스트에 등록된 P1 플레이스홀더를 재사용
 - 아트·사운드 생성: 전투 감각 승인은 완료했으며 별도 요청·승인 절차로 진행
 
@@ -63,10 +63,12 @@ Windows에서는 UTF-8 모드를 활성화해 실행합니다.
 
 ```powershell
 $env:PYTHONUTF8 = "1"
-python pipeline/scripts/verify.py --full --skip-godot
+python pipeline/scripts/verify.py --demo --skip-godot
 ```
 
 Godot 4.6.x 실행 파일을 설정한 뒤에는 `--skip-godot` 없이 전체 게이트를 실행합니다.
+
+데모 기간의 push/PR CI는 기본 게이트와 대표 회귀 8종을 `--demo`로 실행하고 P0 결정론을 quick 값(20회·순열 3회)으로 줄입니다. 문서 전용 변경은 자동 검증을 생략하며, 정식 릴리스 전에는 Actions에서 수동 `release` 프로필(전체 25종·1,000회·Windows 교차 검증)을 통과시켜야 합니다.
 
 ## Web 프리뷰
 

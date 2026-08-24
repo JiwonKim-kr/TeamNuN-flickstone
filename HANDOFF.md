@@ -39,7 +39,7 @@
 | 승인 지점 | play spec 승인 / art lock / review — **생략 불가** |
 | 에셋 정책 | P0·P1은 매니페스트에 등록한 플레이스홀더만 사용 |
 | 아트·사운드 시작 | 전투 감각 승인 완료. `art lock`, `art gen`, SE는 별도 요청·승인 절차로 시작 |
-| CI | GitHub Actions에서 Godot 4.6.3 기준 `verify --full` 실행 |
+| CI | 데모 push/PR은 Godot 4.6.3 `verify --demo`(대표 8종); 수동 `release`는 전체 25종 + 1,000회 + Windows 결정론 |
 
 ## 3. 현재 저장소 상태
 
@@ -275,7 +275,7 @@ Windows PowerShell에서 먼저 `$env:PYTHONUTF8='1'`을 설정한다.
 $env:P0_ALLOW_QUICK='1'
 $env:P0_REPEAT_COUNT='20'
 $env:P0_PERMUTATION_COUNT='3'
-python pipeline/scripts/verify.py --full --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
+python pipeline/scripts/verify.py --demo --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
 Remove-Item Env:P0_ALLOW_QUICK,Env:P0_REPEAT_COUNT,Env:P0_PERMUTATION_COUNT
 
 # 빠른 씬/manifest 확인
@@ -309,7 +309,7 @@ python pipeline/tests/run_p1_batch_sim_graybox.py --mode exhaustive --jobs 4 --g
 python pipeline/scripts/verify.py --full --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
 ```
 
-단위 작업에서는 영향받은 narrow 뒤 quick 통합을 사용한다. P0 골든 갱신·단계 종료·릴리스·CI에서는 quick 환경변수를 제거하고 1,000회 정밀 게이트를 유지한다.
+단위 작업에서는 영향받은 narrow 뒤 quick 통합을 사용하고, 데모 기간 push/PR CI는 기본 게이트와 대표 회귀 8종인 `verify --demo`를 실행한다. P0 골든 갱신과 정식 릴리스 전에는 quick 환경변수를 제거하며, Actions의 수동 `release` 프로필로 Ubuntu 전체 25종·1,000회 정밀 게이트와 Windows 교차 결정론을 모두 통과시킨다.
 
 ## 4. 구현 우선순위
 
