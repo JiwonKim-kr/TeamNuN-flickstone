@@ -1,6 +1,7 @@
 .godot/
 *.import
 export/
+build/
 .DS_Store
 .env
 __pycache__/

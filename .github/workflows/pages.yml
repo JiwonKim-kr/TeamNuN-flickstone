@@ -1,0 +1,50 @@
+name: pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Download Godot and export templates
+        env:
+          GODOT_VERSION: "4.6.3"
+        run: |
+          mkdir -p "$RUNNER_TEMP/godot" pipeline/artifacts/godot-4.6.3/templates/4.6.3.stable
+          base="https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable"
+          curl -fL "$base/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip" -o "$RUNNER_TEMP/godot.zip"
+          curl -fL "$base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz" -o "$RUNNER_TEMP/templates.zip"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          unzip -q "$RUNNER_TEMP/templates.zip" -d "$RUNNER_TEMP/templates"
+          cp -R "$RUNNER_TEMP/templates/templates/." pipeline/artifacts/godot-4.6.3/templates/4.6.3.stable/
+          godot_bin="$RUNNER_TEMP/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          chmod +x "$godot_bin"
+          echo "GODOT_BIN=$godot_bin" >> "$GITHUB_ENV"
+      - name: Export Web release
+        run: python3 pipeline/scripts/web_export.py
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

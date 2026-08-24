@@ -7,8 +7,8 @@ TeamNuN의 탑다운 픽셀아트 물리 전술 로그라이트 프로젝트입�
 ## 현재 단계
 
 - 엔진: Godot 4.6.x / GDScript
-- 대상 플랫폼: PC(Steam) 우선, 웹 빌드는 개발 프리뷰 용도
-- 개발 단계: P2 콘텐츠 기반 회색상자 구현·자동 검증 완료, 사람 플레이 검수 대기
+- 대상 플랫폼: PC(Steam) 우선, 제출 검수용 웹 프리뷰 제공
+- 개발 단계: P3 전투 수직 슬라이스와 사람 플레이 검수 완료, P4 웹 공개 프리뷰 구축 중
 - 아트 정책: 현재 회색상자는 매니페스트에 등록된 P1 플레이스홀더를 재사용
 - 아트·사운드 생성: 전투 감각 승인은 완료했으며 별도 요청·승인 절차로 진행
 
@@ -67,3 +67,15 @@ python pipeline/scripts/verify.py --full --skip-godot
 ```
 
 Godot 4.6.x 실행 파일을 설정한 뒤에는 `--skip-godot` 없이 전체 게이트를 실행합니다.
+
+## Web 프리뷰
+
+Godot 4.6.3 공식 Web export template을 `pipeline/artifacts/godot-4.6.3/templates/4.6.3.stable/`에 둔 뒤 다음 명령으로 빌드하고 실행합니다. 전용 서버는 Windows MIME 설정과 무관하게 AudioWorklet JavaScript와 WASM을 올바른 형식으로 제공합니다.
+
+```powershell
+$env:PYTHONUTF8 = "1"
+python pipeline/scripts/web_export.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
+python pipeline/scripts/serve_web.py
+```
+
+브라우저에서 `http://127.0.0.1:8060/`을 엽니다. `main` 브랜치의 승인된 변경은 GitHub Pages workflow가 공개 프리뷰로 배포합니다.

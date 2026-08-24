@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P3 하이브리드 적 AI 자동 검증 완료 — 사람 플레이 검수 대기** |
+| 현재 단계 | **P3 전투 수직 슬라이스 사람 검수 완료 — P4 제출용 Web 프리뷰 구축** |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -123,12 +123,16 @@
 - [x] P3-H01~06 하이브리드 대체안 승인 및 직접/1회 벽 반사 후보·정수 휴리스틱·등급 오차 구현
 - [x] enemies v2·catalog/fingerprint v6 이관, runtime 적 3종 COMMON 배정, 독립 Python 기준 검증 통과
 - [x] Godot 활성 P2/P3 narrow와 quick `verify --full`, P2-6 terminal 32행 골든 재생성
-- [ ] COMMON/ELITE/BOSS의 실수 폭과 벽 반사/KILL 활용 사람 플레이 검수
+- [x] 현재 runtime COMMON 적 AI의 조준·행동 사람 플레이 검수 — 사용자 확인 완료
 - [x] 사용자 재승인에 따라 `vmax <= 20`에서 현재 위치 즉시 정지 후 TURN_END로 전환하는 권위 RESOLVE 컷오프 구현
 - [x] P1 컷오프 경계 narrow 19개와 Godot import·main scene smoke·manifest 통과
 - [x] 권위 종단값 변경에 따른 P1 narrow 16과 P2 terminal 16×2 골든 이관 — 승인 참조 `P1-vmax20-cutoff-2026-08-24`, P3 AI narrow 통과
-- [ ] 저속 즉시 정산의 턴 템포와 KILL 존 인접 상황 사람 검수
+- [x] 저속 즉시 정산의 턴 템포 사람 검수 — `vmax <= 20` 전환 사용자 확인 완료
 - [x] 플레이어 발사 직후 prediction worker 중첩 완화 — P1/P2 worker `PRIORITY_LOW`, 발사 handler non-join, stale 결과 무효화 유지
+- [x] P4 제출용 Web 프리뷰 WP-01~08 승인, single-thread Web preset·로컬 export·Pages workflow 구현
+- [x] Neo둥근모 v1.601 번들 폰트와 OFL 라이선스 적용, HUD 한글 glyph coverage 통과
+- [x] Godot 4.6.3 release Web export와 640×1,024 브라우저 첫 화면 렌더링 확인
+- [ ] GitHub Pages 첫 공개 배포와 공개 URL 직접 진입 확인
 
 ### 3.1 P1-2 현재 작업 기록
 

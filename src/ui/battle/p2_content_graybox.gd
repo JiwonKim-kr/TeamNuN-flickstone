@@ -470,7 +470,7 @@ func _preview_text(status: SimStatus) -> String:
 	var ids: PackedStringArray = PackedStringArray()
 	for entry: CtbPreviewEntry in entries:
 		ids.append("#%d" % entry.body_id())
-	return "→".join(ids)
+	return "▶".join(ids)
 
 
 func _sync_view() -> void:
