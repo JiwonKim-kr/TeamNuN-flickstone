@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P3 전투 수직 슬라이스 사람 검수 완료 — P4 제출용 Web 프리뷰 구축** |
+| 현재 단계 | **P4 제출용 Web 프리뷰 구현·공개 배포·브라우저 검수 완료** |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -132,7 +132,7 @@
 - [x] P4 제출용 Web 프리뷰 WP-01~08 승인, single-thread Web preset·로컬 export·Pages workflow 구현
 - [x] Neo둥근모 v1.601 번들 폰트와 OFL 라이선스 적용, HUD 한글 glyph coverage 통과
 - [x] Godot 4.6.3 release Web export와 640×1,024 브라우저 첫 화면 렌더링 확인
-- [ ] GitHub Pages 첫 공개 배포와 공개 URL 직접 진입 확인
+- [x] GitHub Pages 첫 공개 배포와 공개 URL 직접 진입 확인 — [Flickstone Web](https://jiwonkim-kr.github.io/TeamNuN-flickstone/), 새로고침·한글 HUD·드래그 발사·턴 진행 브라우저 smoke 통과
 
 ### 3.1 P1-2 현재 작업 기록
 

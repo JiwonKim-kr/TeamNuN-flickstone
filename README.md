@@ -70,6 +70,8 @@ Godot 4.6.x 실행 파일을 설정한 뒤에는 `--skip-godot` 없이 전체 �
 
 ## Web 프리뷰
 
+공개 프리뷰: [Flickstone Web](https://jiwonkim-kr.github.io/TeamNuN-flickstone/)
+
 Godot 4.6.3 공식 Web export template을 `pipeline/artifacts/godot-4.6.3/templates/4.6.3.stable/`에 둔 뒤 다음 명령으로 빌드하고 실행합니다. 전용 서버는 Windows MIME 설정과 무관하게 AudioWorklet JavaScript와 WASM을 올바른 형식으로 제공합니다.
 
 ```powershell
@@ -78,4 +80,4 @@ python pipeline/scripts/web_export.py --godot pipeline/artifacts/godot-4.6.3/God
 python pipeline/scripts/serve_web.py
 ```
 
-브라우저에서 `http://127.0.0.1:8060/`을 엽니다. `main` 브랜치의 승인된 변경은 GitHub Pages workflow가 공개 프리뷰로 배포합니다.
+브라우저에서 `http://127.0.0.1:8060/`을 엽니다. `main` 브랜치의 승인된 변경은 GitHub Pages workflow가 위 공개 프리뷰로 배포합니다.

@@ -6,6 +6,7 @@
 | 작성 | 2026-08-24 |
 | 승인 | 2026-08-24 · 사용자: WP-01~08 전체 승인 |
 | 선행 계약 | P2 콘텐츠 회색상자, P3 AI, 제출용 전투 수직 슬라이스 |
+| 구현 상태 | 2026-08-25 · 구현·자동 검증·공개 배포·브라우저 검수 완료 |
 
 ## 목표
 
@@ -81,3 +82,13 @@ OpenAI Game Builders Seoul 제출 검수자가 별도 설치 없이 현재 전�
 - `assets/fonts/neodgm.ttf`, `assets/fonts/neodgm_ofl_license.txt`, `assets/themes/default_theme.tres`
 
 신규 런타임 에셋과 manifest 변경은 없다.
+
+## 구현·배포 검증 기록
+
+- 배포 수정 커밋: `555f9cb` (`fix: unblock Pages deployment`)
+- 공개 URL: [Flickstone Web](https://jiwonkim-kr.github.io/TeamNuN-flickstone/)
+- [GitHub Pages #3](https://github.com/JiwonKim-kr/TeamNuN-flickstone/actions/runs/32786567525): export·artifact 업로드·배포 성공
+- [GitHub Actions verify #33](https://github.com/JiwonKim-kr/TeamNuN-flickstone/actions/runs/32786567552): Linux 전체 검증과 Windows 결정론 검증 성공
+- 로컬 Godot 4.6.3 `verify --full`: 전체 25개 runner 통과
+- 공개 URL HTTP 200, 직접 진입과 새로고침, 640×1,024 첫 화면과 한글 HUD 렌더링 확인
+- 브라우저 fatal/error/warning 없음, 플레이어 드래그 발사 후 턴 2·적 actor 전환까지 확인
