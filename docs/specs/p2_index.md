@@ -101,7 +101,7 @@ P2는 P1의 결정론적 전투 골격에 콘텐츠 정의, 능력 실행, 상�
 | 3 | [`p2_status_synergy_modifiers.md`](p2_status_synergy_modifiers.md) | **approved · implemented · verified** · 2026-08-24 | 상태 수명, passive 재평가, 태그 계수, P1 계산 입력 modifier 결합 |
 | 4 | [`p2_dynamic_piece_mechanics.md`](p2_dynamic_piece_mechanics.md) | **approved · implemented · verified** · 2026-08-24 | 런타임 생성·수명(`expire`), 변신 승계, 부착 링크와 구속 solver. 복사·존은 제외 |
 | 5 | [`p2_maps_enemies_environment.md`](p2_maps_enemies_environment.md) | **approved · implemented · verified** · 2026-08-24 | 맵·슬롯·존·적 override와 `SPAWN_ZONE`. 정적 장애물·`SPAWN_OBSTACLE`은 U-03 뒤로 연기 |
-| 6 | `p2_content_graybox.md` | 미작성 | 승인된 최초 콘텐츠 패키지, data-only 신규 기물 증명, batch·수동 검수 |
+| 6 | [`p2_content_graybox.md`](p2_content_graybox.md) | **approved** · 2026-08-24 | 승인된 최초 콘텐츠 패키지, data-only 신규 기물 증명, batch·수동 검수 |
 
 ```text
 P2-1 콘텐츠 카탈로그
