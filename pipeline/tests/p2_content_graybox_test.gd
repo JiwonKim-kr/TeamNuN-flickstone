@@ -2,6 +2,7 @@ extends SceneTree
 
 const DATA_DB_SCRIPT: Script = preload("res://src/core/autoload/data_db.gd")
 const CONTENT_DRIVER: Script = preload("res://src/ui/battle/p2_content_battle_driver.gd")
+const PREDICTION_QUEUE: Script = preload("res://src/ui/battle/trajectory_prediction_queue.gd")
 const RUNTIME_ROOT := "res://src/core/data"
 const EXPECTED_FINGERPRINT := "f721ffce47ff27324a92dd8c9564e75463113fd5adb10ee7ebb388889511cf0e"
 const DEFAULT_PRESET: Array[int] = [0, 1, 2]
@@ -148,6 +149,27 @@ func test_status_expiry(catalog: ContentCatalog) -> void:
 	check("P2-6-HASTE-TARGET-FIRST-TURN-EXPIRY", status.is_ok() and completed == 3 and not has_status(state, 3, 1, status))
 
 
+func test_prediction_queue() -> void:
+	var status := SimStatus.new()
+	var queue: TrajectoryPredictionQueue = PREDICTION_QUEUE.new(50)
+	var first: LaunchCommand = LaunchCommand.create(0, 64, status)
+	var latest: LaunchCommand = LaunchCommand.create(256, 128, status)
+	var weak: LaunchCommand = LaunchCommand.create(0, 31, status)
+	var first_generation: int = queue.submit(first, 100)
+	var early: bool = queue.can_start(149, false, true)
+	var first_ready: bool = queue.can_start(150, false, true)
+	var latest_generation: int = queue.submit(latest, 120)
+	var latest_ready: bool = queue.can_start(170, false, true)
+	var blocked_while_busy: bool = queue.can_start(170, true, true)
+	var taken: LaunchCommand = queue.take_pending()
+	var session_before_reset: int = queue.session()
+	queue.submit(weak, 200)
+	var weak_rejected: bool = not queue.has_pending()
+	queue.reset()
+	check("P2-6-PREDICTION-QUEUE-DEBOUNCE-LATEST", status.is_ok() and first_generation == 1 and not early and first_ready and latest_generation == 2 and latest_ready and not blocked_while_busy and taken.is_equal(latest))
+	check("P2-6-PREDICTION-QUEUE-INVALIDATE", weak_rejected and queue.session() == session_before_reset + 1 and not queue.has_pending())
+
+
 func short_transition_bytes(catalog: ContentCatalog, reversed: bool, restore_after_start: bool, status: SimStatus) -> PackedByteArray:
 	var state: BattleState = build_state(catalog, DEFAULT_PRESET, 107, 109, reversed, status)
 	state.complete_turn_start(status); CONTENT_DRIVER.resolve_last_transition(state, status)
@@ -228,6 +250,7 @@ func _init() -> void:
 		test_setup_status_enemy(catalog)
 		test_synergy_modifiers(catalog)
 		test_status_expiry(catalog)
+		test_prediction_queue()
 		if not smoke_only:
 			test_determinism_1000(catalog)
 	print("P2_CONTENT_GRAYBOX_RESULT: %s" % ("PASS" if failures == 0 else "FAIL"))

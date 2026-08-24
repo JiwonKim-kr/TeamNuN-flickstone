@@ -127,4 +127,5 @@ func clear() -> void:
 
 
 func is_dragging() -> bool: return _dragging
+func actor_center() -> FixVec2: return _actor_center.copy()
 func last_status() -> SimStatus: return _last_status.copy()

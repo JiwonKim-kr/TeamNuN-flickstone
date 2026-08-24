@@ -25,6 +25,8 @@ var _ui_state: BattleState = null
 var _prediction_requests: int = 0
 var _launch_requests: int = 0
 var _cancel_requests: int = 0
+var _prediction_powers: Array[int] = []
+var _launch_power: int = -1
 
 
 func _check(case_id: String, condition: bool, detail: String = "") -> void:
@@ -169,8 +171,16 @@ func _screen_to_world(pointer: Vector2) -> Vector2:
 	return pointer
 
 
-func _on_prediction_requested(_command_value: LaunchCommand) -> void: _prediction_requests += 1
-func _on_launch_requested(_command_value: LaunchCommand) -> void: _launch_requests += 1
+func _on_prediction_requested(command_value: LaunchCommand) -> void:
+	_prediction_requests += 1
+	_prediction_powers.append(command_value.power_step())
+
+
+func _on_launch_requested(command_value: LaunchCommand) -> void:
+	_launch_requests += 1
+	_launch_power = command_value.power_step()
+
+
 func _on_aim_cancelled() -> void: _cancel_requests += 1
 
 
@@ -182,9 +192,10 @@ func _test_ui_input_bridge() -> void:
 	adapter.prediction_requested.connect(_on_prediction_requested)
 	adapter.launch_requested.connect(_on_launch_requested)
 	adapter.aim_cancelled.connect(_on_aim_cancelled)
-	adapter.begin_aim(Vector2(-24, 0)); adapter.update_aim(Vector2(-24, 0)); adapter.release_aim(Vector2(-24, 0))
+	adapter.begin_aim(Vector2.ZERO); adapter.update_aim(Vector2(-48, 0)); adapter.release_aim(Vector2(-96, 0))
 	adapter.begin_aim(Vector2(-24, 0)); adapter.cancel_aim()
-	_check("P1-AIM-UI-BRIDGE-001", status.is_ok() and _prediction_requests == 2 and _launch_requests == 1 and _cancel_requests == 1 and _ui_state.phase() == BattleState.Phase.AIM, "%d %d %d" % [_prediction_requests, _launch_requests, _cancel_requests])
+	_check("P1-AIM-UI-DRAG-POWER-001", _prediction_powers.slice(0, 3) == [0, 64, 128] and _launch_power == 128, str(_prediction_powers))
+	_check("P1-AIM-UI-BRIDGE-001", status.is_ok() and _prediction_requests == 4 and _launch_requests == 1 and _cancel_requests == 1 and _ui_state.phase() == BattleState.Phase.AIM, "%d %d %d" % [_prediction_requests, _launch_requests, _cancel_requests])
 	adapter.free()
 
 

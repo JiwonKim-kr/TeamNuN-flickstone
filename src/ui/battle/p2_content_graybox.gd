@@ -5,6 +5,7 @@ extends Node2D
 const PLAYER_TEXTURE := preload("res://assets/art/sprites/p1_graybox/PLACEHOLDER_player_piece.png")
 const ENEMY_TEXTURE := preload("res://assets/art/sprites/p1_graybox/PLACEHOLDER_enemy_piece.png")
 const CONTENT_DRIVER: Script = preload("res://src/ui/battle/p2_content_battle_driver.gd")
+const PREDICTION_QUEUE: Script = preload("res://src/ui/battle/trajectory_prediction_queue.gd")
 const PIECE_SCALE := Vector2(4.0 / 3.0, 4.0 / 3.0)
 const RESOLVE_STEPS_PER_FRAME := 12
 const RESOLVE_FRAME_BUDGET_USEC := 12000
@@ -35,8 +36,10 @@ var _turns: int = 0
 var _error: SimStatus = SimStatus.new()
 var _content_error: ContentStatus = ContentStatus.new()
 var _prediction_thread: Thread = null
-var _prediction_generation: int = 0
-var _pending_prediction_command: LaunchCommand = null
+var _prediction_queue: TrajectoryPredictionQueue = PREDICTION_QUEUE.new()
+var _prediction_source_state: BattleState = null
+var _prediction_cache: Dictionary = {}
+var _aim_power_step: int = 0
 
 
 func _ready() -> void:
@@ -44,7 +47,7 @@ func _ready() -> void:
 	_input.prediction_requested.connect(_on_prediction_requested)
 	_input.launch_requested.connect(_on_launch_requested)
 	_input.aim_cancelled.connect(_clear_aim)
-	_help_label.text = "드래그 발사 · 1/2/3: 해당 아군 슬롯 기물 순환 · R: 현재 편성 재시작 · Esc: 조준 취소"
+	_help_label.text = "기물 중심에서 멀리 당길수록 강하게 발사 · 1/2/3: 기물 순환 · R: 재시작 · Esc: 취소"
 	_load_content()
 	if _content_error.is_ok():
 		_build_map_view()
@@ -178,51 +181,76 @@ func _resolve_content_transition() -> void:
 
 func _on_prediction_requested(command: LaunchCommand) -> void:
 	var status := SimStatus.new()
-	var world: SimWorld = _state.world_copy(status)
-	var actor: SimBody = world.body_by_id(_state.current_actor_body_id(), status)
-	var actor_position := _fix_to_vector(actor.position())
+	var actor_position := _fix_to_vector(_input.actor_center())
 	var fixed_direction: FixVec2 = FixTrigLut.direction(command.angle(), status)
 	if not status.is_ok():
 		return
 	var direction := Vector2(float(fixed_direction.x_raw()), float(fixed_direction.y_raw())).normalized()
-	_aim_line.points = PackedVector2Array([actor_position, actor_position + direction * 120.0])
-	_aim_marker.position = actor_position + direction * 132.0
+	_aim_power_step = command.power_step()
+	var guide_length: float = (
+		float(LaunchLimits.MAX_DRAG_DISTANCE_RAW)
+		* float(_aim_power_step)
+		/ float(FixMath.SCALE * LaunchLimits.POWER_STEPS)
+	)
+	var guide_end: Vector2 = actor_position + direction * guide_length
+	_aim_line.points = PackedVector2Array([actor_position, guide_end])
+	_aim_marker.position = guide_end
 	_aim_marker.rotation = direction.angle()
-	_aim_marker.visible = true
+	_aim_marker.visible = _aim_power_step > 0
 
-	_prediction_generation += 1
-	_pending_prediction_command = null
+	_prediction_queue.submit(command, Time.get_ticks_usec())
 	if not LaunchLimits.valid_launch_power_step(command.power_step()):
 		_trajectory.clear()
 		_trajectory_line.clear_points()
 		return
-	_pending_prediction_command = command.copy()
-	if _prediction_thread == null:
-		_start_pending_prediction()
+	var cache_key: int = _prediction_cache_key(command)
+	if _prediction_cache.has(cache_key):
+		_prediction_queue.take_pending()
+		_show_prediction(_prediction_cache[cache_key] as TrajectoryPrediction)
+	else:
+		_trajectory.clear()
+		_trajectory_line.clear_points()
 
 
 func _start_pending_prediction() -> void:
-	if _pending_prediction_command == null or _state == null:
+	if not _prediction_queue.has_pending() or _state == null:
 		return
 	var status := SimStatus.new()
-	var state_copy: BattleState = _state.copy(status)
-	if not status.is_ok():
-		_pending_prediction_command = null
+	if _prediction_source_state == null:
+		_prediction_source_state = _state.copy(status)
+	if not status.is_ok() or _prediction_source_state == null:
+		_prediction_queue.take_pending()
 		return
-	var command: LaunchCommand = _pending_prediction_command.copy()
-	_pending_prediction_command = null
-	var generation: int = _prediction_generation
+	var command: LaunchCommand = _prediction_queue.take_pending()
+	var session: int = _prediction_queue.session()
+	var generation: int = _prediction_queue.generation()
 	_prediction_thread = Thread.new()
-	var start_error: int = _prediction_thread.start(_predict_trajectory.bind(state_copy, command, generation))
+	var start_error: int = _prediction_thread.start(
+		_predict_trajectory.bind(
+			_prediction_source_state,
+			command,
+			session,
+			generation,
+			_prediction_cache_key(command)
+		)
+	)
 	if start_error != OK:
 		_prediction_thread = null
 
 
-func _predict_trajectory(state_copy: BattleState, command: LaunchCommand, generation: int) -> Dictionary:
+func _predict_trajectory(
+		source_state: BattleState,
+		command: LaunchCommand,
+		session: int,
+		generation: int,
+		cache_key: int
+) -> Dictionary:
 	var status := SimStatus.new()
-	var prediction: TrajectoryPrediction = TrajectoryPredictor.predict(state_copy, command, status)
+	var prediction: TrajectoryPrediction = TrajectoryPredictor.predict(source_state, command, status)
 	return {
+		"session": session,
 		"generation": generation,
+		"cache_key": cache_key,
 		"prediction": prediction,
 		"code": status.code(),
 		"operation": status.operation(),
@@ -230,23 +258,36 @@ func _predict_trajectory(state_copy: BattleState, command: LaunchCommand, genera
 
 
 func _poll_prediction() -> void:
-	if _prediction_thread == null or _prediction_thread.is_alive():
-		return
-	var result: Variant = _prediction_thread.wait_to_finish()
-	_prediction_thread = null
-	if (
-		result is Dictionary
-		and int(result.get("generation", -1)) == _prediction_generation
-		and int(result.get("code", SimStatus.Code.INVALID_SIM_STATE)) == SimStatus.Code.OK
-		and _input.is_dragging()
+	if _prediction_thread != null and not _prediction_thread.is_alive():
+		var result: Variant = _prediction_thread.wait_to_finish()
+		_prediction_thread = null
+		if (
+			result is Dictionary
+			and int(result.get("session", -1)) == _prediction_queue.session()
+			and int(result.get("code", SimStatus.Code.INVALID_SIM_STATE)) == SimStatus.Code.OK
+		):
+			var prediction: TrajectoryPrediction = result.get("prediction") as TrajectoryPrediction
+			_prediction_cache[int(result.get("cache_key", -1))] = prediction
+			if (
+				int(result.get("generation", -1)) == _prediction_queue.generation()
+				and _input.is_dragging()
+			):
+				_show_prediction(prediction)
+	if _prediction_queue.can_start(
+		Time.get_ticks_usec(), _prediction_thread != null, _input.is_dragging()
 	):
-		var prediction: TrajectoryPrediction = result.get("prediction") as TrajectoryPrediction
-		var status := SimStatus.new()
-		_trajectory.update_from_prediction(prediction, status)
-		if status.is_ok():
-			_trajectory_line.points = _trajectory.positions()
-	if _pending_prediction_command != null and _input.is_dragging():
 		_start_pending_prediction()
+
+
+func _prediction_cache_key(command: LaunchCommand) -> int:
+	return (command.angle() << 9) | command.power_step()
+
+
+func _show_prediction(prediction: TrajectoryPrediction) -> void:
+	var status := SimStatus.new()
+	_trajectory.update_from_prediction(prediction, status)
+	if status.is_ok():
+		_trajectory_line.points = _trajectory.positions()
 
 
 func _on_launch_requested(command: LaunchCommand) -> void:
@@ -258,8 +299,10 @@ func _on_launch_requested(command: LaunchCommand) -> void:
 
 
 func _clear_aim() -> void:
-	_prediction_generation += 1
-	_pending_prediction_command = null
+	_prediction_queue.reset()
+	_prediction_source_state = null
+	_prediction_cache.clear()
+	_aim_power_step = 0
 	_trajectory.clear()
 	_trajectory_line.clear_points()
 	_aim_line.clear_points()
@@ -267,8 +310,9 @@ func _clear_aim() -> void:
 
 
 func _exit_tree() -> void:
-	_prediction_generation += 1
-	_pending_prediction_command = null
+	_prediction_queue.reset()
+	_prediction_source_state = null
+	_prediction_cache.clear()
 	if _prediction_thread != null:
 		_prediction_thread.wait_to_finish()
 		_prediction_thread = null
@@ -451,6 +495,8 @@ func _sync_view() -> void:
 			_piece_nodes.erase(body_id)
 	var phase_name: String = BattleState.Phase.keys()[_state.phase()]
 	_status_label.text = "P2-6 콘텐츠 회색상자 · 턴 %d · %s · actor #%d · 생존 %d/6 · fp %s" % [_turns, phase_name, _state.current_actor_body_id(), world.body_count(), _catalog.fingerprint_hex().left(8)]
+	if _input.is_dragging():
+		_status_label.text += " · POWER %d/%d" % [_aim_power_step, LaunchLimits.POWER_STEPS]
 	if not _error.is_ok():
 		_status_label.text += " · ERROR %d/%d" % [_error.code(), _error.operation()]
 	elif _state.phase() == BattleState.Phase.BATTLE_END:
