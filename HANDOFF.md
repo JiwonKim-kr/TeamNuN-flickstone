@@ -128,6 +128,7 @@
 - [x] P1 컷오프 경계 narrow 19개와 Godot import·main scene smoke·manifest 통과
 - [x] 권위 종단값 변경에 따른 P1 narrow 16과 P2 terminal 16×2 골든 이관 — 승인 참조 `P1-vmax20-cutoff-2026-08-24`, P3 AI narrow 통과
 - [ ] 저속 즉시 정산의 턴 템포와 KILL 존 인접 상황 사람 검수
+- [x] 플레이어 발사 직후 prediction worker 중첩 완화 — P1/P2 worker `PRIORITY_LOW`, 발사 handler non-join, stale 결과 무효화 유지
 
 ### 3.1 P1-2 현재 작업 기록
 

@@ -158,7 +158,8 @@ func _start_pending_prediction() -> void:
 	var start_error: int = _prediction_thread.start(
 		_predict_trajectory.bind(
 			state_copy, command, _prediction_thread_generation
-		)
+		),
+		Thread.PRIORITY_LOW
 	)
 	if start_error != OK:
 		_prediction_thread = null

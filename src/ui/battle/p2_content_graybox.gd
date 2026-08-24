@@ -243,7 +243,8 @@ func _start_pending_prediction() -> void:
 			session,
 			generation,
 			_prediction_cache_key(command)
-		)
+		),
+		Thread.PRIORITY_LOW
 	)
 	if start_error != OK:
 		_prediction_thread = null

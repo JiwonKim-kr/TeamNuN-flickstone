@@ -54,11 +54,18 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     controller = (project / "src/ui/battle/p2_content_graybox.gd").read_text(encoding="utf-8")
+    p1_controller = (project / "src/ui/battle/p1_graybox_battle.gd").read_text(encoding="utf-8")
     forbidden_ids = ("baduk_stone", "bottle_cap", "graybox_striker", "graybox_opening_haste", "graybox_haste")
     if any(value in controller for value in forbidden_ids):
         print("[FAIL] P2-6-ARCH graybox controller contains content-ID-specific behavior")
         return 1
     print("[PASS] P2-6-ARCH controller has no content-ID-specific branch")
+    for label, source in (("P1", p1_controller), ("P2", controller)):
+        launch_handler = source.split("func _on_launch_requested", 1)[1].split("func _clear_aim", 1)[0]
+        if "Thread.PRIORITY_LOW" not in source or "wait_to_finish" in launch_handler:
+            print(f"[FAIL] P2-6-PREDICTION-PRIORITY-{label} low-priority/non-join contract missing")
+            return 1
+    print("[PASS] P2-6-PREDICTION-PRIORITY P1/P2 low-priority worker and non-join launch")
 
     manifest = json.loads((project / "pipeline/manifest.json").read_text(encoding="utf-8"))
     expected_requests = {
