@@ -6,6 +6,7 @@ const PLAYER_TEXTURE := preload("res://assets/art/sprites/p1_graybox/PLACEHOLDER
 const ENEMY_TEXTURE := preload("res://assets/art/sprites/p1_graybox/PLACEHOLDER_enemy_piece.png")
 const CONTENT_DRIVER: Script = preload("res://src/ui/battle/p2_content_battle_driver.gd")
 const PREDICTION_QUEUE: Script = preload("res://src/ui/battle/trajectory_prediction_queue.gd")
+const ENEMY_ACTION_DELAY: Script = preload("res://src/ui/battle/enemy_action_delay.gd")
 const PIECE_SCALE := Vector2(4.0 / 3.0, 4.0 / 3.0)
 const RESOLVE_STEPS_PER_FRAME := 12
 const RESOLVE_FRAME_BUDGET_USEC := 12000
@@ -40,6 +41,7 @@ var _prediction_queue: TrajectoryPredictionQueue = PREDICTION_QUEUE.new()
 var _prediction_source_state: BattleState = null
 var _prediction_cache: Dictionary = {}
 var _aim_power_step: int = 0
+var _enemy_action_delay: EnemyActionDelay = ENEMY_ACTION_DELAY.new()
 
 
 func _ready() -> void:
@@ -92,7 +94,7 @@ func _process(_delta: float) -> void:
 				break
 			if Time.get_ticks_usec() - frame_started >= RESOLVE_FRAME_BUDGET_USEC:
 				break
-		_advance_noninteractive_phases()
+	_advance_noninteractive_phases()
 	_sync_view()
 
 
@@ -167,11 +169,18 @@ func _advance_noninteractive_phases() -> void:
 	if _error.is_ok() and _state.phase() == BattleState.Phase.AIM:
 		var participant: BattleParticipant = _state.participant_by_body_id(_state.current_actor_body_id(), _error)
 		if _error.is_ok() and participant.faction() == BattleParticipant.Faction.ENEMY:
+			if not _enemy_action_delay.is_ready(_state.current_actor_body_id(), Time.get_ticks_msec()):
+				return
+			_enemy_action_delay.consume()
 			var command: LaunchCommand = P1DeterministicShotSupplier.command_for(_state, _error)
 			if _error.is_ok():
 				LaunchVelocitySolver.commit(_state, command, _error)
 				_resolve_content_transition()
 				_turns += 1
+		else:
+			_enemy_action_delay.reset()
+	elif _state.phase() == BattleState.Phase.BATTLE_END:
+		_enemy_action_delay.reset()
 
 
 func _resolve_content_transition() -> void:
@@ -472,8 +481,10 @@ func _sync_view() -> void:
 	var status := SimStatus.new()
 	var world: SimWorld = _state.world_copy(status)
 	var alive: Dictionary = {}
+	var max_speed_raw: int = 0
 	for index: int in range(world.body_count()):
 		var body: SimBody = world.body_at(index, status)
+		max_speed_raw = maxi(max_speed_raw, body.velocity().length_raw(status))
 		var participant: BattleParticipant = _state.participant_by_body_id(body.id(), status)
 		var identity: BattlePieceIdentity = _identity_for_body(body.id(), status)
 		var content_status := ContentStatus.new()
@@ -497,6 +508,16 @@ func _sync_view() -> void:
 	_status_label.text = "P2-6 콘텐츠 회색상자 · 턴 %d · %s · actor #%d · 생존 %d/6 · fp %s" % [_turns, phase_name, _state.current_actor_body_id(), world.body_count(), _catalog.fingerprint_hex().left(8)]
 	if _input.is_dragging():
 		_status_label.text += " · POWER %d/%d" % [_aim_power_step, LaunchLimits.POWER_STEPS]
+	if _state.phase() == BattleState.Phase.RESOLVE:
+		_status_label.text += " · RESOLVE %d/%d" % [_state.normal_resolve_ticks(), BattleLimits.NORMAL_RESOLVE_MAX_TICKS]
+		if _state.forced_settle_used():
+			_status_label.text += " · FORCED %d/%d" % [_state.forced_resolve_ticks(), BattleLimits.FORCED_RESOLVE_MAX_TICKS]
+		var speed_tenths: int = (max_speed_raw * 10) / FixMath.SCALE
+		_status_label.text += " · vmax %d.%d" % [speed_tenths / 10, speed_tenths % 10]
+	elif _state.phase() == BattleState.Phase.AIM:
+		var delay_remaining: int = _enemy_action_delay.remaining_msec(_state.current_actor_body_id(), Time.get_ticks_msec())
+		if delay_remaining > 0:
+			_status_label.text += " · 적 발사 대기 %dms" % delay_remaining
 	if not _error.is_ok():
 		_status_label.text += " · ERROR %d/%d" % [_error.code(), _error.operation()]
 	elif _state.phase() == BattleState.Phase.BATTLE_END:
@@ -525,6 +546,7 @@ func _restart() -> void:
 		return
 	_clear_piece_nodes()
 	_clear_aim()
+	_enemy_action_delay.reset()
 	_turns = 0
 	_error = SimStatus.new()
 	var deployment: Array[BattleDeploymentEntry] = _build_deployment(_error)

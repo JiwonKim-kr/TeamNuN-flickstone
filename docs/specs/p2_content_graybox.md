@@ -415,3 +415,12 @@ manifest 변경은 `pipeline/scripts/manifest.py`의 지원 동작만 사용한�
 - `quick`은 두 프리셋의 seed 0과 snapshot 복원을 검사한다. `milestone`은 기본·stacked 각 16시드와 복원 대조, 체크인 골든 32행을 검사하며 전부 통과했다.
 - 기본 16시드는 모두 적 승리·5턴·1,644틱, stacked 16시드는 모두 적 승리·16턴·7,794틱으로 종료했다. seed별 terminal hash와 중간 snapshot 복원 결과가 일치했다.
 - Godot 4.6.3 `play_test.py`의 import·main scene smoke·manifest 3단계와 quick-profile `verify.py --full`이 통과했다. 통합 결과는 게이트 #1~4 PASS, lore 미초기화 #5 정상 SKIP, 자동 발견 러너 23종 PASS다.
+
+## 2026-08-24 플레이테스트 보정 승인
+
+사용자가 조작감 확인 뒤 다음 P2 회색상자 표시·진행 보정을 승인했다.
+
+1. 적 AIM 진입 뒤 실제 발사까지 최소 600ms를 기다린다. 연속 적 턴도 발사마다 다시 기다리며, 이 시간은 UI 연출 상태일 뿐 BattleState·snapshot·batch 결과에 포함하지 않는다.
+2. HUD에 RESOLVE 정상/강제 정산 tick과 현재 최대 본체 속도를 표시해 드문 진행 지연을 관찰할 수 있게 한다.
+3. 다양한 양자화 각도·파워와 벽 모서리 경로가 기존 960+240 tick 예산 안에서 TURN_END에 도달하는 회귀를 추가한다. `RESOLVE_DEADLOCK`을 자동 턴 넘김으로 숨기지 않는다.
+4. 상단을 가리던 HUD/조작 매뉴얼을 세로 맵 왼쪽 공간으로 옮기고, 좁아진 폭에서는 문장을 자동 줄바꿈한다.

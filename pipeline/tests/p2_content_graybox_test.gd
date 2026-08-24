@@ -3,6 +3,7 @@ extends SceneTree
 const DATA_DB_SCRIPT: Script = preload("res://src/core/autoload/data_db.gd")
 const CONTENT_DRIVER: Script = preload("res://src/ui/battle/p2_content_battle_driver.gd")
 const PREDICTION_QUEUE: Script = preload("res://src/ui/battle/trajectory_prediction_queue.gd")
+const ENEMY_ACTION_DELAY: Script = preload("res://src/ui/battle/enemy_action_delay.gd")
 const RUNTIME_ROOT := "res://src/core/data"
 const EXPECTED_FINGERPRINT := "f721ffce47ff27324a92dd8c9564e75463113fd5adb10ee7ebb388889511cf0e"
 const DEFAULT_PRESET: Array[int] = [0, 1, 2]
@@ -170,6 +171,47 @@ func test_prediction_queue() -> void:
 	check("P2-6-PREDICTION-QUEUE-INVALIDATE", weak_rejected and queue.session() == session_before_reset + 1 and not queue.has_pending())
 
 
+func test_enemy_action_delay() -> void:
+	var delay: EnemyActionDelay = ENEMY_ACTION_DELAY.new(600)
+	var scheduled: bool = not delay.is_ready(4, 100)
+	var waits_before_boundary: bool = not delay.is_ready(4, 699)
+	var ready_at_boundary: bool = delay.is_ready(4, 700)
+	var remaining_is_exact: bool = delay.remaining_msec(4, 250) == 450
+	delay.consume()
+	var consecutive_turn_waits_again: bool = not delay.is_ready(4, 701) and delay.remaining_msec(4, 701) == 600
+	delay.reset()
+	check("P2-6-ENEMY-ACTION-DELAY-600MS", scheduled and waits_before_boundary and ready_at_boundary and remaining_is_exact and consecutive_turn_waits_again and delay.scheduled_actor_body_id() == 0)
+
+
+func test_resolve_liveness_matrix(catalog: ContentCatalog) -> void:
+	var all_settled: bool = true
+	var case_count: int = 0
+	var angles: Array[int] = [0, 8192, 16384, 24576, 32768, 40960, 49152, 57344]
+	var powers: Array[int] = [32, 256, 128, 256, 32, 256, 128, 256]
+	for case_index: int in range(angles.size()):
+		var angle: int = angles[case_index]
+		var power_step: int = powers[case_index]
+		case_count += 1
+		var status := SimStatus.new()
+		var state: BattleState = build_state(catalog, DEFAULT_PRESET, 0x7000 + angle, 0x9000 + power_step, false, status)
+		if status.is_ok() and state.phase() == BattleState.Phase.TURN_START:
+			state.complete_turn_start(status)
+			CONTENT_DRIVER.resolve_last_transition(state, status)
+		if status.is_ok():
+			var command: LaunchCommand = LaunchCommand.create(angle, power_step, status)
+			LaunchVelocitySolver.commit(state, command, status)
+			CONTENT_DRIVER.resolve_last_transition(state, status)
+		var resolve_calls: int = 0
+		while status.is_ok() and state.phase() == BattleState.Phase.RESOLVE and resolve_calls <= BattleLimits.NORMAL_RESOLVE_MAX_TICKS + BattleLimits.FORCED_RESOLVE_MAX_TICKS:
+			state.advance_resolve(status)
+			CONTENT_DRIVER.resolve_last_transition(state, status)
+			resolve_calls += 1
+		if not status.is_ok() or state.phase() != BattleState.Phase.TURN_END:
+			all_settled = false
+			break
+	check("P2-6-RESOLVE-LIVENESS-ANGLE-POWER-MATRIX", all_settled and case_count == 8)
+
+
 func short_transition_bytes(catalog: ContentCatalog, reversed: bool, restore_after_start: bool, status: SimStatus) -> PackedByteArray:
 	var state: BattleState = build_state(catalog, DEFAULT_PRESET, 107, 109, reversed, status)
 	state.complete_turn_start(status); CONTENT_DRIVER.resolve_last_transition(state, status)
@@ -251,6 +293,8 @@ func _init() -> void:
 		test_synergy_modifiers(catalog)
 		test_status_expiry(catalog)
 		test_prediction_queue()
+		test_enemy_action_delay()
+		test_resolve_liveness_matrix(catalog)
 		if not smoke_only:
 			test_determinism_1000(catalog)
 	print("P2_CONTENT_GRAYBOX_RESULT: %s" % ("PASS" if failures == 0 else "FAIL"))

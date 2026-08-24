@@ -48,10 +48,10 @@ visible = false
 texture = ExtResource("3")
 
 [node name="Hud" type="PanelContainer" parent="."]
-offset_left = 48.0
-offset_top = 28.0
-offset_right = 1104.0
-offset_bottom = 160.0
+offset_left = 12.0
+offset_top = 24.0
+offset_right = 364.0
+offset_bottom = 360.0
 theme_override_styles/panel = SubResource("hud_panel")
 
 [node name="Margin" type="MarginContainer" parent="Hud"]
@@ -64,12 +64,15 @@ theme_override_constants/margin_bottom = 9
 
 [node name="Status" type="Label" parent="Hud/Margin/Rows"]
 text = "P2-6 콘텐츠 회색상자 초기화 중"
+autowrap_mode = 2
 
 [node name="Details" type="Label" parent="Hud/Margin/Rows"]
 theme_override_colors/font_color = Color(0.82, 0.87, 0.96, 1)
+autowrap_mode = 2
 
 [node name="Help" type="Label" parent="Hud/Margin/Rows"]
 theme_override_colors/font_color = Color(0.72, 0.78, 0.88, 1)
+autowrap_mode = 2
 
 [node name="AimInputAdapter" type="Node" parent="."]
 script = ExtResource("2")

@@ -157,7 +157,10 @@ func _test_prediction() -> void:
 	_check("P1-PREDICT-COLLISION-001", status.is_ok() and collision_end.marker() == TrajectoryPoint.Marker.COLLISION and collision_end.target_body_id() == 2 and collision.ticks_simulated() < 240)
 	var wall_state: BattleState = _aim_state([_v(0, 0, status)], [64], status, 0, true)
 	var wall: TrajectoryPrediction = TrajectoryPredictor.predict(wall_state, _command(0, 128, status), status)
-	_check("P1-PREDICT-WALL-001", status.is_ok() and not wall.is_truncated() and _terminal_marker(wall, status) == TrajectoryPoint.Marker.WALL and wall.ticks_simulated() < 240)
+	var wall_end: TrajectoryPoint = wall.point_at(wall.point_count() - 1, status)
+	var wall_center_bound_raw: int = 56 * FixMath.SCALE
+	_check("P1-PREDICT-WALL-001", status.is_ok() and not wall.is_truncated() and wall_end.marker() == TrajectoryPoint.Marker.WALL and wall.ticks_simulated() < 240)
+	_check("P1-PREDICT-WALL-CENTERLINE-001", absi(wall_end.position().x_raw()) <= wall_center_bound_raw and absi(wall_end.position().y_raw()) <= wall_center_bound_raw, str(wall_end.position().x_raw()))
 	var line := TrajectoryLineAdapter.new()
 	line.update_from_prediction(collision, status)
 	_check("P1-PREDICT-UI-LINE-001", status.is_ok() and line.point_count() == collision.point_count() and line.marker_at(line.point_count() - 1) == TrajectoryPoint.Marker.COLLISION)

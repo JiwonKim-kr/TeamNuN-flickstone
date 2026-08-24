@@ -70,10 +70,14 @@ static func predict(state: BattleState, command: LaunchCommand, status: SimStatu
 			return neutral
 		ticks += 1
 		local_world = local.world_copy(status)
+		var actor_lookup := SimStatus.new()
+		var actor_after_step: SimBody = local_world.body_by_id(actor_body_id, actor_lookup)
+		var actor_position: FixVec2 = actor_after_step.position() if actor_lookup.is_ok() else FixVec2.zero()
 		var destroyed_event: SimEvent = null
 		var collision_event: SimEvent = null
 		var second_wall_event: SimEvent = null
 		var stopped_event: SimEvent = null
+		var wall_events: Array[SimEvent] = []
 		for event_index: int in range(scanned_event_count, local_world.event_count()):
 			var event: SimEvent = local_world.event_at(event_index, status)
 			if not _event_involves_actor(event, actor_body_id):
@@ -85,11 +89,18 @@ static func predict(state: BattleState, command: LaunchCommand, status: SimStatu
 					if collision_event == null: collision_event = event
 				SimEvent.TypeId.BODY_HIT_WALL:
 					wall_hits += 1
-					_append_point(points, TrajectoryPoint.create(ticks, event.sequence(), event.position(), TrajectoryPoint.Marker.WALL, 0, status), true, status)
+					wall_events.append(event)
 					if wall_hits == LaunchLimits.PREDICTION_MAX_WALL_HITS and second_wall_event == null: second_wall_event = event
 				SimEvent.TypeId.BODY_STOPPED:
 					if stopped_event == null: stopped_event = event
 		scanned_event_count = local_world.event_count()
+		if not actor_lookup.is_ok():
+			if destroyed_event == null:
+				status.fail(actor_lookup.code(), SimStatus.Operation.TRAJECTORY_PREDICT, actor_body_id, 0)
+				return neutral
+			actor_position = destroyed_event.position()
+		for wall_event: SimEvent in wall_events:
+			_append_point(points, TrajectoryPoint.create(ticks, wall_event.sequence(), actor_position, TrajectoryPoint.Marker.WALL, 0, status), true, status)
 		var selected: SimEvent = null
 		var marker: int = TrajectoryPoint.Marker.NONE
 		var target_body_id: int = 0
@@ -103,7 +114,8 @@ static func predict(state: BattleState, command: LaunchCommand, status: SimStatu
 		elif stopped_event != null:
 			selected = stopped_event; marker = TrajectoryPoint.Marker.STOPPED
 		if selected != null:
-			_append_point(points, TrajectoryPoint.create(ticks, selected.sequence(), selected.position(), marker, target_body_id, status), true, status)
+			var event_position: FixVec2 = selected.position() if marker == TrajectoryPoint.Marker.DESTROYED else actor_position
+			_append_point(points, TrajectoryPoint.create(ticks, selected.sequence(), event_position, marker, target_body_id, status), true, status)
 			terminal = true
 		elif local.phase() == BattleState.Phase.TURN_END:
 			var end_position: FixVec2 = _body_position(local_world, actor_body_id, status)
