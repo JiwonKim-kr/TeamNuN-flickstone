@@ -28,7 +28,14 @@ def main(argv: list[str] | None = None) -> int:
         default=os.environ.get("FLICKSTONE_P2_CONTENT_PROFILE", "quick"),
         help="quick checks seed 0 for each preset; milestone checks the full 16x2 terminal matrix",
     )
+    parser.add_argument("--update-goldens", action="store_true")
+    parser.add_argument("--approval-ref")
     args = parser.parse_args(argv)
+    if args.update_goldens and (
+        args.profile != "milestone" or not args.approval_ref or os.environ.get("CI")
+    ):
+        print("[FAIL] golden update requires milestone, --approval-ref, and non-CI", file=sys.stderr)
+        return 2
     project = args.project.resolve()
 
     reference = subprocess.run(
@@ -134,6 +141,15 @@ def main(argv: list[str] | None = None) -> int:
     terminal_label = "16X2" if args.profile == "milestone" else "QUICK-2"
     print(f"[PASS] P2-6-TERMINAL-{terminal_label}-SNAPSHOT-RESTORE" if restore_ok else "[FAIL] P2-6-TERMINAL snapshot restore changed row")
     rows = [normal[(preset, seed_index)] for preset in ("default", "stacked") for seed_index in seed_indices]
+    if args.update_goldens:
+        payload = {
+            "schema_version": 1,
+            "fingerprint": FINGERPRINT,
+            "approval_ref": args.approval_ref,
+            "rows": rows,
+        }
+        GOLDEN.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        print(f"[PASS] P2-6-GOLDEN updated approval_ref={args.approval_ref}")
     if not GOLDEN.is_file():
         print(f"[FAIL] P2-6-GOLDEN missing: {GOLDEN}")
         if args.profile == "milestone":

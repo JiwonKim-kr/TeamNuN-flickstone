@@ -325,9 +325,8 @@ HANDOFF.md
 2026-08-23 PT-01~04 물리 기준선과 세로 플레이테스트 배치를 반영해 P1-5 최종 검증을 완료했다.
 
 - 회귀 fixture는 `p1_graybox_v2`, 수동 세로 전장은 `p1_graybox_portrait_playtest_v1`로 분리했다. 수동 전장은 640×1,024에서 enemy 위·player 아래 3명씩 배치한다.
-- terminal golden 승인 참조는 `P1-physics-tuning-PT-01-04-2026-08-23`이며, 기준 전투는 `PLAYER_VICTORY`, 20턴, 10,699틱, terminal hash `ba0a6c315abbb4502400ed3ab473bf0e1cac0eaa57d9b381142ba2f8cdda68a3`이다.
-- narrow 16: 16승, 실패 0, 총 171,184틱, forced settle 0.
-- batch 256: 256승, 실패 0, 총 2,738,944틱, forced settle 0.
-- exhaustive 1,000: 1,000승, 실패 0, 총 10,699,000틱, forced settle 0.
+- terminal golden 승인 참조는 `P1-vmax20-cutoff-2026-08-24`이며, 기준 전투는 `PLAYER_VICTORY`, 20턴, 4,843틱, terminal hash `86d36695670b25700b48d81859e5ce9c7f0c30c2d1a1f1eff354ce2d3519302f`다.
+- narrow 16: 16승, 실패 0, 총 77,488틱, forced settle 0. `vmax <= 20` 권위 컷오프로 기존 171,184틱 대비 54.7% 감소했다.
+- batch 256·exhaustive 1,000의 기존 수치는 컷오프 이전 기준이므로 재계측 대기다. narrow와 동일한 결정론 case 확장 구조이며 CI 전체 러너에서 회귀한다.
 - P0 1,000회 결정론 회귀와 Godot 4.6.3 활성 `verify --full`의 자동 발견 러너 17종이 모두 통과했다. lore canon 미초기화 게이트만 정상 SKIP이다.
 - 사용자가 직접 드래그 발사·충돌·반사·피해·턴 길이를 검수하고 “문제 없음”으로 승인했다. 이로써 P1 전체 완료 조건 1~7을 충족한다.

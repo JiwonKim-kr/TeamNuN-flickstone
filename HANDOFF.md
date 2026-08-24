@@ -126,7 +126,7 @@
 - [ ] COMMON/ELITE/BOSS의 실수 폭과 벽 반사/KILL 활용 사람 플레이 검수
 - [x] 사용자 재승인에 따라 `vmax <= 20`에서 현재 위치 즉시 정지 후 TURN_END로 전환하는 권위 RESOLVE 컷오프 구현
 - [x] P1 컷오프 경계 narrow 19개와 Godot import·main scene smoke·manifest 통과
-- [ ] 권위 종단값 변경에 따른 전체·batch narrow 회귀 재실행 — 2026-08-24 장시간 무출력 대기로 수동 중단
+- [x] 권위 종단값 변경에 따른 P1 narrow 16과 P2 terminal 16×2 골든 이관 — 승인 참조 `P1-vmax20-cutoff-2026-08-24`, P3 AI narrow 통과
 - [ ] 저속 즉시 정산의 턴 템포와 KILL 존 인접 상황 사람 검수
 
 ### 3.1 P1-2 현재 작업 기록

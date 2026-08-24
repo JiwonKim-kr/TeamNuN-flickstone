@@ -413,8 +413,9 @@ manifest 변경은 `pipeline/scripts/manifest.py`의 지원 동작만 사용한�
 - 기존 P1 placeholder 3종의 P2 소비 지점은 `manifest.py add-requested-by`로만 등록했다. 이 명령은 성공·중복 멱등·없는 ID 파일 불변을 파이프라인 테스트로 고정했다.
 - 독립 Python positive/negative/boundary·canonical reorder 검사, Godot 16개 기능 그룹, 1,000회 3-public-transition 결정론이 통과했다.
 - `quick`은 두 프리셋의 seed 0과 snapshot 복원을 검사한다. `milestone`은 기본·stacked 각 16시드와 복원 대조, 체크인 골든 32행을 검사하며 전부 통과했다.
-- 기본 16시드는 모두 적 승리·5턴·1,644틱, stacked 16시드는 모두 적 승리·16턴·7,794틱으로 종료했다. seed별 terminal hash와 중간 snapshot 복원 결과가 일치했다.
+- 컷오프 이전 기준에서 기본 16시드는 모두 적 승리·5턴·1,644틱, stacked 16시드는 모두 적 승리·16턴·7,794틱으로 종료했다. seed별 terminal hash와 중간 snapshot 복원 결과가 일치했다.
 - Godot 4.6.3 `play_test.py`의 import·main scene smoke·manifest 3단계와 quick-profile `verify.py --full`이 통과했다. 통합 결과는 게이트 #1~4 PASS, lore 미초기화 #5 정상 SKIP, 자동 발견 러너 23종 PASS다.
+- 2026-08-24 `vmax <= 20` 권위 컷오프 승인 참조 `P1-vmax20-cutoff-2026-08-24`로 terminal 16×2 골든을 이관했다. default는 15턴·4,138틱, stacked는 7턴·1,060틱이며 snapshot 복원과 1,000회 전이 결정론이 통과했다.
 
 ## 2026-08-24 플레이테스트 보정 승인
 
