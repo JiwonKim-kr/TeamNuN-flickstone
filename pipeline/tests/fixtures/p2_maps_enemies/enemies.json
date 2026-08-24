@@ -1,1 +1,1 @@
-{"schema_version":1,"records":[{"numeric_id":1,"id":"enemy_stone","base_piece_ref":{"numeric_id":1,"id":"stone"},"override":{"max_hp":120,"attack":24,"radius_raw":2621440,"ability_refs":[]}}]}
+{"schema_version":2,"records":[{"numeric_id":1,"id":"enemy_stone","base_piece_ref":{"numeric_id":1,"id":"stone"},"ai_grade_id":1,"override":{"max_hp":120,"attack":24,"radius_raw":2621440,"ability_refs":[]}}]}

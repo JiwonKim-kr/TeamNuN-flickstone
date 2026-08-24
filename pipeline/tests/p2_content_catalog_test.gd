@@ -1,8 +1,8 @@
 extends SceneTree
 
-const RUNTIME_FINGERPRINT: String = "f721ffce47ff27324a92dd8c9564e75463113fd5adb10ee7ebb388889511cf0e"
-const VALID_A_FINGERPRINT: String = "9d40d7440be36d973cc8c40f5591930d76ebd58fe19fdeba16e085ea05930f94"
-const VALID_B_FINGERPRINT: String = "92fc32b17ce8af0fb4de28f27e66e6c3ba8c0e2dd5af0569fb70fac499548583"
+const RUNTIME_FINGERPRINT: String = "89340a848cea8b0ec2b688243a16945bb6e071d6f28e9948e6cefe04e0d011f3"
+const VALID_A_FINGERPRINT: String = "5dc9a82a0bbef912a2a52f21b268f606d2083cbb12726db3fea1f464fd027188"
+const VALID_B_FINGERPRINT: String = "c46593e4cb9bdb62178a1c71552a9de318a1d31aa098939d5c829f8628ea30f1"
 const FIXTURE_ROOT: String = "res://pipeline/tests/fixtures/p2_content_catalog"
 const DATA_DB_SCRIPT: Script = preload("res://src/core/autoload/data_db.gd")
 

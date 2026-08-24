@@ -197,6 +197,7 @@ static func encode(
 	for definition: EnemyDefinition in enemies:
 		writer.u32(definition.numeric_id()); writer.string_utf8(definition.string_id())
 		var base_ref: ContentIdRef = definition.base_piece_ref(); writer.u32(base_ref.numeric_id()); writer.string_utf8(base_ref.string_id())
+		writer.u16(definition.ai_grade_id())
 		var override_definition: EnemyOverrideDefinition = definition.override_definition(); var mask: int = override_definition.presence_mask(); writer.u16(mask)
 		if override_definition.has_value(EnemyOverrideDefinition.MAX_HP_BIT): writer.i64(override_definition.max_hp())
 		if override_definition.has_value(EnemyOverrideDefinition.ATTACK_BIT): writer.i64(override_definition.attack())

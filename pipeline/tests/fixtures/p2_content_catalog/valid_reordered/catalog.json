@@ -25,8 +25,8 @@
       "file_name": "synergies.json",
       "schema_version": 1
     },
-    {"schema_version": 1, "file_name": "enemies.json", "kind_id": 7},
+    {"schema_version": 2, "file_name": "enemies.json", "kind_id": 7},
     {"schema_version": 1, "file_name": "maps.json", "kind_id": 6}
   ],
-  "schema_version": 5
+  "schema_version": 6
 }

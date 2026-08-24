@@ -133,6 +133,7 @@ enum FieldId {
 	OBSTACLES = 87,
 	BASE_PIECE_REF = 88,
 	OVERRIDE = 89,
+	AI_GRADE_ID = 90,
 }
 
 var _code: int = Code.OK

@@ -3,24 +3,25 @@ extends RefCounted
 
 var _id_ref: ContentIdRef
 var _base_piece_ref: ContentIdRef
+var _ai_grade_id: int = AiGrade.Value.INVALID
 var _override: EnemyOverrideDefinition
 var _initialized: bool = false
 
 
-static func create(id_ref: ContentIdRef, base_piece_ref: ContentIdRef, override_definition: EnemyOverrideDefinition, status: ContentStatus) -> EnemyDefinition:
+static func create(id_ref: ContentIdRef, base_piece_ref: ContentIdRef, ai_grade_id: int, override_definition: EnemyOverrideDefinition, status: ContentStatus) -> EnemyDefinition:
 	var result := EnemyDefinition.new()
 	if not status.is_ok(): return result
-	if id_ref == null or not id_ref.is_initialized() or base_piece_ref == null or not base_piece_ref.is_initialized() or override_definition == null or not override_definition.is_initialized():
+	if id_ref == null or not id_ref.is_initialized() or base_piece_ref == null or not base_piece_ref.is_initialized() or not AiGrade.is_known(ai_grade_id) or override_definition == null or not override_definition.is_initialized():
 		status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.ENEMY_RESOLVE, ContentIds.DocumentKind.ENEMIES)
 		return result
-	result._id_ref = id_ref.copy(); result._base_piece_ref = base_piece_ref.copy(); result._override = override_definition.copy(); result._initialized = true
+	result._id_ref = id_ref.copy(); result._base_piece_ref = base_piece_ref.copy(); result._ai_grade_id = ai_grade_id; result._override = override_definition.copy(); result._initialized = true
 	return result
 
 
 func copy() -> EnemyDefinition:
 	if not _initialized: return EnemyDefinition.new()
 	var status := ContentStatus.new()
-	return create(_id_ref, _base_piece_ref, _override, status)
+	return create(_id_ref, _base_piece_ref, _ai_grade_id, _override, status)
 
 
 func resolved_level(catalog: ContentCatalog, status: ContentStatus) -> PieceLevelDefinition:
@@ -53,4 +54,5 @@ func is_initialized() -> bool: return _initialized
 func numeric_id() -> int: return 0 if not _initialized else _id_ref.numeric_id()
 func string_id() -> String: return "" if not _initialized else _id_ref.string_id()
 func base_piece_ref() -> ContentIdRef: return ContentIdRef.new() if not _initialized else _base_piece_ref.copy()
+func ai_grade_id() -> int: return _ai_grade_id
 func override_definition() -> EnemyOverrideDefinition: return EnemyOverrideDefinition.new() if not _initialized else _override.copy()

@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "pipeline" / "scripts"))
 from content_catalog import ContentError, load_catalog  # noqa: E402
 
 FIXTURE = ROOT / "pipeline" / "tests" / "fixtures" / "p2_maps_enemies"
-EXPECTED = "880b30f660e8355d7ff56bb8aa7ad64bef6fb726409f7f175725aa179b0edcea"
+EXPECTED = "bfd6731d08d5bee69487ad119f8d7482b7daf0f8224e58931028ffc963d76d31"
 
 
 def mutate(file_name: str, callback) -> tuple[bool, str]:

@@ -2,7 +2,7 @@ extends SceneTree
 
 const DATA_DB_SCRIPT: Script = preload("res://src/core/autoload/data_db.gd")
 const FIXTURE_ROOT: String = "res://pipeline/tests/fixtures/p2_dynamic_piece"
-const EXPECTED_FINGERPRINT: String = "989cc86f69e96d014cc32ef14dca8b223279f52979557d6a8495b46f4b1249a5"
+const EXPECTED_FINGERPRINT: String = "5cc5bf41088164b8f37c42cf03920dd0e85be54b4b420b94e3fb60b79b264a81"
 
 var failures: int = 0
 

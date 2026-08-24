@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P2 콘텐츠 기반 완료 — 다음 단계 P3 AI 명세** |
+| 현재 단계 | **P3 하이브리드 적 AI 자동 검증 완료 — 사람 플레이 검수 대기** |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -119,6 +119,11 @@
 - [x] P2-6 독립 Python·Godot 16개 기능 그룹·1,000회 제한 반복·16×2 terminal/snapshot 골든 통과
 - [x] P2-6 반영 Godot 4.6.3 quick `verify --full` — 게이트 #1~4 PASS, lore 미초기화 #5 정상 SKIP, 러너 23종 PASS
 - [x] P2-6 회색상자 사람 검수 — 능력/상태/시너지/적 재사용/KILL 표시·판정과 플레이테스트 보정 반영본 승인
+- [x] P3-A01~18 승인 뒤 전체 행동 복제 평가의 단일 후보 12.2초 병목 계측·충돌 기록
+- [x] P3-H01~06 하이브리드 대체안 승인 및 직접/1회 벽 반사 후보·정수 휴리스틱·등급 오차 구현
+- [x] enemies v2·catalog/fingerprint v6 이관, runtime 적 3종 COMMON 배정, 독립 Python 기준 검증 통과
+- [x] Godot 활성 P2/P3 narrow와 quick `verify --full`, P2-6 terminal 32행 골든 재생성
+- [ ] COMMON/ELITE/BOSS의 실수 폭과 벽 반사/KILL 활용 사람 플레이 검수
 
 ### 3.1 P1-2 현재 작업 기록
 
@@ -245,7 +250,14 @@
 - 마일스톤에서 기본 프리셋은 전 시드 적 승리·5턴·1,644틱, stacked는 전 시드 적 승리·16턴·7,794틱이었다. 1,000회 3-transition 결정론과 중간 snapshot 복원도 일치했다.
 - 사용자가 플레이테스트 보정 반영본을 직접 실행해 사람 검수 시나리오 1~7, 중심선 궤적 표시, 적 발사 최소 지연, RESOLVE 안전 표시, 좌측 HUD 배치를 승인했다. P2-6 및 P2 단계 완료 조건을 모두 충족했다.
 
-### 3.10 다음 작업 실행 명령
+### 3.10 P3 하이브리드 적 AI 구현 기록
+
+- 최초 승인안의 후보별 P2 전체 행동 복제는 단일 후보가 약 12,203ms여서 500ms 상한과 양립하지 않았다. 사용자가 승인한 P3-H01~06에 따라 직접 조준과 외곽 벽 1회 bank 후보를 정수 기하 휴리스틱으로 평가하고, 실제 피해·승패는 기존 P0~P2 권위 시뮬레이션이 계속 판정한다.
+- COMMON/ELITE/BOSS는 같은 원시 후보·평가식을 사용하고 `AI_SHOT_ERROR=3` 파생 RNG의 각도/파워 오차만 달라진다. 안전 가드는 위험한 오차를 세 번 축소한 뒤 최상 안전 후보로 복귀한다.
+- `enemies.json` v2의 필수 `ai_grade_id`, catalog/fingerprint v6을 도입했다. 현재 runtime 적 3종은 COMMON이며 fingerprint는 `89340a848cea8b0ec2b688243a16945bb6e071d6f28e9948e6cefe04e0d011f3`이다.
+- 독립 Python schema/fingerprint/등급 계약, Godot P3 narrow, P2-6 1,000회·16×2 terminal/snapshot 골든 이관, Godot 4.6.3 quick `verify --full`이 통과했다. 로컬 headless 선택은 약 302~336ms였다. 남은 P3 완료 조건은 COMMON/ELITE/BOSS 행동에 대한 사람 플레이 검수다.
+
+### 3.11 다음 작업 실행 명령
 
 Windows PowerShell에서 먼저 `$env:PYTHONUTF8='1'`을 설정한다.
 
@@ -275,6 +287,9 @@ python pipeline/tests/run_p2_maps_enemies_environment.py --godot pipeline/artifa
 # P2-6 콘텐츠 회색상자 narrow (일상 quick / 단계 종료 milestone)
 python pipeline/tests/run_p2_content_graybox.py --profile quick --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
 python pipeline/tests/run_p2_content_graybox.py --profile milestone --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
+
+# P3 하이브리드 적 AI narrow
+python pipeline/tests/run_p3_ai_shot_selection.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
 
 # P1-5 결정론 회귀
 python pipeline/tests/run_p1_batch_sim_graybox.py --mode narrow --jobs 4 --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe

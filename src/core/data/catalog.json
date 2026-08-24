@@ -1,5 +1,5 @@
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "documents": [
     {
       "kind_id": 1,
@@ -34,7 +34,7 @@
     {
       "kind_id": 7,
       "file_name": "enemies.json",
-      "schema_version": 1
+      "schema_version": 2
     }
   ]
 }

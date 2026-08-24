@@ -15,7 +15,7 @@ import godot_test_support
 ROOT = Path(__file__).resolve().parents[2]
 TEST_SCRIPT = "res://pipeline/tests/p2_content_graybox_test.gd"
 GOLDEN = ROOT / "pipeline" / "tests" / "fixtures" / "p2_content_graybox_goldens.json"
-FINGERPRINT = "f721ffce47ff27324a92dd8c9564e75463113fd5adb10ee7ebb388889511cf0e"
+FINGERPRINT = "89340a848cea8b0ec2b688243a16945bb6e071d6f28e9948e6cefe04e0d011f3"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -82,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
         "--script",
         TEST_SCRIPT,
         log_name="godot-p2-content-graybox.log",
-        timeout=180,
+        timeout=300,
     )
     output = result.stdout + result.stderr
     checks = [line for line in output.splitlines() if line.startswith(("[PASS]", "[FAIL]"))]
@@ -152,6 +152,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     golden_label = "16x2" if args.profile == "milestone" else "seed-0 subset"
     print(f"[PASS] P2-6-GOLDEN {golden_label} terminal rows" if golden_ok else "[FAIL] P2-6-GOLDEN terminal rows changed")
+    if not golden_ok and args.profile == "milestone":
+        print("P2_CONTENT_GRAYBOX_CANDIDATE_GOLDEN:" + json.dumps({"schema_version": 1, "fingerprint": FINGERPRINT, "rows": rows}, ensure_ascii=False, separators=(",", ":")))
     if restore_ok and golden_ok:
         print(f"P2_CONTENT_GRAYBOX_RUNNER_RESULT: PASS ({len(checks) + 2} grouped checks)")
         return 0

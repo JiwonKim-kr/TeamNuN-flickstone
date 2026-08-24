@@ -27,7 +27,7 @@ const TIER_KEYS: PackedStringArray = ["min_count", "modifiers"]
 const POINT_KEYS: PackedStringArray = ["x_raw", "y_raw"]
 const MAP_KEYS: PackedStringArray = ["numeric_id", "id", "boundary_type_id", "boundary_vertices", "deploy_count", "player_slots", "enemy_slots", "zones", "obstacles"]
 const MAP_ZONE_KEYS: PackedStringArray = ["local_id", "flags", "friction_multiplier_raw", "acceleration_x_raw", "acceleration_y_raw", "vertices"]
-const ENEMY_KEYS: PackedStringArray = ["numeric_id", "id", "base_piece_ref", "override"]
+const ENEMY_KEYS: PackedStringArray = ["numeric_id", "id", "base_piece_ref", "ai_grade_id", "override"]
 const ENEMY_OVERRIDE_KEYS: PackedStringArray = ["max_hp", "attack", "speed_stat", "mass_raw", "radius_raw", "friction_multiplier_raw", "critical_basis_points", "ability_refs"]
 
 
@@ -751,6 +751,8 @@ static func _parse_enemies(root: Dictionary, registry_by_numeric: Dictionary, re
 		var string_id: String = _string_field(record, "id", status, KIND, numeric_id, ContentStatus.FieldId.ID)
 		var entry: ContentRegistryEntry = _active_registry_pair(ContentIds.Namespace.ENEMY, numeric_id, string_id, registry_by_numeric, registry_by_string, status, KIND, ContentStatus.FieldId.ID)
 		var base_ref: ContentIdRef = _parse_ref_for_namespace(record["base_piece_ref"], ContentIds.Namespace.PIECE, KIND, numeric_id, ContentStatus.FieldId.BASE_PIECE_REF, registry_by_numeric, registry_by_string, piece_by_numeric, status)
+		var ai_grade_id: int = _int_field(record, "ai_grade_id", status, KIND, numeric_id, ContentStatus.FieldId.AI_GRADE_ID)
+		if not AiGrade.is_known(ai_grade_id): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.AI_GRADE_ID); return false
 		var override_value: Dictionary = _dictionary_field(record, "override", status, KIND, numeric_id, ContentStatus.FieldId.OVERRIDE)
 		if not status.is_ok(): return false
 		for key: Variant in override_value.keys():
@@ -782,7 +784,7 @@ static func _parse_enemies(root: Dictionary, registry_by_numeric: Dictionary, re
 			if status.is_ok(): status.fail(ContentStatus.Code.DUPLICATE_ID, ContentStatus.Operation.CATALOG_BUILD, KIND, numeric_id)
 			return false
 		var id_ref: ContentIdRef = ContentIdRef.create(entry.numeric_id(), entry.string_id(), status)
-		var definition: EnemyDefinition = EnemyDefinition.create(id_ref, base_ref, override_definition, status)
+		var definition: EnemyDefinition = EnemyDefinition.create(id_ref, base_ref, ai_grade_id, override_definition, status)
 		if not status.is_ok(): return false
 		output.append(definition); by_numeric[numeric_id] = definition; string_ids[string_id] = true
 	output.sort_custom(_enemy_less)

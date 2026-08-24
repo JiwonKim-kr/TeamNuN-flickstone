@@ -172,7 +172,9 @@ func _advance_noninteractive_phases() -> void:
 			if not _enemy_action_delay.is_ready(_state.current_actor_body_id(), Time.get_ticks_msec()):
 				return
 			_enemy_action_delay.consume()
-			var command: LaunchCommand = P1DeterministicShotSupplier.command_for(_state, _error)
+			var enemy_slot: int = _state.current_actor_body_id() - _map_definition.deploy_count() - 1
+			var grade_id: int = _enemy_definitions[enemy_slot % _enemy_definitions.size()].ai_grade_id()
+			var command: LaunchCommand = AiShotSelector.command_for(_state, grade_id, _error)
 			if _error.is_ok():
 				LaunchVelocitySolver.commit(_state, command, _error)
 				_resolve_content_transition()

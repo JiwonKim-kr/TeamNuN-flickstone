@@ -48,7 +48,7 @@ DOCUMENTS = {
     4: ("statuses.json", 1),
     5: ("synergies.json", 1),
     6: ("maps.json", 1),
-    7: ("enemies.json", 1),
+    7: ("enemies.json", 2),
 }
 
 
@@ -442,6 +442,7 @@ class EnemyDefinition:
     numeric_id: int
     string_id: str
     base_piece_ref: Ref
+    ai_grade_id: int
     override: EnemyOverride
 
 
@@ -491,8 +492,8 @@ def canonical_bytes(
 ) -> bytes:
     writer = Writer()
     writer.data += b"FLICKCAT"
-    writer.u16(5)
-    writer.u16(5)
+    writer.u16(6)
+    writer.u16(6)
     writer.u16(1)
     writer.u16(8)
     for namespace_id in range(1, 9):
@@ -660,13 +661,14 @@ def canonical_bytes(
                 writer.vec2(*vertex)
         writer.u32(0)
     writer.u16(7)
-    writer.u16(1)
+    writer.u16(2)
     writer.u32(len(enemies))
     for definition in enemies:
         writer.u32(definition.numeric_id)
         writer.string(definition.string_id)
         writer.u32(definition.base_piece_ref.numeric_id)
         writer.string(definition.base_piece_ref.string_id)
+        writer.u16(definition.ai_grade_id)
         writer.u16(definition.override.presence_mask)
         for index, value in enumerate(definition.override.values):
             if definition.override.presence_mask & (1 << index):
@@ -700,7 +702,7 @@ def load_catalog(root: Path) -> Catalog:
         raise ContentError("CATALOG_LIMIT:bytes")
 
     catalog = _exact(_load_file(root, "catalog.json"), {"schema_version", "documents"}, "catalog")
-    if _integer(catalog["schema_version"], "catalog.schema_version") != 5:
+    if _integer(catalog["schema_version"], "catalog.schema_version") != 6:
         raise ContentError("UNSUPPORTED_SCHEMA:catalog")
     documents = catalog["documents"]
     if not isinstance(documents, list) or len(documents) != 7:
@@ -1091,12 +1093,12 @@ def load_catalog(root: Path) -> Catalog:
     synergies.sort(key=lambda item: item.numeric_id)
 
     enemies_doc = _exact(_load_file(root, "enemies.json"), {"schema_version", "records"}, "enemies")
-    if _integer(enemies_doc["schema_version"], "enemies.schema_version") != 1 or not isinstance(enemies_doc["records"], list) or len(enemies_doc["records"]) > RECORD_MAX_COUNT:
+    if _integer(enemies_doc["schema_version"], "enemies.schema_version") != 2 or not isinstance(enemies_doc["records"], list) or len(enemies_doc["records"]) > RECORD_MAX_COUNT:
         raise ContentError("UNSUPPORTED_SCHEMA:enemies")
     enemies: list[EnemyDefinition] = []; enemy_ids: set[int] = set(); enemy_strings: set[str] = set()
     override_names = ("max_hp", "attack", "speed_stat", "mass_raw", "radius_raw", "friction_multiplier_raw", "critical_basis_points")
     for raw in enemies_doc["records"]:
-        item = _exact(raw, {"numeric_id", "id", "base_piece_ref", "override"}, "enemy")
+        item = _exact(raw, {"numeric_id", "id", "base_piece_ref", "ai_grade_id", "override"}, "enemy")
         numeric_id = _u32(item["numeric_id"], "enemy.numeric_id"); string_id = _string_id(item["id"], "enemy.id")
         active_pair(6, numeric_id, string_id)
         base_raw = _exact(item["base_piece_ref"], {"numeric_id", "id"}, "enemy.base_piece_ref")
@@ -1105,6 +1107,8 @@ def load_catalog(root: Path) -> Catalog:
         base_piece = piece_by_id.get(base_ref.numeric_id)
         if base_piece is None or base_piece.string_id != base_ref.string_id:
             raise ContentError("MISSING_REFERENCE:enemy.base_piece")
+        ai_grade_id = _integer(item["ai_grade_id"], "enemy.ai_grade_id")
+        if ai_grade_id not in (1, 2, 3): raise ContentError("INVALID_DOMAIN:enemy.ai_grade_id")
         override_raw = item["override"]
         if not isinstance(override_raw, dict) or not set(override_raw).issubset(set(override_names) | {"ability_refs"}):
             raise ContentError("KEY_SET:enemy.override")
@@ -1132,7 +1136,7 @@ def load_catalog(root: Path) -> Catalog:
             refs.sort(key=lambda ref: ref.numeric_id)
             if len({ref.numeric_id for ref in refs}) != len(refs): raise ContentError("DUPLICATE_ID:enemy.ability")
         if numeric_id in enemy_ids or string_id in enemy_strings: raise ContentError("DUPLICATE_ID:enemy")
-        enemies.append(EnemyDefinition(numeric_id, string_id, base_ref, EnemyOverride(mask, tuple(values), tuple(refs))))
+        enemies.append(EnemyDefinition(numeric_id, string_id, base_ref, ai_grade_id, EnemyOverride(mask, tuple(values), tuple(refs))))
         enemy_ids.add(numeric_id); enemy_strings.add(string_id)
     enemies.sort(key=lambda item: item.numeric_id)
 

@@ -40,15 +40,15 @@ const SYNERGIES_FILE: String = "synergies.json"
 const MAPS_FILE: String = "maps.json"
 const ENEMIES_FILE: String = "enemies.json"
 
-const CATALOG_SCHEMA_VERSION: int = 5
+const CATALOG_SCHEMA_VERSION: int = 6
 const REGISTRY_SCHEMA_VERSION: int = 1
 const PIECES_SCHEMA_VERSION: int = 3
 const ABILITIES_SCHEMA_VERSION: int = 5
 const STATUSES_SCHEMA_VERSION: int = 1
 const SYNERGIES_SCHEMA_VERSION: int = 1
 const MAPS_SCHEMA_VERSION: int = 1
-const ENEMIES_SCHEMA_VERSION: int = 1
-const FINGERPRINT_FORMAT_VERSION: int = 5
+const ENEMIES_SCHEMA_VERSION: int = 2
+const FINGERPRINT_FORMAT_VERSION: int = 6
 
 
 static func is_known_namespace(value: int) -> bool:

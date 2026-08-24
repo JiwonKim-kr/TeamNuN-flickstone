@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "pipeline" / "scripts"))
 from content_catalog import ContentError, load_catalog  # noqa: E402
 
 RUNTIME = ROOT / "src" / "core" / "data"
-EXPECTED_FINGERPRINT = "f721ffce47ff27324a92dd8c9564e75463113fd5adb10ee7ebb388889511cf0e"
+EXPECTED_FINGERPRINT = "89340a848cea8b0ec2b688243a16945bb6e071d6f28e9948e6cefe04e0d011f3"
 
 
 def mutate(file_name: str, callback) -> tuple[bool, str]:
