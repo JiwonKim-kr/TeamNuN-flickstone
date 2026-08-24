@@ -98,9 +98,9 @@ P2는 P1의 결정론적 전투 골격에 콘텐츠 정의, 능력 실행, 상�
 |---|---|---|---|
 | 1 | `p2_content_catalog.md` | approved · implemented · verified · 2026-08-23 | JSON I/O와 타입 검증, 안정 ID, 원자적 카탈로그, 콘텐츠 지문 |
 | 2 | [`p2_effect_resolution.md`](p2_effect_resolution.md) | **approved · implemented · verified** · 2026-08-23 | 트리거→능력→효과의 고정 순서, 조건·대상·기초 효과 원자, rollback |
-| 3 | [`p2_status_synergy_modifiers.md`](p2_status_synergy_modifiers.md) | **approved** · 2026-08-24 | 상태 수명, passive 재평가, 태그 계수, P1 계산 입력 modifier 결합 |
-| 4 | [`p2_dynamic_piece_mechanics.md`](p2_dynamic_piece_mechanics.md) | **approved** · 2026-08-24 | 런타임 생성·수명(`expire`), 변신 승계, 부착 링크와 구속 solver. 복사·존은 제외 |
-| 5 | `p2_maps_enemies_environment.md` | 미작성 | 맵·슬롯·존·적 override를 데이터에서 전투 fixture로 구성. `SPAWN_ZONE`·`SPAWN_OBSTACLE` 포함 |
+| 3 | [`p2_status_synergy_modifiers.md`](p2_status_synergy_modifiers.md) | **approved · implemented · verified** · 2026-08-24 | 상태 수명, passive 재평가, 태그 계수, P1 계산 입력 modifier 결합 |
+| 4 | [`p2_dynamic_piece_mechanics.md`](p2_dynamic_piece_mechanics.md) | **approved · implemented · verified** · 2026-08-24 | 런타임 생성·수명(`expire`), 변신 승계, 부착 링크와 구속 solver. 복사·존은 제외 |
+| 5 | [`p2_maps_enemies_environment.md`](p2_maps_enemies_environment.md) | **approved** · 2026-08-24 | 맵·슬롯·존·적 override와 `SPAWN_ZONE`. 정적 장애물·`SPAWN_OBSTACLE`은 U-03 뒤로 연기 |
 | 6 | `p2_content_graybox.md` | 미작성 | 승인된 최초 콘텐츠 패키지, data-only 신규 기물 증명, batch·수동 검수 |
 
 ```text
@@ -252,7 +252,7 @@ P2-2 첫 구현은 P1에서 승인된 아래 어휘만 사용한다.
 |---|---|---|
 | 기초 전투 | `DAMAGE`, `HEAL`, `KNOCKBACK`, `PULL`, `MODIFY_STAT`, `MODIFY_CT`, `MODIFY_VELOCITY`, `TELEPORT`, `SET_FLAG` | P2-2에서 입력·대상·반올림·실패 원자성 승인 |
 | 상태 | `APPLY_STATUS`, `REMOVE_STATUS` | P2-3 상태 수명·중첩 계약 승인 뒤 활성화 |
-| 월드 생성 | `SPAWN_ZONE`, `SPAWN_OBSTACLE` | **P2-5 소유로 확정.** 지원 가능한 P0 zone·body 형태만 승인 |
+| 월드 생성 | `SPAWN_ZONE`, `SPAWN_OBSTACLE` | `SPAWN_ZONE`은 승인된 P2-5 상세 명세 소유. `SPAWN_OBSTACLE`은 U-03 승인 전 loader 거부 유지 |
 | 동적 기물 | `SPAWN_PROJECTILE`, `SPAWN_PIECE`, `TRANSFORM_PIECE`, `ATTACH` | **P2-D01~27로 승인 완료.** exact payload·ID·binding·수명·snapshot 단일 정본·충돌 계약 확정 |
 | 행동·입력 | `EXTRA_LAUNCH`, `CONSTRAIN_AIM`, `MID_FLIGHT_INPUT` | CTB·LaunchCommand·리플레이·P3 탐색 영향 별도 승인 필요 |
 | 복사·무적 | `COPY_ABILITY`, `SET_INVULNERABLE` | U-12·U-20 선결 승인 필요 |
@@ -294,11 +294,11 @@ P2-2 첫 구현은 P1에서 승인된 아래 어휘만 사용한다.
 
 ### 적 재사용
 
-- 적 정의는 `base_piece_id`로 플레이어 기물 원형을 참조한다.
+- 적 정의는 numeric/string pair인 `base_piece_ref`로 플레이어 기물 원형을 참조한다.
 - override 허용 필드는 하위 명세에서 whitelist로 고정한다. unknown override는 실패다.
 - 능력을 그대로 재사용하는 것이 기본이며, 약화·비활성화는 명시적 ability override로만 허용한다.
 - `ai_grade`와 `ai_profile`의 의미·값은 P3/U-10 소유다. P2가 임의 등급을 만들지 않는다.
-- 설계 정본에서 적 풀 제외가 확정된 5종은 일반 적 데이터로 로드하지 않는다.
+- enemy record 존재는 적 원형 정의일 뿐 일반 적 풀 편입을 뜻하지 않는다. 정본의 일반 풀 제외와 이벤트 예외는 P2-6·후속 encounter 계층이 각각 검증한다.
 
 ### 맵과 환경
 
@@ -307,7 +307,7 @@ P2-2 첫 구현은 P1에서 승인된 아래 어휘만 사용한다.
 - 슬롯은 zone/경계 위험 내부, 벽 접촉, 상호 겹침이면 로드 실패다.
 - `deploy_count`는 player/enemy 슬롯 수와 D-03의 3~5 범위를 함께 검증한다.
 - U-01·02 승인 전 production 맵 목록이나 빙판·모래·독·용암 수치를 만들지 않는다.
-- U-03 승인 전 새 정적 장애물 충돌형을 추가하지 않는다. 기존 중립 `SimBody`로 표현 가능한 시험 장애물은 P2-4 승인 범위에서만 사용한다.
+- U-03 승인 전 새 정적 장애물 충돌형을 추가하지 않는다. P2-5 maps v1의 `obstacles`는 예약 필드로 두되 빈 배열만 허용하며, 기존 중립 `SPAWN_PIECE`를 정적 장애물 별칭으로 해석하지 않는다.
 
 ## 결정론·RNG·원자성
 
@@ -436,16 +436,17 @@ pipeline/tests/fixtures/p2_*.json
 11. 같은 player piece를 참조한 enemy override가 허용 필드만 바꾸고 능력 규칙은 재사용한다.
 12. 승인된 map JSON만으로 경계·슬롯·존이 구성되며 잘못된 polygon·겹친 슬롯·위험 영역 슬롯은 로드 실패다.
 13. 벽, 소멸 경계·존, 마찰·가속 존이 P0와 같은 판정·정렬을 사용한다.
+14. 설치 존 수명은 BattleSnapshot v7에 저장되고 legacy v1~6 restore와 P0 SimSnapshot v2 불변을 함께 검증한다.
 
 ### P2-6 · 단계 완료
 
-14. 승인된 효과 원자만 조합한 새 시험 기물을 JSON과 필요한 manifest 에셋만 추가해 회색상자 전투에 투입한다. 이 검증에서 `src/core/` 변경은 0개다.
-15. 최초 콘텐츠 패키지의 각 능력·상태·시너지·맵 요소가 최소 하나의 positive/negative/boundary fixture를 가진다.
-16. 동일 seed·content fingerprint·입력의 1,000회 반복, record 순서 교란, snapshot 복원이 같은 결과와 상태 해시를 낸다.
-17. P0·P1 narrow와 신규 P2 narrow가 통과하고 Godot 활성 `pipeline/scripts/verify.py --full`이 통과한다.
-18. P2 회색상자에서 사람이 능력 발동 시점, 상태 표시, 시너지 변화, 적 재사용, 맵 위험 표시를 검수한다.
+15. 승인된 효과 원자만 조합한 새 시험 기물을 JSON과 필요한 manifest 에셋만 추가해 회색상자 전투에 투입한다. 이 검증에서 `src/core/` 변경은 0개다.
+16. 최초 콘텐츠 패키지의 각 능력·상태·시너지·맵 요소가 최소 하나의 positive/negative/boundary fixture를 가진다.
+17. 동일 seed·content fingerprint·입력의 1,000회 반복, record 순서 교란, snapshot 복원이 같은 결과와 상태 해시를 낸다.
+18. P0·P1 narrow와 신규 P2 narrow가 통과하고 Godot 활성 `pipeline/scripts/verify.py --full`이 통과한다.
+19. P2 회색상자에서 사람이 능력 발동 시점, 상태 표시, 시너지 변화, 적 재사용, 맵 위험 표시를 검수한다.
 
-P2 완료는 수용 기준 1~18과 모든 하위 명세의 승인·구현·검증을 요구한다. 특정 승률이나 최종 콘텐츠 밸런스는 P6 범위다.
+P2 완료는 수용 기준 1~19와 모든 하위 명세의 승인·구현·검증을 요구한다. 특정 승률이나 최종 콘텐츠 밸런스는 P6 범위다.
 
 ## 승인 결정 목록 — 승인 완료
 
@@ -481,3 +482,5 @@ P2 완료는 수용 기준 1~18과 모든 하위 명세의 승인·구현·검�
 P2 전체 구조와 P2-A01~11은 2026-08-23 승인되었다. P2-1은 같은 날 별도 상세 승인 뒤 구현·검증을 완료했다. 하위 명세는 각각 `draft → approved` 절차를 거치며, 하위 명세 승인 전에는 해당 핵심 구현을 시작하지 않는다.
 
 P2-2 `p2_effect_resolution.md`의 P2-E01~12 승인 범위에서 schema v2, typed 실행 정의, binding, 6개 원자, next-wave, 원자적 resolver, BattleSnapshot v4, wave/record/invocation/application/selector 전 한도와 1,000회 반복 검증을 완료했다. P2-3 `p2_status_synergy_modifiers.md`의 P2-S01~20도 2026-08-24 승인 범위에서 catalog v3, 상태 수명, 동결 시너지 tally, modifier 집계, 세 원자, CTB·피해·물리 연결, BattleSnapshot v5와 전 한도·rollback·1,000회 결정론을 구현하고 Godot 4.6.3 `verify --full` 러너 20종으로 검증했다. P2-4 `p2_dynamic_piece_mechanics.md`의 P2-D01~27도 같은 날 승인 범위에서 catalog v4, 4개 동적 원자, runtime token·수명, 결정론 링크 solver, 변신 승계, 원자적 rollback, BattleSnapshot v6·SimSnapshot v2를 구현했다. 독립 schema/fingerprint와 29개 grouped check, snapshot 복원 1,000회, Godot 4.6.3 `verify --full` 러너 21종을 통과했다. 개별 기물 수치와 복사·무적·상태 세부는 명시된 후속 명세 승인까지 미정으로 유지한다.
+
+P2-5 `p2_maps_enemies_environment.md`의 P2-M01~21은 2026-08-24 전체 승인되었다. 정적 장애물 연기, 카탈로그 최대 반지름 슬롯 검사, 미래 장애물 → player → enemy ID 순서, BattleSnapshot v7을 구현 기준선으로 사용한다.
