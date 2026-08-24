@@ -1,4 +1,108 @@
 {
   "schema_version": 3,
-  "records": []
+  "records": [
+    {
+      "numeric_id": 1,
+      "id": "baduk_stone",
+      "flags": {
+        "has_turn": true,
+        "destructible": true,
+        "transformable": true,
+        "counts_for_victory": true,
+        "is_token": false
+      },
+      "spawnable": false,
+      "spawn_faction_mode_id": 1,
+      "expire_kind_id": 1,
+      "expire_value": 0,
+      "attach_anchor_mode_id": 1,
+      "attach_anchor_offset_x_raw": 0,
+      "attach_anchor_offset_y_raw": 0,
+      "tag_refs": [],
+      "levels": [
+        {
+          "level": 1,
+          "max_hp": 100,
+          "attack": 20,
+          "speed_stat": 100,
+          "mass_raw": 4194304,
+          "radius_raw": 2097152,
+          "friction_multiplier_raw": 65536,
+          "critical_basis_points": 0,
+          "ability_refs": []
+        }
+      ]
+    },
+    {
+      "numeric_id": 2,
+      "id": "bottle_cap",
+      "flags": {
+        "has_turn": true,
+        "destructible": true,
+        "transformable": true,
+        "counts_for_victory": true,
+        "is_token": false
+      },
+      "spawnable": false,
+      "spawn_faction_mode_id": 1,
+      "expire_kind_id": 1,
+      "expire_value": 0,
+      "attach_anchor_mode_id": 1,
+      "attach_anchor_offset_x_raw": 0,
+      "attach_anchor_offset_y_raw": 0,
+      "tag_refs": [
+        {"numeric_id": 1, "id": "destruction"},
+        {"numeric_id": 2, "id": "steel"}
+      ],
+      "levels": [
+        {
+          "level": 1,
+          "max_hp": 90,
+          "attack": 24,
+          "speed_stat": 100,
+          "mass_raw": 3670016,
+          "radius_raw": 2097152,
+          "friction_multiplier_raw": 65536,
+          "critical_basis_points": 0,
+          "ability_refs": []
+        }
+      ]
+    },
+    {
+      "numeric_id": 3,
+      "id": "graybox_striker",
+      "flags": {
+        "has_turn": true,
+        "destructible": true,
+        "transformable": true,
+        "counts_for_victory": true,
+        "is_token": false
+      },
+      "spawnable": false,
+      "spawn_faction_mode_id": 1,
+      "expire_kind_id": 1,
+      "expire_value": 0,
+      "attach_anchor_mode_id": 1,
+      "attach_anchor_offset_x_raw": 0,
+      "attach_anchor_offset_y_raw": 0,
+      "tag_refs": [
+        {"numeric_id": 1, "id": "destruction"}
+      ],
+      "levels": [
+        {
+          "level": 1,
+          "max_hp": 100,
+          "attack": 20,
+          "speed_stat": 100,
+          "mass_raw": 4194304,
+          "radius_raw": 2097152,
+          "friction_multiplier_raw": 65536,
+          "critical_basis_points": 0,
+          "ability_refs": [
+            {"numeric_id": 1, "id": "graybox_opening_haste"}
+          ]
+        }
+      ]
+    }
+  ]
 }

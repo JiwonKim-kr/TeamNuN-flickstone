@@ -101,7 +101,7 @@ P2는 P1의 결정론적 전투 골격에 콘텐츠 정의, 능력 실행, 상�
 | 3 | [`p2_status_synergy_modifiers.md`](p2_status_synergy_modifiers.md) | **approved · implemented · verified** · 2026-08-24 | 상태 수명, passive 재평가, 태그 계수, P1 계산 입력 modifier 결합 |
 | 4 | [`p2_dynamic_piece_mechanics.md`](p2_dynamic_piece_mechanics.md) | **approved · implemented · verified** · 2026-08-24 | 런타임 생성·수명(`expire`), 변신 승계, 부착 링크와 구속 solver. 복사·존은 제외 |
 | 5 | [`p2_maps_enemies_environment.md`](p2_maps_enemies_environment.md) | **approved · implemented · verified** · 2026-08-24 | 맵·슬롯·존·적 override와 `SPAWN_ZONE`. 정적 장애물·`SPAWN_OBSTACLE`은 U-03 뒤로 연기 |
-| 6 | [`p2_content_graybox.md`](p2_content_graybox.md) | **approved** · 2026-08-24 | 승인된 최초 콘텐츠 패키지, data-only 신규 기물 증명, batch·수동 검수 |
+| 6 | [`p2_content_graybox.md`](p2_content_graybox.md) | **approved · implemented · automated verified · human review pending** · 2026-08-24 | 승인된 최초 콘텐츠 패키지, data-only 신규 기물 증명, batch·수동 검수 |
 
 ```text
 P2-1 콘텐츠 카탈로그
@@ -484,3 +484,5 @@ P2 전체 구조와 P2-A01~11은 2026-08-23 승인되었다. P2-1은 같은 날 
 P2-2 `p2_effect_resolution.md`의 P2-E01~12 승인 범위에서 schema v2, typed 실행 정의, binding, 6개 원자, next-wave, 원자적 resolver, BattleSnapshot v4, wave/record/invocation/application/selector 전 한도와 1,000회 반복 검증을 완료했다. P2-3 `p2_status_synergy_modifiers.md`의 P2-S01~20도 2026-08-24 승인 범위에서 catalog v3, 상태 수명, 동결 시너지 tally, modifier 집계, 세 원자, CTB·피해·물리 연결, BattleSnapshot v5와 전 한도·rollback·1,000회 결정론을 구현하고 Godot 4.6.3 `verify --full` 러너 20종으로 검증했다. P2-4 `p2_dynamic_piece_mechanics.md`의 P2-D01~27도 같은 날 승인 범위에서 catalog v4, 4개 동적 원자, runtime token·수명, 결정론 링크 solver, 변신 승계, 원자적 rollback, BattleSnapshot v6·SimSnapshot v2를 구현했다. 독립 schema/fingerprint와 29개 grouped check, snapshot 복원 1,000회, Godot 4.6.3 `verify --full` 러너 21종을 통과했다. 개별 기물 수치와 복사·무적·상태 세부는 명시된 후속 명세 승인까지 미정으로 유지한다.
 
 P2-5 `p2_maps_enemies_environment.md`의 P2-M01~21은 2026-08-24 전체 승인되었다. 정적 장애물 연기, 카탈로그 최대 반지름 슬롯 검사, 미래 장애물 → player → enemy ID 순서, BattleSnapshot v7을 구현 기준선으로 사용한다.
+
+P2-6 `p2_content_graybox.md`의 P2-G01~16도 2026-08-24 승인 범위에서 구현·자동 검증을 완료했다. 최초 non-empty runtime 패키지의 canonical fingerprint는 `f721ffce47ff27324a92dd8c9564e75463113fd5adb10ee7ebb388889511cf0e`이며, core GDScript 변경 없이 generic 전투 어댑터와 플레이 가능한 세로 회색상자를 연결했다. 1,000회 제한 반복, 기본·stacked 16×2 terminal 골든, snapshot 복원, Godot 4.6.3 활성 `verify --full` 러너 23종이 통과했다. P2 전체 완료 판정에는 `p2_content_graybox.md`의 사람 검수 시나리오 1~7 승인이 남아 있다.

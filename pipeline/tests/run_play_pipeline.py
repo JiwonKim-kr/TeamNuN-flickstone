@@ -5,7 +5,7 @@ Phase 1 의 run_lore_roundtrip.py 와 같은 스타일(단일 파일·번호 섹
 
   [1] manifest 스키마 검증  : valid fixture 통과 / 각 invalid fixture 가
                               의도한 error code 로 검출되는지 확인.
-  [2] manifest 쓰기 창구    : 임시 사본에 add/update-status/list 를 실행.
+  [2] manifest 쓰기 창구    : 임시 사본에 add/add-requested-by/update-status/list 를 실행.
                               중복 ID·잘못된 ID 는 검증 실패로 '쓰이지 않음' 확인.
   [3] play_test 정합성 로직 : run_manifest_integrity 가 파일 누락을 잡고,
                               파일이 존재하면 통과하는지 확인.
@@ -92,7 +92,7 @@ def section_schema_validation() -> None:
 
 
 def section_write_gateway() -> None:
-    print("\n[2] manifest 쓰기 창구 (add / update-status / list, 임시 사본)")
+    print("\n[2] manifest 쓰기 창구 (add / add-requested-by / update-status / list, 임시 사본)")
     with tempfile.TemporaryDirectory() as td:
         mpath = Path(td) / "manifest.json"
         shutil.copy(FX / "valid_manifest.json", mpath)
@@ -131,6 +131,27 @@ def section_write_gateway() -> None:
         check("잘못된 ID add 실패 (exit 1)", r.returncode == 1)
         entries = json.loads(_manifest(mpath, "list", "--json").stdout)
         check("잘못된 add 후에도 entry 3개 (쓰이지 않음)", len(entries) == 3)
+
+        # 기존 entry requested_by 추가 + 중복 호출 멱등성
+        request = "scene_node:scenes/p2_content_graybox.tscn::Battlefield/Pieces"
+        r = _manifest(
+            mpath, "add-requested-by",
+            "--id", "art:player/player_idle", "--requested-by", request,
+        )
+        check("add-requested-by 성공 (exit 0)", r.returncode == 0)
+        r_repeat = _manifest(
+            mpath, "add-requested-by",
+            "--id", "art:player/player_idle", "--requested-by", request,
+        )
+        entries = json.loads(_manifest(mpath, "list", "--json").stdout)
+        player = next((e for e in entries if e["id"] == "art:player/player_idle"), None)
+        check("add-requested-by 중복 호출 멱등", r_repeat.returncode == 0 and player is not None and len(player["requested_by"]) == 2)
+        before_missing = mpath.read_bytes()
+        r = _manifest(
+            mpath, "add-requested-by",
+            "--id", "art:missing", "--requested-by", request,
+        )
+        check("없는 ID add-requested-by 실패·파일 불변", r.returncode == 2 and mpath.read_bytes() == before_missing)
 
         # update-status
         r = _manifest(

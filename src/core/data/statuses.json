@@ -1,4 +1,24 @@
 {
   "schema_version": 1,
-  "records": []
+  "records": [
+    {
+      "numeric_id": 1,
+      "id": "graybox_haste",
+      "stack_policy_id": 1,
+      "max_stacks": 1,
+      "duration_kind_id": 1,
+      "default_duration": 1,
+      "max_duration": 1,
+      "refresh_policy_id": 4,
+      "merge_sources": true,
+      "modifiers": [
+        {
+          "kind_id": 2,
+          "operation_id": 1,
+          "value_mode_id": 1,
+          "value": 25
+        }
+      ]
+    }
+  ]
 }

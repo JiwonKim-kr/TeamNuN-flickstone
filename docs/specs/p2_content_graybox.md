@@ -7,7 +7,7 @@
 | 승인 | 2026-08-24 · 사용자 P2-G01~16 전체 승인 |
 | 선행 단계 | P2-1~5 승인·구현·검증 완료 |
 | 구현 권한 | **있음. P2-G01~16 승인 범위** |
-| 구현 상태 | 미착수 |
+| 구현 상태 | **구현·자동 검증 완료 · 사람 플레이 검수 대기** |
 
 ## 목적
 
@@ -316,7 +316,7 @@ P2-G15의 1,000회 검증 단위는 다음처럼 제한한다.
 9. snapshot 중간 복원 전후 terminal result·turn·tick·hash가 같다.
 10. `src/core/` diff가 0개이며 scene/controller/test가 string ID별 전투 동작을 하드코딩하지 않는다.
 11. P0·P1 관련 narrow, P2-1~6 narrow가 통과한다.
-12. 구현 반복 중에는 `FLICKSTONE_P0_REGRESSION_PROFILE=quick` + Godot 활성 `verify.py --full`을 사용하고, P2 단계 종료 기록에는 P2-6 자체 1,000회 결과를 남긴다. P0 exhaustive 1,000-case는 milestone/CI gate로 유지한다.
+12. 구현 반복 중에는 `P0_ALLOW_QUICK=1`, `P0_REPEAT_COUNT=20`, `P0_PERMUTATION_COUNT=3`, `FLICKSTONE_P2_CONTENT_PROFILE=quick` + Godot 활성 `verify.py --full`을 사용한다. P2 단계 종료 기록에는 P2-6 자체 1,000회와 `--profile milestone` 16×2 결과를 남긴다. P0 exhaustive 1,000-case는 milestone/CI gate로 유지한다.
 13. main scene smoke와 manifest 정합성이 통과한다.
 14. 사람이 아래 검수 시나리오를 승인한다.
 
@@ -337,6 +337,7 @@ P2-G15의 1,000회 검증 단위는 다음처럼 제한한다.
 ```text
 docs/specs/p2_content_graybox.md
 scenes/p2_content_graybox.tscn
+src/ui/battle/p2_content_battle_driver.gd
 src/ui/battle/p2_content_graybox.gd
 pipeline/tests/p2_content_graybox_test.gd
 pipeline/tests/run_p2_content_graybox.py
@@ -364,7 +365,7 @@ pipeline/manifest.json     # manifest.py만 사용
 ### 변경 금지
 
 ```text
-src/core/**
+src/core/**/*.gd           # 승인된 runtime JSON은 위 수정 목록에 포함
 assets/art/**              # 기존 placeholder 파일 재사용
 project.godot
 ```
@@ -402,3 +403,15 @@ manifest 변경은 `pipeline/scripts/manifest.py`의 지원 동작만 사용한�
 3. P2-6 1,000회는 3 public transition 반복으로 제한하고 terminal은 16 seed로 분리한다.
 
 이 승인으로 runtime JSON, scene, manifest, test code 구현 권한이 열렸다. 구현 중 `src/core/` 변경 필요가 발견되면 P2-G16에 따라 중단하고 다시 승인받는다.
+
+## 구현·자동 검증 기록
+
+2026-08-24 승인 범위의 구현과 자동 검증을 완료했다. 사람 플레이 검수 시나리오 1~7은 아직 별도 승인 대기다.
+
+- runtime 8개 JSON에 정식 `baduk_stone`, `bottle_cap`, 검증 전용 `graybox_striker`, 능력·상태 각 1종, 시너지 2종, 적 3종, 맵 1종을 등록했다. canonical fingerprint는 `f721ffce47ff27324a92dd8c9564e75463113fd5adb10ee7ebb388889511cf0e`다.
+- `BattleSetupBuilder`와 기존 P2 resolver를 합성하는 generic UI 전투 어댑터 및 세로형 P2 회색상자를 추가했다. 콘텐츠 문자열 ID별 분기와 `src/core/**/*.gd` 변경은 0개다.
+- 기존 P1 placeholder 3종의 P2 소비 지점은 `manifest.py add-requested-by`로만 등록했다. 이 명령은 성공·중복 멱등·없는 ID 파일 불변을 파이프라인 테스트로 고정했다.
+- 독립 Python positive/negative/boundary·canonical reorder 검사, Godot 16개 기능 그룹, 1,000회 3-public-transition 결정론이 통과했다.
+- `quick`은 두 프리셋의 seed 0과 snapshot 복원을 검사한다. `milestone`은 기본·stacked 각 16시드와 복원 대조, 체크인 골든 32행을 검사하며 전부 통과했다.
+- 기본 16시드는 모두 적 승리·5턴·1,644틱, stacked 16시드는 모두 적 승리·16턴·7,794틱으로 종료했다. seed별 terminal hash와 중간 snapshot 복원 결과가 일치했다.
+- Godot 4.6.3 `play_test.py`의 import·main scene smoke·manifest 3단계와 quick-profile `verify.py --full`이 통과했다. 통합 결과는 게이트 #1~4 PASS, lore 미초기화 #5 정상 SKIP, 자동 발견 러너 23종 PASS다.

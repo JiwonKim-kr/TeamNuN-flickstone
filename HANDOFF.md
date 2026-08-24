@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P2-5 맵·적·환경 구현·검증 완료 — 다음 P2-6 콘텐츠 회색상자 명세 준비** |
+| 현재 단계 | **P2-6 콘텐츠 회색상자 구현·자동 검증 완료 — 사람 플레이 검수 대기** |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -115,6 +115,10 @@
 - [x] P2-5 `BattleSetupBuilder`, 결정론적 초기 body/zone ID, `SPAWN_ZONE` 수명·rollback, BattleSnapshot v7 구현
 - [x] P2-5 독립 Python KAT와 Godot narrow 18개 그룹·1,000회 결정론, P1-5 v7 terminal golden 이관 완료
 - [x] P2-5 반영 Godot 4.6.3 `verify --full` — 게이트 #1~4 PASS, lore 미초기화 #5 정상 SKIP, 러너 22종 PASS
+- [x] P2-6 최초 non-empty runtime 콘텐츠와 generic 세로 회색상자 구현 — core GDScript 변경 0개
+- [x] P2-6 독립 Python·Godot 16개 기능 그룹·1,000회 제한 반복·16×2 terminal/snapshot 골든 통과
+- [x] P2-6 반영 Godot 4.6.3 quick `verify --full` — 게이트 #1~4 PASS, lore 미초기화 #5 정상 SKIP, 러너 23종 PASS
+- [ ] P2-6 회색상자 사람 검수 — 능력/상태/시너지/적 재사용/KILL 표시·판정 확인
 
 ### 3.1 P1-2 현재 작업 기록
 
@@ -231,7 +235,17 @@
 - fixture fingerprint는 `880b30f660e8355d7ff56bb8aa7ad64bef6fb726409f7f175725aa179b0edcea`다. runtime maps/enemies records는 비어 있으며 정적 장애물은 U-03 승인 전까지 거부한다.
 - P1-5 terminal 결과·20턴·10,699틱은 유지되며 v7 terminal hash는 `8e822066ae3c4b2fb9ad817cf543db4e8e0f7a7eb4e14018cb99f971b935c0ac`다.
 
-### 3.9 다음 작업 실행 명령
+### 3.9 P2-6 콘텐츠 회색상자 구현 기록
+
+- runtime catalog에 `baduk_stone`, `bottle_cap`, P4 명시적 풀 전용 `graybox_striker`, 능력·상태 각 1종, 시너지 2종, 적 3종, KILL 존 맵 1종을 등록했다. canonical fingerprint는 `f721ffce47ff27324a92dd8c9564e75463113fd5adb10ee7ebb388889511cf0e`다.
+- `P2ContentBattleDriver`는 `BattleState`의 각 public transition 직후 기존 `EffectResolver`를 호출하는 generic 합성 경계다. `src/core/**/*.gd`를 바꾸거나 콘텐츠 문자열 ID별 동작을 넣지 않았다.
+- `p2_content_graybox.tscn`은 map JSON의 WALL·3+3 슬롯·KILL 존을 세로 화면에 표시하고, player 슬롯 기물 순환·drag launch·비동기 궤적·enemy deterministic shot·상태/시너지/CTB 표시를 제공한다.
+- 기존 P1 placeholder 3종만 재사용했고 P2 `requested_by`는 `manifest.py add-requested-by`로 등록했다. 신규 art/SE 파일은 없다.
+- 기본 검증 프로필은 두 프리셋 seed 0과 snapshot 복원만 실행한다. `--profile milestone`은 기본·stacked 각 16시드 전체와 체크인 골든 32행을 검사한다.
+- 마일스톤에서 기본 프리셋은 전 시드 적 승리·5턴·1,644틱, stacked는 전 시드 적 승리·16턴·7,794틱이었다. 1,000회 3-transition 결정론과 중간 snapshot 복원도 일치했다.
+- 자동 수용은 완료됐지만 P2 단계 종료에는 `docs/specs/p2_content_graybox.md` 사람 검수 시나리오 1~7의 사용자 승인이 남아 있다.
+
+### 3.10 다음 작업 실행 명령
 
 Windows PowerShell에서 먼저 `$env:PYTHONUTF8='1'`을 설정한다.
 
@@ -257,6 +271,10 @@ python pipeline/tests/run_p2_dynamic_piece_mechanics.py --godot pipeline/artifac
 
 # P2-5 맵·적·환경 narrow
 python pipeline/tests/run_p2_maps_enemies_environment.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
+
+# P2-6 콘텐츠 회색상자 narrow (일상 quick / 단계 종료 milestone)
+python pipeline/tests/run_p2_content_graybox.py --profile quick --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
+python pipeline/tests/run_p2_content_graybox.py --profile milestone --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
 
 # P1-5 결정론 회귀
 python pipeline/tests/run_p1_batch_sim_graybox.py --mode narrow --jobs 4 --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe

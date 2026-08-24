@@ -1,6 +1,6 @@
 extends SceneTree
 
-const EMPTY_FINGERPRINT: String = "88953e8dc98f867afd50efef198217253779ef90c22d4279eed125b9343884e6"
+const RUNTIME_FINGERPRINT: String = "f721ffce47ff27324a92dd8c9564e75463113fd5adb10ee7ebb388889511cf0e"
 const VALID_A_FINGERPRINT: String = "9d40d7440be36d973cc8c40f5591930d76ebd58fe19fdeba16e085ea05930f94"
 const VALID_B_FINGERPRINT: String = "92fc32b17ce8af0fb4de28f27e66e6c3ba8c0e2dd5af0569fb70fac499548583"
 const FIXTURE_ROOT: String = "res://pipeline/tests/fixtures/p2_content_catalog"
@@ -83,15 +83,16 @@ func _test_default_catalog() -> void:
 	var loaded: bool = bool(_data_db.call("reload_catalog", "res://src/core/data", status))
 	var catalog: ContentCatalog = _data_db.call("catalog_copy", status) as ContentCatalog
 	_check(
-		"P2-1-C09-DEFAULT-EMPTY-CATALOG-001",
+		"P2-1-C09-DEFAULT-RUNTIME-CATALOG-001",
 		loaded and status.is_ok()
 		and bool(_data_db.call("is_ready"))
 		and catalog.is_initialized()
-		and catalog.piece_count() == 0
-		and catalog.ability_count() == 0
-		and catalog.status_count() == 0 and catalog.synergy_count() == 0
-		and catalog.registry_entry_count() == 0
-		and catalog.fingerprint_hex() == EMPTY_FINGERPRINT
+		and catalog.piece_count() == 3
+		and catalog.ability_count() == 1
+		and catalog.status_count() == 1 and catalog.synergy_count() == 2
+		and catalog.map_count() == 1 and catalog.enemy_count() == 3
+		and catalog.registry_entry_count() == 13
+		and catalog.fingerprint_hex() == RUNTIME_FINGERPRINT
 	)
 
 
@@ -196,7 +197,7 @@ func _test_repeatability() -> void:
 	_check("P2-1-C07-REPEAT-1000-001", all_equal)
 	var restore_status := ContentStatus.new()
 	_data_db.call("reload_catalog", "res://src/core/data", restore_status)
-	_check("P2-1-C12-RESTORE-EMPTY-001", restore_status.is_ok() and String(_data_db.call("fingerprint_hex", restore_status)) == EMPTY_FINGERPRINT)
+	_check("P2-1-C12-RESTORE-RUNTIME-001", restore_status.is_ok() and String(_data_db.call("fingerprint_hex", restore_status)) == RUNTIME_FINGERPRINT)
 
 
 func _init() -> void:

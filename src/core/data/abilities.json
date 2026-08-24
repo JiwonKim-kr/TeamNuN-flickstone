@@ -1,4 +1,24 @@
 {
   "schema_version": 5,
-  "records": []
+  "records": [
+    {
+      "numeric_id": 1,
+      "id": "graybox_opening_haste",
+      "trigger_id": 2,
+      "conditions": [],
+      "effects": [
+        {
+          "kind_id": 10,
+          "selector": {
+            "kind_id": 1,
+            "relation_id": 0,
+            "limit": 0
+          },
+          "value_a": 1,
+          "value_b": 1,
+          "operation_id": 0
+        }
+      ]
+    }
+  ]
 }

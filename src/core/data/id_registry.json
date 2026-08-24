@@ -1,13 +1,54 @@
 {
   "schema_version": 1,
   "namespaces": [
-    {"namespace_id": 1, "entries": []},
-    {"namespace_id": 2, "entries": []},
-    {"namespace_id": 3, "entries": []},
-    {"namespace_id": 4, "entries": []},
+    {
+      "namespace_id": 1,
+      "entries": [
+        {"numeric_id": 1, "id": "baduk_stone", "state_id": 1},
+        {"numeric_id": 2, "id": "bottle_cap", "state_id": 1},
+        {"numeric_id": 3, "id": "graybox_striker", "state_id": 1}
+      ]
+    },
+    {
+      "namespace_id": 2,
+      "entries": [
+        {"numeric_id": 1, "id": "graybox_opening_haste", "state_id": 1}
+      ]
+    },
+    {
+      "namespace_id": 3,
+      "entries": [
+        {"numeric_id": 1, "id": "graybox_haste", "state_id": 1}
+      ]
+    },
+    {
+      "namespace_id": 4,
+      "entries": [
+        {"numeric_id": 1, "id": "destruction", "state_id": 1},
+        {"numeric_id": 2, "id": "steel", "state_id": 1}
+      ]
+    },
     {"namespace_id": 5, "entries": []},
-    {"namespace_id": 6, "entries": []},
-    {"namespace_id": 7, "entries": []},
-    {"namespace_id": 8, "entries": []}
+    {
+      "namespace_id": 6,
+      "entries": [
+        {"numeric_id": 1, "id": "enemy_baduk_stone", "state_id": 1},
+        {"numeric_id": 2, "id": "enemy_bottle_cap", "state_id": 1},
+        {"numeric_id": 3, "id": "enemy_graybox_striker", "state_id": 1}
+      ]
+    },
+    {
+      "namespace_id": 7,
+      "entries": [
+        {"numeric_id": 1, "id": "graybox_pit_arena", "state_id": 1}
+      ]
+    },
+    {
+      "namespace_id": 8,
+      "entries": [
+        {"numeric_id": 1, "id": "destruction", "state_id": 1},
+        {"numeric_id": 2, "id": "steel", "state_id": 1}
+      ]
+    }
   ]
 }

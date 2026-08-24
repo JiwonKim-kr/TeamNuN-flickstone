@@ -1,4 +1,53 @@
 {
   "schema_version": 1,
-  "records": []
+  "records": [
+    {
+      "numeric_id": 1,
+      "id": "destruction",
+      "tag_ref": {"numeric_id": 1, "id": "destruction"},
+      "tag_kind_id": 1,
+      "scope_id": 1,
+      "count_cap": 5,
+      "tiers": [
+        {
+          "min_count": 2,
+          "modifiers": [
+            {
+              "kind_id": 4,
+              "operation_id": 1,
+              "value_mode_id": 2,
+              "value": 1000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "numeric_id": 2,
+      "id": "steel",
+      "tag_ref": {"numeric_id": 2, "id": "steel"},
+      "tag_kind_id": 2,
+      "scope_id": 1,
+      "count_cap": 8,
+      "tiers": [
+        {
+          "min_count": 2,
+          "modifiers": [
+            {
+              "kind_id": 7,
+              "operation_id": 1,
+              "value_mode_id": 2,
+              "value": 2
+            },
+            {
+              "kind_id": 8,
+              "operation_id": 1,
+              "value_mode_id": 2,
+              "value": 327680
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }

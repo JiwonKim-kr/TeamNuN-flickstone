@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import sys
 from pathlib import Path
 
@@ -25,13 +26,15 @@ def _expect_failure(data: bytes, label: str) -> None:
 
 def main() -> int:
     vectors = json.loads(VECTORS.read_text(encoding="utf-8"))
-    empty = load_catalog(ROOT / "src" / "core" / "data")
+    runtime = load_catalog(ROOT / "src" / "core" / "data")
     valid_a = load_catalog(CATALOG_FIXTURES / "valid_a")
     reordered = load_catalog(CATALOG_FIXTURES / "valid_reordered")
     valid_b = load_catalog(CATALOG_FIXTURES / "valid_b")
 
-    assert empty.compatibility_bytes.hex() == vectors["empty_runtime"]["canonical_hex"]
-    assert empty.fingerprint.hex() == vectors["empty_runtime"]["fingerprint"]
+    empty_bytes = bytes.fromhex(vectors["empty_runtime"]["canonical_hex"])
+    assert hashlib.sha256(empty_bytes).hexdigest() == vectors["empty_runtime"]["fingerprint"]
+    assert runtime.fingerprint.hex() == "f721ffce47ff27324a92dd8c9564e75463113fd5adb10ee7ebb388889511cf0e"
+    assert (len(runtime.pieces), len(runtime.abilities), len(runtime.statuses), len(runtime.synergies), len(runtime.maps), len(runtime.enemies)) == (3, 1, 1, 2, 1, 3)
     assert valid_a.fingerprint.hex() == vectors["valid_a"]["fingerprint"]
     assert valid_b.fingerprint.hex() == vectors["valid_b"]["fingerprint"]
     assert valid_a.compatibility_bytes == reordered.compatibility_bytes

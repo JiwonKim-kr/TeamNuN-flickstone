@@ -18,6 +18,7 @@ items, $ref, definitions). 검증기는 스키마 파일을 그대로 읽어 동
 CLI 서브커맨드:
   validate        스키마 + 도메인 규칙 검증 (verify 게이트 #4)
   add             entry 추가 (검증 통과 시에만 기록)
+  add-requested-by 기존 entry 에 소비 지점 추가
   update-status   entry 의 status 갱신 + history 기록
   set-style-guide art lock 승인 결과(스타일 가이드 경로) 잠금/해제
   list            entry 목록 출력
@@ -425,6 +426,41 @@ def _cmd_update_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_add_requested_by(args: argparse.Namespace) -> int:
+    schema = load_schema(args.schema)
+    manifest = load_manifest(args.manifest)
+    target = None
+    for entry in manifest.get("entries", []):
+        if entry.get("id") == args.id:
+            target = entry
+            break
+    if target is None:
+        print(f"오류: ID '{args.id}' 를 찾을 수 없습니다.", file=sys.stderr)
+        return 2
+    try:
+        requested_by = _parse_requested_by(args.requested_by or [])
+    except ValueError as exc:
+        print(f"오류: {exc}", file=sys.stderr)
+        return 2
+    if not requested_by:
+        print("오류: --requested-by 를 하나 이상 지정해야 합니다.", file=sys.stderr)
+        return 2
+    existing = target.setdefault("requested_by", [])
+    added = 0
+    for request in requested_by:
+        if request not in existing:
+            existing.append(request)
+            added += 1
+    try:
+        save_manifest(manifest, args.manifest, schema)
+    except ManifestValidationError as exc:
+        print("requested_by 추가 실패 — 검증 통과하지 못해 매니페스트를 쓰지 않았습니다:", file=sys.stderr)
+        _print_errors(exc.errors)
+        return 1
+    print(f"requested_by 추가됨: {args.id} ({added}개) → {args.manifest}")
+    return 0
+
+
 def _cmd_set_style_guide(args: argparse.Namespace) -> int:
     """art lock 승인 결과(스타일 가이드 문서 경로)를 매니페스트에 잠근다.
 
@@ -512,6 +548,17 @@ def build_parser() -> argparse.ArgumentParser:
     pa.add_argument("--file", default=None, help="플레이스홀더/실제 파일 경로")
     pa.add_argument("--lore-ref", action="append", metavar="PATH", help="참조 lore/canon 경로. 반복 가능.")
     pa.set_defaults(func=_cmd_add)
+
+    pr = sub.add_parser("add-requested-by", help="기존 entry 에 소비 지점 추가")
+    pr.add_argument("--id", required=True)
+    pr.add_argument(
+        "--requested-by",
+        action="append",
+        required=True,
+        metavar="KIND:PATH",
+        help="추가할 소비 지점. kind=scene_node|code_event|ui|doc. 반복 가능.",
+    )
+    pr.set_defaults(func=_cmd_add_requested_by)
 
     pu = sub.add_parser("update-status", help="entry status 갱신 + history 기록")
     pu.add_argument("--id", required=True)

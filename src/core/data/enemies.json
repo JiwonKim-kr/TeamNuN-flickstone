@@ -1,4 +1,23 @@
 {
   "schema_version": 1,
-  "records": []
+  "records": [
+    {
+      "numeric_id": 1,
+      "id": "enemy_baduk_stone",
+      "base_piece_ref": {"numeric_id": 1, "id": "baduk_stone"},
+      "override": {"max_hp": 110}
+    },
+    {
+      "numeric_id": 2,
+      "id": "enemy_bottle_cap",
+      "base_piece_ref": {"numeric_id": 2, "id": "bottle_cap"},
+      "override": {}
+    },
+    {
+      "numeric_id": 3,
+      "id": "enemy_graybox_striker",
+      "base_piece_ref": {"numeric_id": 3, "id": "graybox_striker"},
+      "override": {}
+    }
+  ]
 }
