@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flickstone.local/schemas/p2-maps-v1.schema.json",
+  "$defs": {
+    "point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x_raw", "y_raw"],
+      "properties": {
+        "x_raw": {"type": "integer", "minimum": -536870912, "maximum": 536870912},
+        "y_raw": {"type": "integer", "minimum": -536870912, "maximum": 536870912}
+      }
+    },
+    "zone": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["local_id", "flags", "friction_multiplier_raw", "acceleration_x_raw", "acceleration_y_raw", "vertices"],
+      "properties": {
+        "local_id": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+        "flags": {"enum": [0, 1]},
+        "friction_multiplier_raw": {"type": "integer", "minimum": 0, "maximum": 9223372036854775807},
+        "acceleration_x_raw": {"type": "integer", "minimum": -536870912, "maximum": 536870912},
+        "acceleration_y_raw": {"type": "integer", "minimum": -536870912, "maximum": 536870912},
+        "vertices": {"type": "array", "minItems": 3, "maxItems": 64, "items": {"$ref": "#/$defs/point"}}
+      }
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "records"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "records": {
+      "type": "array", "maxItems": 4096,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["numeric_id", "id", "boundary_type_id", "boundary_vertices", "deploy_count", "player_slots", "enemy_slots", "zones", "obstacles"],
+        "properties": {
+          "numeric_id": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+          "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+          "boundary_type_id": {"enum": [1, 2]},
+          "boundary_vertices": {"type": "array", "minItems": 3, "maxItems": 64, "items": {"$ref": "#/$defs/point"}},
+          "deploy_count": {"type": "integer", "minimum": 3, "maximum": 5},
+          "player_slots": {"type": "array", "minItems": 3, "maxItems": 16, "items": {"$ref": "#/$defs/point"}},
+          "enemy_slots": {"type": "array", "minItems": 3, "maxItems": 16, "items": {"$ref": "#/$defs/point"}},
+          "zones": {"type": "array", "maxItems": 32, "items": {"$ref": "#/$defs/zone"}},
+          "obstacles": {"type": "array", "maxItems": 0}
+        }
+      }
+    }
+  }
+}

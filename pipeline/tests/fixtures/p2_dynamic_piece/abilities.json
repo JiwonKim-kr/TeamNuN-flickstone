@@ -1,5 +1,5 @@
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "records": [
     {"numeric_id":1,"id":"spawn_turn_token","trigger_id":2,"conditions":[],"effects":[{"kind_id":12,"selector":{"kind_id":1,"relation_id":0,"limit":1},"value_a":0,"value_b":0,"operation_id":0,"spawn":{"piece_ref":{"numeric_id":3,"id":"turn_token"},"offset_x_raw":6291456,"offset_y_raw":0,"speed_raw":0,"direction_mode_id":1}}]},
     {"numeric_id":2,"id":"spawn_projectile","trigger_id":3,"conditions":[],"effects":[{"kind_id":13,"selector":{"kind_id":8,"relation_id":0,"limit":1},"value_a":0,"value_b":0,"operation_id":0,"spawn":{"piece_ref":{"numeric_id":4,"id":"collision_token"},"offset_x_raw":4194304,"offset_y_raw":0,"speed_raw":1310720,"direction_mode_id":2}}]},

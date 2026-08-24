@@ -1,6 +1,6 @@
 class_name ContentCanonicalEncoder
 extends RefCounted
-## Canonical compatibility bytes v4. Never delegates to Variant serialization.
+## Canonical compatibility bytes v5. Never delegates to Variant serialization.
 
 const MAGIC: PackedByteArray = [70, 76, 73, 67, 75, 67, 65, 84] # FLICKCAT
 
@@ -42,6 +42,8 @@ static func encode(
 		abilities: Array[AbilityDefinition],
 		statuses: Array[StatusDefinition],
 		synergies: Array[SynergyDefinition],
+		maps: Array[MapDefinition],
+		enemies: Array[EnemyDefinition],
 		status: ContentStatus
 ) -> PackedByteArray:
 	if not status.is_ok(): return PackedByteArray()
@@ -63,7 +65,7 @@ static func encode(
 			writer.string_utf8(entry.string_id())
 			writer.u8(entry.state_id())
 
-	writer.u16(4)
+	writer.u16(6)
 	writer.u16(ContentIds.DocumentKind.PIECES)
 	writer.u16(ContentIds.PIECES_SCHEMA_VERSION)
 	writer.u32(pieces.size())
@@ -143,6 +145,12 @@ static func encode(
 			elif effect.kind_id() == AbilityEffectDefinition.Kind.ATTACH:
 				writer.u8(3); var payload: AttachPayloadDefinition = effect.attach_payload()
 				writer.u16(payload.owner_role_id()); writer.u16(payload.anchor_mode_id()); writer.vec2(payload.anchor_offset()); writer.i64(payload.attach_distance_raw()); writer.u16(payload.inertia_basis_points()); writer.u32(payload.duration_turns())
+			elif effect.kind_id() == AbilityEffectDefinition.Kind.SPAWN_ZONE:
+				writer.u8(4); var payload: ZoneSpawnPayloadDefinition = effect.zone_payload()
+				writer.u32(payload.flags()); writer.i64(payload.friction_multiplier_raw()); writer.vec2(payload.acceleration()); writer.vec2(payload.offset()); writer.u32(payload.vertex_count())
+				var payload_status := ContentStatus.new()
+				for vertex_index: int in range(payload.vertex_count()): writer.vec2(payload.vertex_at(vertex_index, payload_status))
+				writer.u32(payload.duration_turns())
 			else:
 				writer.u8(0)
 
@@ -166,5 +174,41 @@ static func encode(
 			writer.u16(tier.min_count()); writer.u16(tier.modifier_count())
 			for modifier_index: int in range(tier.modifier_count()):
 				var modifier: StatusModifierDefinition = tier.modifier_at(modifier_index, cs); writer.u16(modifier.kind_id()); writer.u16(modifier.operation_id()); writer.u16(modifier.value_mode_id()); writer.i64(modifier.value())
+
+	writer.u16(ContentIds.DocumentKind.MAPS); writer.u16(ContentIds.MAPS_SCHEMA_VERSION); writer.u32(maps.size())
+	for definition: MapDefinition in maps:
+		writer.u32(definition.numeric_id()); writer.string_utf8(definition.string_id()); writer.u16(definition.boundary_type_id())
+		var map_status := ContentStatus.new(); var boundary_vertices: Array[FixVec2] = definition.boundary_vertices_copy()
+		writer.u32(boundary_vertices.size())
+		for vertex: FixVec2 in boundary_vertices: writer.vec2(vertex)
+		writer.u16(definition.deploy_count()); writer.u32(definition.player_slot_count())
+		for index: int in range(definition.player_slot_count()): writer.vec2(definition.player_slot_at(index, map_status).position())
+		writer.u32(definition.enemy_slot_count())
+		for index: int in range(definition.enemy_slot_count()): writer.vec2(definition.enemy_slot_at(index, map_status).position())
+		writer.u32(definition.zone_count())
+		for index: int in range(definition.zone_count()):
+			var zone: MapZoneDefinition = definition.zone_at(index, map_status)
+			writer.u32(zone.local_id()); writer.u32(zone.flags()); writer.i64(zone.friction_multiplier_raw()); writer.vec2(zone.acceleration()); writer.u32(zone.vertex_count())
+			for vertex_index: int in range(zone.vertex_count()): writer.vec2(zone.vertex_at(vertex_index, map_status))
+		writer.u32(0)
+		if not map_status.is_ok(): status.fail(ContentStatus.Code.FINGERPRINT_ERROR, ContentStatus.Operation.CANONICAL_ENCODE); return PackedByteArray()
+
+	writer.u16(ContentIds.DocumentKind.ENEMIES); writer.u16(ContentIds.ENEMIES_SCHEMA_VERSION); writer.u32(enemies.size())
+	for definition: EnemyDefinition in enemies:
+		writer.u32(definition.numeric_id()); writer.string_utf8(definition.string_id())
+		var base_ref: ContentIdRef = definition.base_piece_ref(); writer.u32(base_ref.numeric_id()); writer.string_utf8(base_ref.string_id())
+		var override_definition: EnemyOverrideDefinition = definition.override_definition(); var mask: int = override_definition.presence_mask(); writer.u16(mask)
+		if override_definition.has_value(EnemyOverrideDefinition.MAX_HP_BIT): writer.i64(override_definition.max_hp())
+		if override_definition.has_value(EnemyOverrideDefinition.ATTACK_BIT): writer.i64(override_definition.attack())
+		if override_definition.has_value(EnemyOverrideDefinition.SPEED_STAT_BIT): writer.i64(override_definition.speed_stat())
+		if override_definition.has_value(EnemyOverrideDefinition.MASS_RAW_BIT): writer.i64(override_definition.mass_raw())
+		if override_definition.has_value(EnemyOverrideDefinition.RADIUS_RAW_BIT): writer.i64(override_definition.radius_raw())
+		if override_definition.has_value(EnemyOverrideDefinition.FRICTION_RAW_BIT): writer.i64(override_definition.friction_multiplier_raw())
+		if override_definition.has_value(EnemyOverrideDefinition.CRITICAL_BIT): writer.i64(override_definition.critical_basis_points())
+		if override_definition.has_value(EnemyOverrideDefinition.ABILITY_REFS_BIT):
+			writer.u16(override_definition.ability_ref_count()); var enemy_status := ContentStatus.new()
+			for index: int in range(override_definition.ability_ref_count()):
+				var ability_ref: ContentIdRef = override_definition.ability_ref_at(index, enemy_status); writer.u32(ability_ref.numeric_id()); writer.string_utf8(ability_ref.string_id())
+			if not enemy_status.is_ok(): status.fail(ContentStatus.Code.FINGERPRINT_ERROR, ContentStatus.Operation.CANONICAL_ENCODE); return PackedByteArray()
 	if not status.is_ok(): return PackedByteArray()
 	return writer.data

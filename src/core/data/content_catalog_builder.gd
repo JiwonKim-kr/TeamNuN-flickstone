@@ -14,6 +14,7 @@ const EFFECT_KEYS: PackedStringArray = ["kind_id", "selector", "value_a", "value
 const SPAWN_KEYS: PackedStringArray = ["piece_ref", "offset_x_raw", "offset_y_raw", "speed_raw", "direction_mode_id"]
 const TRANSFORM_KEYS: PackedStringArray = ["piece_ref"]
 const ATTACH_KEYS: PackedStringArray = ["owner_role_id", "anchor_mode_id", "anchor_offset_x_raw", "anchor_offset_y_raw", "attach_distance_raw", "inertia_basis_points", "duration_turns"]
+const ZONE_PAYLOAD_KEYS: PackedStringArray = ["flags", "friction_multiplier_raw", "acceleration_x_raw", "acceleration_y_raw", "offset_x_raw", "offset_y_raw", "vertices", "duration_turns"]
 const SELECTOR_KEYS: PackedStringArray = ["kind_id", "relation_id", "limit"]
 const PIECE_KEYS: PackedStringArray = ["numeric_id", "id", "flags", "spawnable", "spawn_faction_mode_id", "expire_kind_id", "expire_value", "attach_anchor_mode_id", "attach_anchor_offset_x_raw", "attach_anchor_offset_y_raw", "tag_refs", "levels"]
 const FLAG_KEYS: PackedStringArray = ["has_turn", "destructible", "transformable", "counts_for_victory", "is_token"]
@@ -23,6 +24,11 @@ const STATUS_KEYS: PackedStringArray = ["numeric_id", "id", "stack_policy_id", "
 const SYNERGY_KEYS: PackedStringArray = ["numeric_id", "id", "tag_ref", "tag_kind_id", "scope_id", "count_cap", "tiers"]
 const MODIFIER_KEYS: PackedStringArray = ["kind_id", "operation_id", "value_mode_id", "value"]
 const TIER_KEYS: PackedStringArray = ["min_count", "modifiers"]
+const POINT_KEYS: PackedStringArray = ["x_raw", "y_raw"]
+const MAP_KEYS: PackedStringArray = ["numeric_id", "id", "boundary_type_id", "boundary_vertices", "deploy_count", "player_slots", "enemy_slots", "zones", "obstacles"]
+const MAP_ZONE_KEYS: PackedStringArray = ["local_id", "flags", "friction_multiplier_raw", "acceleration_x_raw", "acceleration_y_raw", "vertices"]
+const ENEMY_KEYS: PackedStringArray = ["numeric_id", "id", "base_piece_ref", "override"]
+const ENEMY_OVERRIDE_KEYS: PackedStringArray = ["max_hp", "attack", "speed_stat", "mass_raw", "radius_raw", "friction_multiplier_raw", "critical_basis_points", "ability_refs"]
 
 
 static func _registry_less(left: ContentRegistryEntry, right: ContentRegistryEntry) -> bool:
@@ -37,6 +43,11 @@ static func _piece_less(left: PieceDefinition, right: PieceDefinition) -> bool:
 
 static func _ability_less(left: AbilityDefinition, right: AbilityDefinition) -> bool:
 	return left.numeric_id() < right.numeric_id()
+
+
+static func _map_less(left: MapDefinition, right: MapDefinition) -> bool: return left.numeric_id() < right.numeric_id()
+static func _enemy_less(left: EnemyDefinition, right: EnemyDefinition) -> bool: return left.numeric_id() < right.numeric_id()
+static func _map_zone_less(left: MapZoneDefinition, right: MapZoneDefinition) -> bool: return left.local_id() < right.local_id()
 
 
 static func _ref_less(left: ContentIdRef, right: ContentIdRef) -> bool:
@@ -112,6 +123,31 @@ static func _dictionary_field(value: Dictionary, key: String, status: ContentSta
 	return raw as Dictionary
 
 
+static func _parse_point(raw: Variant, document_kind_id: int, record_numeric_id: int, field_id: int, status: ContentStatus) -> FixVec2:
+	if typeof(raw) != TYPE_DICTIONARY:
+		status.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.DOCUMENT_VALIDATE, document_kind_id, record_numeric_id, field_id)
+		return FixVec2.zero()
+	var value: Dictionary = raw as Dictionary
+	if not _require_exact_keys(value, POINT_KEYS, status, document_kind_id, record_numeric_id, field_id): return FixVec2.zero()
+	var point: FixVec2 = FixVec2.from_raw(
+		_int_field(value, "x_raw", status, document_kind_id, record_numeric_id, field_id),
+		_int_field(value, "y_raw", status, document_kind_id, record_numeric_id, field_id))
+	if status.is_ok() and not SimLimits.is_position_valid(point):
+		status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE, document_kind_id, record_numeric_id, field_id)
+	return point
+
+
+static func _parse_vertices(raw_values: Array, document_kind_id: int, record_numeric_id: int, field_id: int, status: ContentStatus) -> Array[FixVec2]:
+	var result: Array[FixVec2] = []
+	if raw_values.size() < SimPolygon.MIN_VERTEX_COUNT or raw_values.size() > SimPolygon.MAX_VERTEX_COUNT:
+		status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.DOCUMENT_VALIDATE, document_kind_id, record_numeric_id, field_id)
+		return result
+	for raw: Variant in raw_values:
+		result.append(_parse_point(raw, document_kind_id, record_numeric_id, field_id, status))
+		if not status.is_ok(): return []
+	return result
+
+
 static func _root_for_kind(source_documents: Array[ContentSourceFile], kind_id: int, status: ContentStatus) -> Dictionary:
 	var found: ContentSourceFile
 	for source: ContentSourceFile in source_documents:
@@ -138,7 +174,7 @@ static func _validate_catalog_document(catalog: Dictionary, source_documents: Ar
 		return false
 	var documents: Array = _array_field(catalog, "documents", status, 0, 0, ContentStatus.FieldId.DOCUMENTS)
 	if not status.is_ok(): return false
-	if documents.size() != 5 or documents.size() > ContentLimits.DOCUMENT_MAX_COUNT or source_documents.size() != 5:
+	if documents.size() != 7 or documents.size() > ContentLimits.DOCUMENT_MAX_COUNT or source_documents.size() != 7:
 		status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.DOCUMENT_VALIDATE, 0, 0, ContentStatus.FieldId.DOCUMENTS)
 		return false
 	var seen: Dictionary = {}
@@ -161,7 +197,7 @@ static func _validate_catalog_document(catalog: Dictionary, source_documents: Ar
 			status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE, kind_id)
 			return false
 		seen[kind_id] = true
-	for kind_id: int in range(ContentIds.DocumentKind.ID_REGISTRY, ContentIds.DocumentKind.SYNERGIES + 1):
+	for kind_id: int in range(ContentIds.DocumentKind.ID_REGISTRY, ContentIds.DocumentKind.ENEMIES + 1):
 		if not seen.has(kind_id):
 			status.fail(ContentStatus.Code.MISSING_KEY, ContentStatus.Operation.DOCUMENT_VALIDATE, kind_id)
 			return false
@@ -214,7 +250,7 @@ static func _parse_registry(
 		if raw_entries.size() > ContentLimits.REGISTRY_MAX_ENTRIES_PER_NAMESPACE:
 			status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.ID_REGISTER, KIND, 0, ContentStatus.FieldId.ENTRIES)
 			return false
-		if namespace_id >= ContentIds.Namespace.PROJECTILE and namespace_id <= ContentIds.Namespace.MAP and not raw_entries.is_empty():
+		if namespace_id == ContentIds.Namespace.PROJECTILE and not raw_entries.is_empty():
 			status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.ID_REGISTER, KIND, 0, ContentStatus.FieldId.ENTRIES)
 			return false
 		for raw_entry: Variant in raw_entries:
@@ -346,6 +382,7 @@ static func _parse_abilities(
 			if kind_id == AbilityEffectDefinition.Kind.SPAWN_PIECE or kind_id == AbilityEffectDefinition.Kind.SPAWN_PROJECTILE: expected_keys.append("spawn")
 			elif kind_id == AbilityEffectDefinition.Kind.TRANSFORM_PIECE: expected_keys.append("transform")
 			elif kind_id == AbilityEffectDefinition.Kind.ATTACH: expected_keys.append("attach")
+			elif kind_id == AbilityEffectDefinition.Kind.SPAWN_ZONE: expected_keys.append("zone")
 			if not _require_exact_keys(effect_value, expected_keys, status, KIND, numeric_id, ContentStatus.FieldId.EFFECTS): return false
 			var selector_value: Dictionary = _dictionary_field(effect_value, "selector", status, KIND, numeric_id, ContentStatus.FieldId.SELECTOR)
 			if not status.is_ok() or not _require_exact_keys(selector_value, SELECTOR_KEYS, status, KIND, numeric_id, ContentStatus.FieldId.SELECTOR): return false
@@ -356,6 +393,7 @@ static func _parse_abilities(
 			var spawn_payload: SpawnPayloadDefinition = null
 			var transform_payload: TransformPayloadDefinition = null
 			var attach_payload: AttachPayloadDefinition = null
+			var zone_payload: ZoneSpawnPayloadDefinition = null
 			if kind_id == AbilityEffectDefinition.Kind.SPAWN_PIECE or kind_id == AbilityEffectDefinition.Kind.SPAWN_PROJECTILE:
 				var payload_value: Dictionary = _dictionary_field(effect_value, "spawn", status, KIND, numeric_id, ContentStatus.FieldId.SPAWN_PAYLOAD)
 				if not status.is_ok() or not _require_exact_keys(payload_value, SPAWN_KEYS, status, KIND, numeric_id, ContentStatus.FieldId.SPAWN_PAYLOAD): return false
@@ -381,11 +419,22 @@ static func _parse_abilities(
 					_int_field(payload_value, "duration_turns", status, KIND, numeric_id, ContentStatus.FieldId.DURATION_TURNS), status)
 				if attach_payload.is_initialized() and attach_payload.anchor_mode_id() == AttachPayloadDefinition.AnchorMode.CONTACT_POINT and trigger_id != BattleTriggerId.Value.ON_HIT_DEAL and trigger_id != BattleTriggerId.Value.ON_HIT_TAKE and trigger_id != BattleTriggerId.Value.ON_ALLY_COLLIDE:
 					status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.ATTACH_PAYLOAD); return false
+			elif kind_id == AbilityEffectDefinition.Kind.SPAWN_ZONE:
+				var payload_value: Dictionary = _dictionary_field(effect_value, "zone", status, KIND, numeric_id, ContentStatus.FieldId.ZONE_PAYLOAD)
+				if not status.is_ok() or not _require_exact_keys(payload_value, ZONE_PAYLOAD_KEYS, status, KIND, numeric_id, ContentStatus.FieldId.ZONE_PAYLOAD): return false
+				var raw_vertices: Array = _array_field(payload_value, "vertices", status, KIND, numeric_id, ContentStatus.FieldId.VERTICES)
+				var vertices: Array[FixVec2] = _parse_vertices(raw_vertices, KIND, numeric_id, ContentStatus.FieldId.VERTICES, status)
+				zone_payload = ZoneSpawnPayloadDefinition.create(
+					_int_field(payload_value, "flags", status, KIND, numeric_id, ContentStatus.FieldId.FLAGS),
+					_int_field(payload_value, "friction_multiplier_raw", status, KIND, numeric_id, ContentStatus.FieldId.FRICTION_MULTIPLIER_RAW),
+					FixVec2.from_raw(_int_field(payload_value, "acceleration_x_raw", status, KIND, numeric_id, ContentStatus.FieldId.ACCELERATION_X_RAW), _int_field(payload_value, "acceleration_y_raw", status, KIND, numeric_id, ContentStatus.FieldId.ACCELERATION_Y_RAW)),
+					FixVec2.from_raw(_int_field(payload_value, "offset_x_raw", status, KIND, numeric_id, ContentStatus.FieldId.OFFSET_X_RAW), _int_field(payload_value, "offset_y_raw", status, KIND, numeric_id, ContentStatus.FieldId.OFFSET_Y_RAW)),
+					vertices, _int_field(payload_value, "duration_turns", status, KIND, numeric_id, ContentStatus.FieldId.DURATION_TURNS), status)
 			var effect: AbilityEffectDefinition = AbilityEffectDefinition.create(
 				kind_id, selector,
 				_int_field(effect_value, "value_a", status, KIND, numeric_id, ContentStatus.FieldId.VALUE_A),
 				_int_field(effect_value, "value_b", status, KIND, numeric_id, ContentStatus.FieldId.VALUE_B),
-				_int_field(effect_value, "operation_id", status, KIND, numeric_id, ContentStatus.FieldId.OPERATION_ID), status, spawn_payload, transform_payload, attach_payload)
+				_int_field(effect_value, "operation_id", status, KIND, numeric_id, ContentStatus.FieldId.OPERATION_ID), status, spawn_payload, transform_payload, attach_payload, zone_payload)
 			if not status.is_ok(): return false
 			if (effect.kind_id() == AbilityEffectDefinition.Kind.APPLY_STATUS or effect.kind_id() == AbilityEffectDefinition.Kind.REMOVE_STATUS) and not status_by_numeric.has(effect.value_a()):
 				status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.REFERENCE_RESOLVE, KIND, numeric_id, ContentStatus.FieldId.VALUE_A); return false
@@ -672,12 +721,139 @@ static func _parse_synergies(root: Dictionary, registry_by_numeric: Dictionary, 
 	output.sort_custom(func(a: SynergyDefinition, b: SynergyDefinition) -> bool: return a.numeric_id() < b.numeric_id()); return true
 
 
+static func _parse_ref_for_namespace(raw: Variant, namespace_id: int, document_kind_id: int, record_numeric_id: int, field_id: int, registry_by_numeric: Dictionary, registry_by_string: Dictionary, target_by_numeric: Dictionary, status: ContentStatus) -> ContentIdRef:
+	if typeof(raw) != TYPE_DICTIONARY:
+		status.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.REFERENCE_RESOLVE, document_kind_id, record_numeric_id, field_id); return ContentIdRef.new()
+	var value: Dictionary = raw as Dictionary
+	if not _require_exact_keys(value, REF_KEYS, status, document_kind_id, record_numeric_id, field_id): return ContentIdRef.new()
+	var numeric_id: int = _int_field(value, "numeric_id", status, document_kind_id, record_numeric_id, field_id)
+	var string_id: String = _string_field(value, "id", status, document_kind_id, record_numeric_id, field_id)
+	var entry: ContentRegistryEntry = _active_registry_pair(namespace_id, numeric_id, string_id, registry_by_numeric, registry_by_string, status, document_kind_id, field_id)
+	if not status.is_ok(): return ContentIdRef.new()
+	if not target_by_numeric.has(numeric_id):
+		status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.REFERENCE_RESOLVE, document_kind_id, record_numeric_id, field_id); return ContentIdRef.new()
+	return ContentIdRef.create(entry.numeric_id(), entry.string_id(), status)
+
+
+static func _parse_enemies(root: Dictionary, registry_by_numeric: Dictionary, registry_by_string: Dictionary, piece_by_numeric: Dictionary, ability_by_numeric: Dictionary, output: Array[EnemyDefinition], by_numeric: Dictionary, status: ContentStatus) -> bool:
+	const KIND: int = ContentIds.DocumentKind.ENEMIES
+	if not _require_exact_keys(root, RECORD_DOCUMENT_KEYS, status, KIND): return false
+	if _int_field(root, "schema_version", status, KIND, 0, ContentStatus.FieldId.SCHEMA_VERSION) != ContentIds.ENEMIES_SCHEMA_VERSION:
+		status.fail(ContentStatus.Code.UNSUPPORTED_SCHEMA, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, 0, ContentStatus.FieldId.SCHEMA_VERSION); return false
+	var records: Array = _array_field(root, "records", status, KIND, 0, ContentStatus.FieldId.RECORDS)
+	if records.size() > ContentLimits.RECORD_MAX_COUNT: status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND); return false
+	var string_ids: Dictionary = {}
+	for raw: Variant in records:
+		if typeof(raw) != TYPE_DICTIONARY: status.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND); return false
+		var record: Dictionary = raw as Dictionary
+		if not _require_exact_keys(record, ENEMY_KEYS, status, KIND): return false
+		var numeric_id: int = _int_field(record, "numeric_id", status, KIND, 0, ContentStatus.FieldId.NUMERIC_ID)
+		var string_id: String = _string_field(record, "id", status, KIND, numeric_id, ContentStatus.FieldId.ID)
+		var entry: ContentRegistryEntry = _active_registry_pair(ContentIds.Namespace.ENEMY, numeric_id, string_id, registry_by_numeric, registry_by_string, status, KIND, ContentStatus.FieldId.ID)
+		var base_ref: ContentIdRef = _parse_ref_for_namespace(record["base_piece_ref"], ContentIds.Namespace.PIECE, KIND, numeric_id, ContentStatus.FieldId.BASE_PIECE_REF, registry_by_numeric, registry_by_string, piece_by_numeric, status)
+		var override_value: Dictionary = _dictionary_field(record, "override", status, KIND, numeric_id, ContentStatus.FieldId.OVERRIDE)
+		if not status.is_ok(): return false
+		for key: Variant in override_value.keys():
+			if typeof(key) != TYPE_STRING or not ENEMY_OVERRIDE_KEYS.has(String(key)):
+				status.fail(ContentStatus.Code.UNKNOWN_KEY, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.OVERRIDE); return false
+		var mask: int = 0
+		var max_hp: int = 0; var attack: int = 0; var speed_stat: int = 0; var mass_raw: int = 0; var radius_raw: int = 0; var friction_raw: int = 0; var critical: int = 0
+		if override_value.has("max_hp"): mask |= EnemyOverrideDefinition.MAX_HP_BIT; max_hp = _int_field(override_value, "max_hp", status, KIND, numeric_id, ContentStatus.FieldId.MAX_HP)
+		if override_value.has("attack"): mask |= EnemyOverrideDefinition.ATTACK_BIT; attack = _int_field(override_value, "attack", status, KIND, numeric_id, ContentStatus.FieldId.ATTACK)
+		if override_value.has("speed_stat"): mask |= EnemyOverrideDefinition.SPEED_STAT_BIT; speed_stat = _int_field(override_value, "speed_stat", status, KIND, numeric_id, ContentStatus.FieldId.SPEED_STAT)
+		if override_value.has("mass_raw"): mask |= EnemyOverrideDefinition.MASS_RAW_BIT; mass_raw = _int_field(override_value, "mass_raw", status, KIND, numeric_id, ContentStatus.FieldId.MASS_RAW)
+		if override_value.has("radius_raw"): mask |= EnemyOverrideDefinition.RADIUS_RAW_BIT; radius_raw = _int_field(override_value, "radius_raw", status, KIND, numeric_id, ContentStatus.FieldId.RADIUS_RAW)
+		if override_value.has("friction_multiplier_raw"): mask |= EnemyOverrideDefinition.FRICTION_RAW_BIT; friction_raw = _int_field(override_value, "friction_multiplier_raw", status, KIND, numeric_id, ContentStatus.FieldId.FRICTION_MULTIPLIER_RAW)
+		if override_value.has("critical_basis_points"): mask |= EnemyOverrideDefinition.CRITICAL_BIT; critical = _int_field(override_value, "critical_basis_points", status, KIND, numeric_id, ContentStatus.FieldId.CRITICAL_BASIS_POINTS)
+		var refs: Array[ContentIdRef] = []
+		if override_value.has("ability_refs"):
+			mask |= EnemyOverrideDefinition.ABILITY_REFS_BIT
+			var raw_refs: Array = _array_field(override_value, "ability_refs", status, KIND, numeric_id, ContentStatus.FieldId.ABILITY_REFS)
+			if raw_refs.size() > ContentLimits.ABILITY_REFS_MAX_COUNT: status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.ABILITY_REFS); return false
+			var seen_refs: Dictionary = {}
+			for raw_ref: Variant in raw_refs:
+				var ref: ContentIdRef = _parse_ref_for_namespace(raw_ref, ContentIds.Namespace.ABILITY, KIND, numeric_id, ContentStatus.FieldId.ABILITY_REFS, registry_by_numeric, registry_by_string, ability_by_numeric, status)
+				if not status.is_ok(): return false
+				if seen_refs.has(ref.numeric_id()): status.fail(ContentStatus.Code.DUPLICATE_ID, ContentStatus.Operation.REFERENCE_RESOLVE, KIND, numeric_id, ContentStatus.FieldId.ABILITY_REFS); return false
+				seen_refs[ref.numeric_id()] = true; refs.append(ref)
+			refs.sort_custom(_ref_less)
+		var override_definition: EnemyOverrideDefinition = EnemyOverrideDefinition.create(mask, max_hp, attack, speed_stat, mass_raw, radius_raw, friction_raw, critical, refs, status)
+		if not status.is_ok() or by_numeric.has(numeric_id) or string_ids.has(string_id):
+			if status.is_ok(): status.fail(ContentStatus.Code.DUPLICATE_ID, ContentStatus.Operation.CATALOG_BUILD, KIND, numeric_id)
+			return false
+		var id_ref: ContentIdRef = ContentIdRef.create(entry.numeric_id(), entry.string_id(), status)
+		var definition: EnemyDefinition = EnemyDefinition.create(id_ref, base_ref, override_definition, status)
+		if not status.is_ok(): return false
+		output.append(definition); by_numeric[numeric_id] = definition; string_ids[string_id] = true
+	output.sort_custom(_enemy_less)
+	return true
+
+
+static func _parse_slots(raw_slots: Array, kind: int, numeric_id: int, field_id: int, status: ContentStatus) -> Array[MapSlotDefinition]:
+	var result: Array[MapSlotDefinition] = []
+	if raw_slots.size() < ContentLimits.MAP_SLOT_MIN_COUNT or raw_slots.size() > ContentLimits.MAP_SLOT_MAX_COUNT:
+		status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.MAP_VALIDATE, kind, numeric_id, field_id); return result
+	for raw: Variant in raw_slots:
+		result.append(MapSlotDefinition.create(_parse_point(raw, kind, numeric_id, field_id, status), status))
+		if not status.is_ok(): return []
+	return result
+
+
+static func _parse_maps(root: Dictionary, registry_by_numeric: Dictionary, registry_by_string: Dictionary, catalog_max_radius_raw: int, output: Array[MapDefinition], by_numeric: Dictionary, status: ContentStatus) -> bool:
+	const KIND: int = ContentIds.DocumentKind.MAPS
+	if not _require_exact_keys(root, RECORD_DOCUMENT_KEYS, status, KIND): return false
+	if _int_field(root, "schema_version", status, KIND, 0, ContentStatus.FieldId.SCHEMA_VERSION) != ContentIds.MAPS_SCHEMA_VERSION:
+		status.fail(ContentStatus.Code.UNSUPPORTED_SCHEMA, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, 0, ContentStatus.FieldId.SCHEMA_VERSION); return false
+	var records: Array = _array_field(root, "records", status, KIND, 0, ContentStatus.FieldId.RECORDS)
+	if records.size() > ContentLimits.RECORD_MAX_COUNT: status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND); return false
+	if not records.is_empty() and not SimLimits.is_radius_valid(catalog_max_radius_raw): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.MAP_VALIDATE, KIND); return false
+	var string_ids: Dictionary = {}
+	for raw: Variant in records:
+		if typeof(raw) != TYPE_DICTIONARY: status.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND); return false
+		var record: Dictionary = raw as Dictionary
+		if not _require_exact_keys(record, MAP_KEYS, status, KIND): return false
+		var numeric_id: int = _int_field(record, "numeric_id", status, KIND, 0, ContentStatus.FieldId.NUMERIC_ID)
+		var string_id: String = _string_field(record, "id", status, KIND, numeric_id, ContentStatus.FieldId.ID)
+		var entry: ContentRegistryEntry = _active_registry_pair(ContentIds.Namespace.MAP, numeric_id, string_id, registry_by_numeric, registry_by_string, status, KIND, ContentStatus.FieldId.ID)
+		var boundary_vertices: Array[FixVec2] = _parse_vertices(_array_field(record, "boundary_vertices", status, KIND, numeric_id, ContentStatus.FieldId.BOUNDARY_VERTICES), KIND, numeric_id, ContentStatus.FieldId.BOUNDARY_VERTICES, status)
+		var player_slots: Array[MapSlotDefinition] = _parse_slots(_array_field(record, "player_slots", status, KIND, numeric_id, ContentStatus.FieldId.PLAYER_SLOTS), KIND, numeric_id, ContentStatus.FieldId.PLAYER_SLOTS, status)
+		var enemy_slots: Array[MapSlotDefinition] = _parse_slots(_array_field(record, "enemy_slots", status, KIND, numeric_id, ContentStatus.FieldId.ENEMY_SLOTS), KIND, numeric_id, ContentStatus.FieldId.ENEMY_SLOTS, status)
+		var raw_zones: Array = _array_field(record, "zones", status, KIND, numeric_id, ContentStatus.FieldId.ZONES)
+		var obstacles: Array = _array_field(record, "obstacles", status, KIND, numeric_id, ContentStatus.FieldId.OBSTACLES)
+		if not status.is_ok(): return false
+		if raw_zones.size() > ContentLimits.MAP_ZONE_MAX_COUNT or not obstacles.is_empty(): status.fail(ContentStatus.Code.CATALOG_LIMIT if raw_zones.size() > ContentLimits.MAP_ZONE_MAX_COUNT else ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.MAP_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.ZONES if raw_zones.size() > ContentLimits.MAP_ZONE_MAX_COUNT else ContentStatus.FieldId.OBSTACLES); return false
+		var zones: Array[MapZoneDefinition] = []; var local_ids: Dictionary = {}
+		for raw_zone: Variant in raw_zones:
+			if typeof(raw_zone) != TYPE_DICTIONARY: status.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.ZONES); return false
+			var value: Dictionary = raw_zone as Dictionary
+			if not _require_exact_keys(value, MAP_ZONE_KEYS, status, KIND, numeric_id, ContentStatus.FieldId.ZONES): return false
+			var local_id: int = _int_field(value, "local_id", status, KIND, numeric_id, ContentStatus.FieldId.LOCAL_ID)
+			if local_ids.has(local_id): status.fail(ContentStatus.Code.DUPLICATE_ID, ContentStatus.Operation.MAP_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.LOCAL_ID); return false
+			local_ids[local_id] = true
+			var vertices: Array[FixVec2] = _parse_vertices(_array_field(value, "vertices", status, KIND, numeric_id, ContentStatus.FieldId.VERTICES), KIND, numeric_id, ContentStatus.FieldId.VERTICES, status)
+			zones.append(MapZoneDefinition.create(local_id, _int_field(value, "flags", status, KIND, numeric_id, ContentStatus.FieldId.FLAGS), _int_field(value, "friction_multiplier_raw", status, KIND, numeric_id, ContentStatus.FieldId.FRICTION_MULTIPLIER_RAW), FixVec2.from_raw(_int_field(value, "acceleration_x_raw", status, KIND, numeric_id, ContentStatus.FieldId.ACCELERATION_X_RAW), _int_field(value, "acceleration_y_raw", status, KIND, numeric_id, ContentStatus.FieldId.ACCELERATION_Y_RAW)), vertices, status))
+			if not status.is_ok(): return false
+		zones.sort_custom(_map_zone_less)
+		if by_numeric.has(numeric_id) or string_ids.has(string_id): status.fail(ContentStatus.Code.DUPLICATE_ID, ContentStatus.Operation.CATALOG_BUILD, KIND, numeric_id); return false
+		var id_ref: ContentIdRef = ContentIdRef.create(entry.numeric_id(), entry.string_id(), status)
+		var definition: MapDefinition = MapDefinition.create(id_ref, _int_field(record, "boundary_type_id", status, KIND, numeric_id, ContentStatus.FieldId.BOUNDARY_TYPE_ID), boundary_vertices, _int_field(record, "deploy_count", status, KIND, numeric_id, ContentStatus.FieldId.DEPLOY_COUNT), player_slots, enemy_slots, zones, status)
+		if not status.is_ok(): return false
+		var sim_status := SimStatus.new()
+		if not MapGeometryValidator.validate(definition, catalog_max_radius_raw, sim_status):
+			status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.MAP_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.PLAYER_SLOTS); return false
+		output.append(definition); by_numeric[numeric_id] = definition; string_ids[string_id] = true
+	output.sort_custom(_map_less)
+	return true
+
+
 static func _validate_active_registry_coverage(
 		entries: Array[ContentRegistryEntry],
 		piece_by_numeric: Dictionary,
 		ability_by_numeric: Dictionary,
 		status_by_numeric: Dictionary,
 		synergy_by_numeric: Dictionary,
+		map_by_numeric: Dictionary,
+		enemy_by_numeric: Dictionary,
 		status: ContentStatus
 ) -> bool:
 	for entry: ContentRegistryEntry in entries:
@@ -694,6 +870,10 @@ static func _validate_active_registry_coverage(
 			if not status_by_numeric.has(entry.numeric_id()): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.CATALOG_BUILD, ContentIds.DocumentKind.STATUSES, entry.numeric_id()); return false
 		elif entry.namespace_id() == ContentIds.Namespace.SYNERGY:
 			if not synergy_by_numeric.has(entry.numeric_id()): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.CATALOG_BUILD, ContentIds.DocumentKind.SYNERGIES, entry.numeric_id()); return false
+		elif entry.namespace_id() == ContentIds.Namespace.MAP:
+			if not map_by_numeric.has(entry.numeric_id()): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.CATALOG_BUILD, ContentIds.DocumentKind.MAPS, entry.numeric_id()); return false
+		elif entry.namespace_id() == ContentIds.Namespace.ENEMY:
+			if not enemy_by_numeric.has(entry.numeric_id()): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.CATALOG_BUILD, ContentIds.DocumentKind.ENEMIES, entry.numeric_id()); return false
 		elif entry.namespace_id() == ContentIds.Namespace.TAG:
 			pass
 		else:
@@ -734,6 +914,8 @@ static func build(
 	var abilities_root: Dictionary = _root_for_kind(source_documents, ContentIds.DocumentKind.ABILITIES, status)
 	var statuses_root: Dictionary = _root_for_kind(source_documents, ContentIds.DocumentKind.STATUSES, status)
 	var synergies_root: Dictionary = _root_for_kind(source_documents, ContentIds.DocumentKind.SYNERGIES, status)
+	var maps_root: Dictionary = _root_for_kind(source_documents, ContentIds.DocumentKind.MAPS, status)
+	var enemies_root: Dictionary = _root_for_kind(source_documents, ContentIds.DocumentKind.ENEMIES, status)
 	if not status.is_ok(): return ContentCatalog.new()
 
 	var registry_entries: Array[ContentRegistryEntry] = []
@@ -753,13 +935,29 @@ static func build(
 	var piece_by_numeric: Dictionary = {}
 	if not _parse_pieces(pieces_root, registry_by_numeric, registry_by_string, ability_by_numeric, pieces, piece_by_numeric, status): return ContentCatalog.new()
 	if not _validate_dynamic_piece_references(abilities, piece_by_numeric, status): return ContentCatalog.new()
-	if not _validate_active_registry_coverage(registry_entries, piece_by_numeric, ability_by_numeric, status_by_numeric, synergy_by_numeric, status): return ContentCatalog.new()
+	var enemies: Array[EnemyDefinition] = []; var enemy_by_numeric: Dictionary = {}
+	if not _parse_enemies(enemies_root, registry_by_numeric, registry_by_string, piece_by_numeric, ability_by_numeric, enemies, enemy_by_numeric, status): return ContentCatalog.new()
+	var catalog_max_radius_raw: int = 0
+	for piece: PieceDefinition in pieces:
+		for level_index: int in range(piece.level_count()):
+			var level_status := ContentStatus.new(); var level: PieceLevelDefinition = piece.level_at(level_index, level_status)
+			if not level_status.is_ok(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.CATALOG_BUILD); return ContentCatalog.new()
+			catalog_max_radius_raw = maxi(catalog_max_radius_raw, level.radius_raw())
+	for enemy: EnemyDefinition in enemies:
+		var base_ref: ContentIdRef = enemy.base_piece_ref(); var base_piece: PieceDefinition = piece_by_numeric[base_ref.numeric_id()]
+		var level_status := ContentStatus.new(); var base_level: PieceLevelDefinition = base_piece.level_definition(1, level_status)
+		var override_definition: EnemyOverrideDefinition = enemy.override_definition()
+		var radius_raw: int = override_definition.radius_raw() if override_definition.has_value(EnemyOverrideDefinition.RADIUS_RAW_BIT) else base_level.radius_raw()
+		catalog_max_radius_raw = maxi(catalog_max_radius_raw, radius_raw)
+	var maps: Array[MapDefinition] = []; var map_by_numeric: Dictionary = {}
+	if not _parse_maps(maps_root, registry_by_numeric, registry_by_string, catalog_max_radius_raw, maps, map_by_numeric, status): return ContentCatalog.new()
+	if not _validate_active_registry_coverage(registry_entries, piece_by_numeric, ability_by_numeric, status_by_numeric, synergy_by_numeric, map_by_numeric, enemy_by_numeric, status): return ContentCatalog.new()
 
-	var compatibility_bytes: PackedByteArray = ContentCanonicalEncoder.encode(registry_entries, pieces, abilities, statuses, synergies, status)
+	var compatibility_bytes: PackedByteArray = ContentCanonicalEncoder.encode(registry_entries, pieces, abilities, statuses, synergies, maps, enemies, status)
 	if not status.is_ok(): return ContentCatalog.new()
 	var sim_status := SimStatus.new()
 	var fingerprint: PackedByteArray = SimStateHash.sha256(compatibility_bytes, sim_status)
 	if not sim_status.is_ok() or fingerprint.size() != 32:
 		status.fail(ContentStatus.Code.FINGERPRINT_ERROR, ContentStatus.Operation.SHA256)
 		return ContentCatalog.new()
-	return ContentCatalog.create(ContentIds.CATALOG_SCHEMA_VERSION, registry_entries, pieces, abilities, statuses, synergies, compatibility_bytes, fingerprint, status)
+	return ContentCatalog.create(ContentIds.CATALOG_SCHEMA_VERSION, registry_entries, pieces, abilities, statuses, synergies, maps, enemies, compatibility_bytes, fingerprint, status)

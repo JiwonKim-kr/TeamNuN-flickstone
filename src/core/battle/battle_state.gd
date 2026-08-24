@@ -47,6 +47,8 @@ var _piece_origins: Array[BattlePieceOrigin] = []
 var _runtime_spawn_count: int = 0
 var _dynamic_spawn_transition_count: int = 0
 var _dynamic_transform_body_ids: Array[int] = []
+var _zone_spawns: Array[ZoneSpawnState] = []
+var _zone_spawn_transition_count: int = 0
 
 
 static func _participant_less(left: BattleParticipant, right: BattleParticipant) -> bool:
@@ -557,6 +559,12 @@ func _effective_participants(status: SimStatus) -> Array[BattleParticipant]:
 	return result
 
 
+static func _copy_zone_spawns(source: Array[ZoneSpawnState]) -> Array[ZoneSpawnState]:
+	var result: Array[ZoneSpawnState] = []
+	for item: ZoneSpawnState in source: result.append(item.copy())
+	return result
+
+
 static func _copy_expire_states(source: Array[ExpireState]) -> Array[ExpireState]:
 	var result: Array[ExpireState] = []
 	for item: ExpireState in source: result.append(item.copy())
@@ -976,6 +984,19 @@ func _apply_barrier(status: SimStatus) -> bool:
 				_combatants.sort_custom(_combatant_less)
 			if status.is_ok() and request.dynamic_spawn != null:
 				_register_dynamic_spawn(event.source_body_id(), request.dynamic_spawn, status)
+		elif request.kind == BattleMutationRequest.Kind.ZONE_SPAWN:
+			var planned_zone_id: int = _world.next_zone_id()
+			_world.queue_zone_spawn(request.zone_template, request.cause_body_id, request.event_type_id, request.ordinal, status)
+			_world.commit_pending_spawns(status)
+			if not status.is_ok(): break
+			var found_zone: bool = false
+			for zone_index: int in range(_world.zone_count()):
+				if _world.zone_at(zone_index, status).id() == planned_zone_id: found_zone = true; break
+			if not status.is_ok() or not found_zone:
+				if status.is_ok(): status.fail(SimStatus.Code.INVALID_BATTLE_STATE, SimStatus.Operation.BATTLE_ZONE_SPAWN, planned_zone_id, _world.zone_count())
+				break
+			_zone_spawns.append(ZoneSpawnState.create(planned_zone_id, request.zone_duration_turns, request.zone_applied_turn_index, status))
+			_zone_spawns.sort_custom(func(a: ZoneSpawnState, b: ZoneSpawnState) -> bool: return a.zone_id() < b.zone_id())
 		else:
 			_world.remove_body(request.body_id, status)
 			if status.is_ok():
@@ -1052,6 +1073,23 @@ func queue_dynamic_spawn(request: DynamicSpawnRequest, status: SimStatus) -> boo
 	var queued: bool = _queue_request(BattleMutationRequest.Kind.SPAWN, 0, request.body_template, request.participant_template, request.combatant_template, request.cause_body_id, request.event_type_id, request.ordinal, status)
 	if queued:
 		_pending[-1].dynamic_spawn = request.copy(); _dynamic_spawn_transition_count += 1
+	return queued
+
+
+func queue_zone_spawn(zone_template: SimZone, duration_turns: int, cause_body_id: int, event_type_id: int, ordinal: int, status: SimStatus) -> bool:
+	if (
+		not status.is_ok() or zone_template == null or zone_template.id() != 0
+		or duration_turns < 0 or duration_turns > ContentLimits.ZONE_DURATION_MAX_TURNS
+		or _zone_spawn_transition_count >= BattleLimits.ZONE_SPAWN_MAX_PER_TRANSITION
+		or _zone_spawns.size() + _zone_spawn_transition_count >= BattleLimits.ZONE_SPAWN_MAX_PER_BATTLE
+		or _world.zone_count() + _zone_spawn_transition_count >= BattleLimits.ZONE_TOTAL_MAX
+	):
+		status.fail(SimStatus.Code.ZONE_LIMIT_EXCEEDED, SimStatus.Operation.BATTLE_ZONE_SPAWN, _zone_spawns.size() + _zone_spawn_transition_count + 1, _world.zone_count() + _zone_spawn_transition_count + 1)
+		return false
+	var queued: bool = _queue_request(BattleMutationRequest.Kind.ZONE_SPAWN, 0, null, null, null, cause_body_id, event_type_id, ordinal, status)
+	if queued:
+		_pending[-1].zone_template = zone_template.copy(); _pending[-1].zone_duration_turns = duration_turns; _pending[-1].zone_applied_turn_index = _turn_index
+		_zone_spawn_transition_count += 1
 	return queued
 
 
@@ -1320,6 +1358,7 @@ func copy(status: SimStatus) -> BattleState:
 	for base_stats: BattleBaseBodyStats in _base_body_stats: result._base_body_stats.append(base_stats.copy())
 	result._expire_states = _copy_expire_states(_expire_states); result._piece_origins = _copy_piece_origins(_piece_origins); result._runtime_spawn_count = _runtime_spawn_count
 	result._dynamic_spawn_transition_count = _dynamic_spawn_transition_count; result._dynamic_transform_body_ids = _dynamic_transform_body_ids.duplicate()
+	result._zone_spawns = _copy_zone_spawns(_zone_spawns); result._zone_spawn_transition_count = _zone_spawn_transition_count
 	return result
 
 
@@ -1340,6 +1379,7 @@ func _rollback_snapshot() -> BattleState:
 	result._content_fingerprint = _content_fingerprint.duplicate(); result._ability_bindings = _ability_bindings.duplicate(); result._next_effect_sequence = _next_effect_sequence
 	result._turn_index = _turn_index; result._content_catalog = _content_catalog; result._piece_identities = _piece_identities.duplicate(); result._synergy_tally = _synergy_tally; result._statuses = _statuses.copy(); result._modifier_resolver = _modifier_resolver; result._base_body_stats = _base_body_stats.duplicate()
 	result._expire_states = _expire_states.duplicate(); result._piece_origins = _piece_origins.duplicate(); result._runtime_spawn_count = _runtime_spawn_count; result._dynamic_spawn_transition_count = _dynamic_spawn_transition_count; result._dynamic_transform_body_ids = _dynamic_transform_body_ids.duplicate()
+	result._zone_spawns = _zone_spawns.duplicate(); result._zone_spawn_transition_count = _zone_spawn_transition_count
 	return result
 
 
@@ -1359,6 +1399,7 @@ func _assign_from(other: BattleState) -> void:
 	_next_effect_sequence = other._next_effect_sequence
 	_turn_index = other._turn_index; _content_catalog = other._content_catalog; _piece_identities = other._piece_identities; _synergy_tally = other._synergy_tally; _statuses = other._statuses; _modifier_resolver = other._modifier_resolver; _base_body_stats = other._base_body_stats
 	_expire_states = other._expire_states; _piece_origins = other._piece_origins; _runtime_spawn_count = other._runtime_spawn_count; _dynamic_spawn_transition_count = other._dynamic_spawn_transition_count; _dynamic_transform_body_ids = other._dynamic_transform_body_ids
+	_zone_spawns = other._zone_spawns; _zone_spawn_transition_count = other._zone_spawn_transition_count
 
 
 func attach_content(catalog: ContentCatalog, identities: Array[BattlePieceIdentity], bindings: Array[AbilityBinding], status: SimStatus) -> bool:
@@ -1390,7 +1431,7 @@ func attach_content(catalog: ContentCatalog, identities: Array[BattlePieceIdenti
 
 
 func _dynamic_begin_transition() -> void:
-	_dynamic_spawn_transition_count = 0; _dynamic_transform_body_ids.clear()
+	_dynamic_spawn_transition_count = 0; _dynamic_transform_body_ids.clear(); _zone_spawn_transition_count = 0
 
 
 func _level_one_ability_ids(piece: PieceDefinition, status: SimStatus) -> Array[int]:
@@ -1435,6 +1476,22 @@ func _effect_dynamic_spawn(owner_body_id: int, target_body_id: int, record: Batt
 	request.piece_numeric_id = piece.numeric_id(); request.faction = faction; request.ability_numeric_ids = _level_one_ability_ids(piece, status); request.expire_kind_id = piece.expire_kind_id(); request.expire_value = piece.expire_value(); request.applied_turn_index = _turn_index
 	request.cause_body_id = owner_body_id; request.event_type_id = effect.kind_id(); request.ordinal = ordinal
 	return status.is_ok() and queue_dynamic_spawn(request, status)
+
+
+func _effect_spawn_zone(owner_body_id: int, target_body_id: int, effect: AbilityEffectDefinition, ordinal: int, status: SimStatus) -> bool:
+	var payload: ZoneSpawnPayloadDefinition = effect.zone_payload()
+	var target: SimBody = _world.body_by_id(target_body_id, status)
+	if not status.is_ok(): return false
+	var origin: FixVec2 = target.position().add(payload.offset(), status)
+	var vertices: Array[FixVec2] = []; var content_status := ContentStatus.new()
+	for index: int in range(payload.vertex_count()):
+		var vertex: FixVec2 = origin.add(payload.vertex_at(index, content_status), status)
+		if not content_status.is_ok() or not status.is_ok() or not SimLimits.is_position_valid(vertex):
+			if status.is_ok(): status.fail(SimStatus.Code.INVALID_MAP_DEFINITION, SimStatus.Operation.BATTLE_ZONE_SPAWN, target_body_id, index)
+			return false
+		vertices.append(vertex)
+	var zone: SimZone = SimZone.create_unassigned(vertices, payload.friction_multiplier_raw(), payload.acceleration(), status, payload.flags())
+	return status.is_ok() and queue_zone_spawn(zone, payload.duration_turns(), owner_body_id, effect.kind_id(), ordinal, status)
 
 
 func _replace_bindings_for_piece(body_id: int, piece: PieceDefinition, status: SimStatus) -> void:
@@ -1539,12 +1596,27 @@ func _expire_dynamic_turn_end(status: SimStatus) -> void:
 	if not released.is_empty(): _settle_link_release_expire(status)
 
 
+func _expire_zone_turn_end(status: SimStatus) -> void:
+	var completed_turn: int = maxi(0, _turn_index - 1)
+	var survivors: Array[ZoneSpawnState] = []
+	for zone_state: ZoneSpawnState in _zone_spawns:
+		if zone_state.remaining_turns() == 0 or zone_state.applied_turn_index() >= completed_turn:
+			survivors.append(zone_state.copy())
+		elif zone_state.remaining_turns() <= 1:
+			_world.remove_zone(zone_state.zone_id(), status)
+			if not status.is_ok(): return
+		else:
+			survivors.append(zone_state.with_remaining(zone_state.remaining_turns() - 1, status))
+			if not status.is_ok(): return
+	_zone_spawns = survivors
+
+
 func _dynamic_finish_transition(has_turn_end: bool, status: SimStatus) -> bool:
 	if not _apply_barrier(status): return false
-	if has_turn_end: _expire_dynamic_turn_end(status)
+	if has_turn_end: _expire_dynamic_turn_end(status); _expire_zone_turn_end(status)
 	if status.is_ok() and not _pending.is_empty() and not _apply_barrier(status): return false
 	if status.is_ok(): _settle_link_release_expire(status)
-	_dynamic_spawn_transition_count = 0; _dynamic_transform_body_ids.clear()
+	_dynamic_spawn_transition_count = 0; _dynamic_transform_body_ids.clear(); _zone_spawn_transition_count = 0
 	return status.is_ok() and _pending.is_empty() and not _world.has_pending_requests()
 
 func _materialize_physical_stats(status: SimStatus) -> bool:
@@ -1682,6 +1754,10 @@ func piece_origin_at(index: int, status: SimStatus) -> BattlePieceOrigin:
 	if index < 0 or index >= _piece_origins.size(): status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.BATTLE_PIECE_IDENTITY_READ, index, _piece_origins.size()); return BattlePieceOrigin.new()
 	return _piece_origins[index].copy()
 func runtime_spawn_count() -> int: return _runtime_spawn_count
+func zone_spawn_count() -> int: return _zone_spawns.size()
+func zone_spawn_at(index: int, status: SimStatus) -> ZoneSpawnState:
+	if index < 0 or index >= _zone_spawns.size(): status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.BATTLE_ZONE_SPAWN, index, _zone_spawns.size()); return ZoneSpawnState.new()
+	return _zone_spawns[index].copy()
 func link_collection_copy(status: SimStatus) -> AttachLinkCollection: return AttachLinkCollection.from_world(_world, status)
 
 func _effect_restore_content(fingerprint: PackedByteArray, bindings: Array[AbilityBinding], next_sequence: int, status: SimStatus) -> bool:
@@ -1724,6 +1800,19 @@ func _dynamic_restore_snapshot(expire_states: Array[ExpireState], origins: Array
 			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.CONTENT_SNAPSHOT_VALIDATE, 0 if origin == null else origin.body_id(), previous); return false
 		_piece_origins.append(origin.copy()); previous = origin.body_id()
 	_runtime_spawn_count = runtime_spawn_count; return true
+
+
+func _zone_restore_snapshot(zone_spawns: Array[ZoneSpawnState], status: SimStatus) -> bool:
+	if zone_spawns.size() > BattleLimits.ZONE_SPAWN_MAX_PER_BATTLE or _world.zone_count() > BattleLimits.ZONE_TOTAL_MAX:
+		status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.CONTENT_SNAPSHOT_VALIDATE, zone_spawns.size(), _world.zone_count()); return false
+	var existing: Dictionary = {}
+	for index: int in range(_world.zone_count()): existing[_world.zone_at(index, status).id()] = true
+	var previous: int = 0; _zone_spawns.clear()
+	for zone_state: ZoneSpawnState in zone_spawns:
+		if zone_state == null or not zone_state.is_initialized() or zone_state.zone_id() <= previous or zone_state.applied_turn_index() > _turn_index or not existing.has(zone_state.zone_id()):
+			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.CONTENT_SNAPSHOT_VALIDATE, 0 if zone_state == null else zone_state.zone_id(), previous); return false
+		_zone_spawns.append(zone_state.copy()); previous = zone_state.zone_id()
+	return status.is_ok()
 
 func _status_bind_restored_catalog(catalog: ContentCatalog, status: SimStatus) -> bool:
 	if catalog == null or not catalog.is_initialized() or catalog.fingerprint_bytes() != _content_fingerprint:

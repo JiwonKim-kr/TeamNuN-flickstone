@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flickstone.local/schemas/p2-catalog-v5.schema.json",
+  "$defs": {
+    "document": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind_id", "file_name", "schema_version"],
+      "properties": {
+        "kind_id": {"type": "integer", "minimum": 1, "maximum": 7},
+        "file_name": {"enum": ["id_registry.json", "pieces.json", "abilities.json", "statuses.json", "synergies.json", "maps.json", "enemies.json"]},
+        "schema_version": {"type": "integer", "minimum": 1, "maximum": 5}
+      }
+    }
+  },
+  "type": "object", "additionalProperties": false, "required": ["schema_version", "documents"],
+  "properties": {"schema_version": {"const": 5}, "documents": {"type": "array", "minItems": 7, "maxItems": 7, "items": {"$ref": "#/$defs/document"}}}
+}

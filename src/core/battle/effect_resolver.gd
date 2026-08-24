@@ -62,6 +62,8 @@ static func _apply(state: BattleState, owner_id: int, target_id: int, record: Ba
 			return state._effect_transform(target_id, effect, status)
 		AbilityEffectDefinition.Kind.ATTACH:
 			return state._effect_attach(owner_id, target_id, record, effect, status)
+		AbilityEffectDefinition.Kind.SPAWN_ZONE:
+			return state._effect_spawn_zone(owner_id, target_id, effect, application_ordinal, status)
 	status.fail(SimStatus.Code.INVALID_EFFECT_DEFINITION, SimStatus.Operation.EFFECT_APPLY, target_id, effect.kind_id()); return false
 
 static func resolve_transition(state: BattleState, registry: AbilityRegistry, records: Array[BattleTriggerRecord], content_fingerprint: PackedByteArray, status: SimStatus) -> EffectResolutionReport:

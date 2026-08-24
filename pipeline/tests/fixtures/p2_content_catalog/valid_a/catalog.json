@@ -1,5 +1,5 @@
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "documents": [
     {
       "kind_id": 2,
@@ -14,7 +14,7 @@
     {
       "kind_id": 3,
       "file_name": "abilities.json",
-      "schema_version": 4
+      "schema_version": 5
     },
     {
       "kind_id": 4,
@@ -25,6 +25,8 @@
       "kind_id": 5,
       "file_name": "synergies.json",
       "schema_version": 1
-    }
+    },
+    {"kind_id": 6, "file_name": "maps.json", "schema_version": 1},
+    {"kind_id": 7, "file_name": "enemies.json", "schema_version": 1}
   ]
 }

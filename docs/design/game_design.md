@@ -2415,18 +2415,19 @@ res://
 
 ```json
 {
+  "numeric_id": 0,
   "id": "",
-  "size": [0, 0],
-  "boundary": [[0,0]],
-  "boundary_type": "WALL | KILL",
-  "slots": { "player": [[0,0]], "enemy": [[0,0]] },
+  "boundary_type_id": 0,
+  "boundary_vertices": [{"x_raw": 0, "y_raw": 0}],
   "deploy_count": 0,
+  "player_slots": [{"x_raw": 0, "y_raw": 0}],
+  "enemy_slots": [{"x_raw": 0, "y_raw": 0}],
   "zones": [],
   "obstacles": []
 }
 ```
 
-> `boundary_type` 이 D-06을 데이터 수준에서 표현하는 핵심 필드다. 기본값은 `WALL`이며, 엘리트·특수 이벤트 맵만 `KILL`로 둔다. 판 안쪽 구덩이는 `zones`에 `KILL` 타입으로 배치한다 — **같은 판정을 재사용**한다.
+> `boundary_type_id`가 D-06을 데이터 수준에서 표현하는 핵심 필드다. `boundary_vertices`가 판 크기의 유일한 정본이며 별도 `size`는 두지 않는다. 판 안쪽 구덩이는 `zones`에 `KILL` 플래그로 배치해 **같은 판정**을 재사용한다. P2-5 maps v1의 `obstacles`는 예약 필드로서 빈 배열만 허용하며 U-03 승인 전에는 활성화하지 않는다.
 
 ### 15.3 그 외 파일
 

@@ -1,7 +1,7 @@
 class_name BattleMutationRequest
 extends RefCounted
 
-enum Kind { INVALID = 0, SPAWN = 1, REMOVE = 2 }
+enum Kind { INVALID = 0, SPAWN = 1, REMOVE = 2, ZONE_SPAWN = 3 }
 
 var kind: int = Kind.INVALID
 var tick: int = 0
@@ -13,6 +13,9 @@ var participant_template: BattleParticipant
 var combatant_template: BattleCombatant
 var dynamic_spawn: DynamicSpawnRequest
 var body_id: int = 0
+var zone_template: SimZone
+var zone_duration_turns: int = 0
+var zone_applied_turn_index: int = 0
 
 func copy() -> BattleMutationRequest:
 	var result := BattleMutationRequest.new()
@@ -26,4 +29,7 @@ func copy() -> BattleMutationRequest:
 	result.combatant_template = null if combatant_template == null else combatant_template.copy()
 	result.dynamic_spawn = null if dynamic_spawn == null else dynamic_spawn.copy()
 	result.body_id = body_id
+	result.zone_template = null if zone_template == null else zone_template.copy()
+	result.zone_duration_turns = zone_duration_turns
+	result.zone_applied_turn_index = zone_applied_turn_index
 	return result

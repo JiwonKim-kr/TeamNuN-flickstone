@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import re
 import struct
 import sys
@@ -37,13 +38,17 @@ EXPECTED_FILES = {
     "abilities.json",
     "statuses.json",
     "synergies.json",
+    "maps.json",
+    "enemies.json",
 }
 DOCUMENTS = {
     1: ("id_registry.json", 1),
     2: ("pieces.json", 3),
-    3: ("abilities.json", 4),
+    3: ("abilities.json", 5),
     4: ("statuses.json", 1),
     5: ("synergies.json", 1),
+    6: ("maps.json", 1),
+    7: ("enemies.json", 1),
 }
 
 
@@ -157,6 +162,83 @@ def _u32(value: Any, label: str) -> int:
     return result
 
 
+def _point(raw: Any, label: str) -> tuple[int, int]:
+    item = _exact(raw, {"x_raw", "y_raw"}, label)
+    point = (_integer(item["x_raw"], f"{label}.x"), _integer(item["y_raw"], f"{label}.y"))
+    if not all(-POSITION_COMPONENT_LIMIT_RAW <= value <= POSITION_COMPONENT_LIMIT_RAW for value in point):
+        raise ContentError(f"INVALID_DOMAIN:{label}")
+    return point
+
+
+def _cross(a: tuple[int, int], b: tuple[int, int], c: tuple[int, int]) -> int:
+    return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+
+def _on_segment(a: tuple[int, int], b: tuple[int, int], p: tuple[int, int]) -> bool:
+    return min(a[0], b[0]) <= p[0] <= max(a[0], b[0]) and min(a[1], b[1]) <= p[1] <= max(a[1], b[1])
+
+
+def _segments_intersect(a: tuple[int, int], b: tuple[int, int], c: tuple[int, int], d: tuple[int, int]) -> bool:
+    values = (_cross(a, b, c), _cross(a, b, d), _cross(c, d, a), _cross(c, d, b))
+    if values[0] == 0 and _on_segment(a, b, c): return True
+    if values[1] == 0 and _on_segment(a, b, d): return True
+    if values[2] == 0 and _on_segment(c, d, a): return True
+    if values[3] == 0 and _on_segment(c, d, b): return True
+    return (values[0] < 0) != (values[1] < 0) and (values[2] < 0) != (values[3] < 0)
+
+
+def _validate_polygon(vertices: tuple[tuple[int, int], ...], require_clockwise_convex: bool, label: str) -> None:
+    if not 3 <= len(vertices) <= 64 or len(set(vertices)) != len(vertices):
+        raise ContentError(f"INVALID_POLYGON:{label}")
+    count = len(vertices)
+    turns = [_cross(vertices[(i - 1) % count], vertices[i], vertices[(i + 1) % count]) for i in range(count)]
+    if any(turn == 0 for turn in turns):
+        raise ContentError(f"INVALID_POLYGON:{label}")
+    for first in range(count):
+        for second in range(first + 1, count):
+            if second == first or second == (first + 1) % count or (second + 1) % count == first:
+                continue
+            if _segments_intersect(vertices[first], vertices[(first + 1) % count], vertices[second], vertices[(second + 1) % count]):
+                raise ContentError(f"INVALID_POLYGON:{label}")
+    extreme = min(range(count), key=lambda i: vertices[i])
+    clockwise = turns[extreme] > 0
+    convex = all((turn > 0) == clockwise for turn in turns)
+    if require_clockwise_convex and (not clockwise or not convex):
+        raise ContentError(f"INVALID_POLYGON:{label}")
+
+
+def _point_class(vertices: tuple[tuple[int, int], ...], point: tuple[int, int]) -> int:
+    winding = 0
+    for index, a in enumerate(vertices):
+        b = vertices[(index + 1) % len(vertices)]
+        cross = _cross(a, b, point)
+        if cross == 0 and _on_segment(a, b, point): return 1
+        if a[1] <= point[1]:
+            if b[1] > point[1] and cross > 0: winding += 1
+        elif b[1] <= point[1] and cross < 0: winding -= 1
+    return 2 if winding else 0
+
+
+def _round_div(numerator: int, denominator: int) -> int:
+    sign = -1 if (numerator < 0) != (denominator < 0) else 1
+    quotient, remainder = divmod(abs(numerator), abs(denominator))
+    if remainder * 2 >= abs(denominator): quotient += 1
+    return sign * quotient
+
+
+def _distance_to_segment(point: tuple[int, int], a: tuple[int, int], b: tuple[int, int]) -> int:
+    edge = (b[0] - a[0], b[1] - a[1]); offset = (point[0] - a[0], point[1] - a[1])
+    length_squared = edge[0] ** 2 + edge[1] ** 2; projection = offset[0] * edge[0] + offset[1] * edge[1]
+    if projection <= 0: closest = a
+    elif projection >= length_squared: closest = b
+    else:
+        t_raw = (projection * FIX_SCALE + length_squared // 2) // length_squared
+        closest = (a[0] + _round_div(edge[0] * t_raw, FIX_SCALE), a[1] + _round_div(edge[1] * t_raw, FIX_SCALE))
+    squared = (point[0] - closest[0]) ** 2 + (point[1] - closest[1]) ** 2
+    lower = math.isqrt(squared)
+    return lower + 1 if 2 * (squared - lower * lower) >= 2 * lower + 1 else lower
+
+
 def _modifier(raw: Any, label: str) -> "Modifier":
     item = _exact(raw, {"kind_id", "operation_id", "value_mode_id", "value"}, label)
     kind_id = _integer(item["kind_id"], f"{label}.kind_id")
@@ -219,6 +301,18 @@ class AttachPayload:
 
 
 @dataclass(frozen=True)
+class ZonePayload:
+    flags: int
+    friction_multiplier_raw: int
+    acceleration_x_raw: int
+    acceleration_y_raw: int
+    offset_x_raw: int
+    offset_y_raw: int
+    vertices: tuple[tuple[int, int], ...]
+    duration_turns: int
+
+
+@dataclass(frozen=True)
 class Effect:
     kind_id: int
     selector: Selector
@@ -228,6 +322,7 @@ class Effect:
     spawn: SpawnPayload | None = None
     transform: TransformPayload | None = None
     attach: AttachPayload | None = None
+    zone: ZonePayload | None = None
 
 
 @dataclass(frozen=True)
@@ -314,12 +409,51 @@ class SynergyDefinition:
 
 
 @dataclass(frozen=True)
+class MapZone:
+    local_id: int
+    flags: int
+    friction_multiplier_raw: int
+    acceleration_x_raw: int
+    acceleration_y_raw: int
+    vertices: tuple[tuple[int, int], ...]
+
+
+@dataclass(frozen=True)
+class MapDefinition:
+    numeric_id: int
+    string_id: str
+    boundary_type_id: int
+    boundary_vertices: tuple[tuple[int, int], ...]
+    deploy_count: int
+    player_slots: tuple[tuple[int, int], ...]
+    enemy_slots: tuple[tuple[int, int], ...]
+    zones: tuple[MapZone, ...]
+
+
+@dataclass(frozen=True)
+class EnemyOverride:
+    presence_mask: int
+    values: tuple[int, int, int, int, int, int, int]
+    ability_refs: tuple[Ref, ...]
+
+
+@dataclass(frozen=True)
+class EnemyDefinition:
+    numeric_id: int
+    string_id: str
+    base_piece_ref: Ref
+    override: EnemyOverride
+
+
+@dataclass(frozen=True)
 class Catalog:
     entries: tuple[Entry, ...]
     pieces: tuple[Piece, ...]
     abilities: tuple[Ability, ...]
     statuses: tuple[StatusDefinition, ...]
     synergies: tuple[SynergyDefinition, ...]
+    maps: tuple[MapDefinition, ...]
+    enemies: tuple[EnemyDefinition, ...]
     compatibility_bytes: bytes
     fingerprint: bytes
 
@@ -352,12 +486,13 @@ class Writer:
 
 def canonical_bytes(
     entries: tuple[Entry, ...], pieces: tuple[Piece, ...], abilities: tuple[Ability, ...],
-    statuses: tuple[StatusDefinition, ...] = (), synergies: tuple[SynergyDefinition, ...] = ()
+    statuses: tuple[StatusDefinition, ...] = (), synergies: tuple[SynergyDefinition, ...] = (),
+    maps: tuple[MapDefinition, ...] = (), enemies: tuple[EnemyDefinition, ...] = ()
 ) -> bytes:
     writer = Writer()
     writer.data += b"FLICKCAT"
-    writer.u16(4)
-    writer.u16(4)
+    writer.u16(5)
+    writer.u16(5)
     writer.u16(1)
     writer.u16(8)
     for namespace_id in range(1, 9):
@@ -369,7 +504,7 @@ def canonical_bytes(
             writer.string(entry.string_id)
             writer.u8(entry.state_id)
 
-    writer.u16(4)
+    writer.u16(6)
     writer.u16(2)
     writer.u16(3)
     writer.u32(len(pieces))
@@ -406,7 +541,7 @@ def canonical_bytes(
                 writer.u32(ref.numeric_id)
                 writer.string(ref.string_id)
     writer.u16(3)
-    writer.u16(4)
+    writer.u16(5)
     writer.u32(len(abilities))
     for ability in abilities:
         writer.u32(ability.numeric_id)
@@ -446,6 +581,16 @@ def canonical_bytes(
                 writer.i64(effect.attach.attach_distance_raw)
                 writer.u16(effect.attach.inertia_basis_points)
                 writer.u32(effect.attach.duration_turns)
+            elif effect.zone is not None:
+                writer.u8(4)
+                writer.u32(effect.zone.flags)
+                writer.i64(effect.zone.friction_multiplier_raw)
+                writer.vec2(effect.zone.acceleration_x_raw, effect.zone.acceleration_y_raw)
+                writer.vec2(effect.zone.offset_x_raw, effect.zone.offset_y_raw)
+                writer.u32(len(effect.zone.vertices))
+                for x_raw, y_raw in effect.zone.vertices:
+                    writer.vec2(x_raw, y_raw)
+                writer.u32(effect.zone.duration_turns)
             else:
                 writer.u8(0)
     writer.u16(4)
@@ -487,6 +632,50 @@ def canonical_bytes(
                 writer.u16(modifier.operation_id)
                 writer.u16(modifier.value_mode_id)
                 writer.i64(modifier.value)
+    writer.u16(6)
+    writer.u16(1)
+    writer.u32(len(maps))
+    for definition in maps:
+        writer.u32(definition.numeric_id)
+        writer.string(definition.string_id)
+        writer.u16(definition.boundary_type_id)
+        writer.u32(len(definition.boundary_vertices))
+        for vertex in definition.boundary_vertices:
+            writer.vec2(*vertex)
+        writer.u16(definition.deploy_count)
+        writer.u32(len(definition.player_slots))
+        for slot in definition.player_slots:
+            writer.vec2(*slot)
+        writer.u32(len(definition.enemy_slots))
+        for slot in definition.enemy_slots:
+            writer.vec2(*slot)
+        writer.u32(len(definition.zones))
+        for zone in definition.zones:
+            writer.u32(zone.local_id)
+            writer.u32(zone.flags)
+            writer.i64(zone.friction_multiplier_raw)
+            writer.vec2(zone.acceleration_x_raw, zone.acceleration_y_raw)
+            writer.u32(len(zone.vertices))
+            for vertex in zone.vertices:
+                writer.vec2(*vertex)
+        writer.u32(0)
+    writer.u16(7)
+    writer.u16(1)
+    writer.u32(len(enemies))
+    for definition in enemies:
+        writer.u32(definition.numeric_id)
+        writer.string(definition.string_id)
+        writer.u32(definition.base_piece_ref.numeric_id)
+        writer.string(definition.base_piece_ref.string_id)
+        writer.u16(definition.override.presence_mask)
+        for index, value in enumerate(definition.override.values):
+            if definition.override.presence_mask & (1 << index):
+                writer.i64(value)
+        if definition.override.presence_mask & (1 << 7):
+            writer.u16(len(definition.override.ability_refs))
+            for ref in definition.override.ability_refs:
+                writer.u32(ref.numeric_id)
+                writer.string(ref.string_id)
     return bytes(writer.data)
 
 
@@ -511,10 +700,10 @@ def load_catalog(root: Path) -> Catalog:
         raise ContentError("CATALOG_LIMIT:bytes")
 
     catalog = _exact(_load_file(root, "catalog.json"), {"schema_version", "documents"}, "catalog")
-    if _integer(catalog["schema_version"], "catalog.schema_version") != 4:
+    if _integer(catalog["schema_version"], "catalog.schema_version") != 5:
         raise ContentError("UNSUPPORTED_SCHEMA:catalog")
     documents = catalog["documents"]
-    if not isinstance(documents, list) or len(documents) != 5:
+    if not isinstance(documents, list) or len(documents) != 7:
         raise ContentError("INVALID_DOMAIN:documents")
     seen_documents: set[int] = set()
     for raw in documents:
@@ -546,7 +735,7 @@ def load_catalog(root: Path) -> Catalog:
             raise ContentError("DUPLICATE_ID:namespace")
         if not isinstance(raw_entries, list) or len(raw_entries) > RECORD_MAX_COUNT:
             raise ContentError("CATALOG_LIMIT:entries")
-        if namespace_id in range(5, 8) and raw_entries:
+        if namespace_id == 5 and raw_entries:
             raise ContentError("INVALID_DOMAIN:inactive_namespace")
         seen_namespaces.add(namespace_id)
         for raw_entry in raw_entries:
@@ -575,7 +764,7 @@ def load_catalog(root: Path) -> Catalog:
         return numeric
 
     abilities_doc = _exact(_load_file(root, "abilities.json"), {"schema_version", "records"}, "abilities")
-    if _integer(abilities_doc["schema_version"], "abilities.schema_version") != 4:
+    if _integer(abilities_doc["schema_version"], "abilities.schema_version") != 5:
         raise ContentError("UNSUPPORTED_SCHEMA:abilities")
     ability_records = abilities_doc["records"]
     if not isinstance(ability_records, list) or len(ability_records) > RECORD_MAX_COUNT:
@@ -627,13 +816,15 @@ def load_catalog(root: Path) -> Catalog:
                 effect_keys.add("transform")
             elif effect_kind == 15:
                 effect_keys.add("attach")
+            elif effect_kind == 16:
+                effect_keys.add("zone")
             effect = _exact(raw_effect, effect_keys, "effect")
             selector_raw = _exact(effect["selector"], {"kind_id", "relation_id", "limit"}, "selector")
             selector = Selector(_integer(selector_raw["kind_id"], "selector.kind_id"), _integer(selector_raw["relation_id"], "selector.relation_id"), _integer(selector_raw["limit"], "selector.limit"))
             value_a = _integer(effect["value_a"], "effect.value_a")
             value_b = _integer(effect["value_b"], "effect.value_b")
             operation_id = _integer(effect["operation_id"], "effect.operation_id")
-            if effect_kind not in (1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15) or not 1 <= selector.kind_id <= 8 or selector.relation_id != 0 or not 0 <= selector.limit <= 256:
+            if effect_kind not in (1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16) or not 1 <= selector.kind_id <= 8 or selector.relation_id != 0 or not 0 <= selector.limit <= 256:
                 raise ContentError("INVALID_DOMAIN:effect")
             if effect_kind in (1, 2, 3, 4) and (value_a <= 0 or value_b != 0):
                 raise ContentError("INVALID_DOMAIN:effect_values")
@@ -649,6 +840,7 @@ def load_catalog(root: Path) -> Catalog:
             spawn: SpawnPayload | None = None
             transform: TransformPayload | None = None
             attach: AttachPayload | None = None
+            zone: ZonePayload | None = None
             if effect_kind in (12, 13):
                 payload = _exact(effect["spawn"], {"piece_ref", "offset_x_raw", "offset_y_raw", "speed_raw", "direction_mode_id"}, "spawn")
                 ref_raw = _exact(payload["piece_ref"], {"numeric_id", "id"}, "spawn.piece_ref")
@@ -695,9 +887,32 @@ def load_catalog(root: Path) -> Catalog:
                 if anchor_mode_id == 3 and trigger_id not in (5, 6, 7):
                     raise ContentError("INVALID_DOMAIN:contact_point_trigger")
                 attach = AttachPayload(owner_role_id, anchor_mode_id, offset_x_raw, offset_y_raw, attach_distance_raw, inertia_basis_points, duration_turns)
+            elif effect_kind == 16:
+                payload = _exact(effect["zone"], {"flags", "friction_multiplier_raw", "acceleration_x_raw", "acceleration_y_raw", "offset_x_raw", "offset_y_raw", "vertices", "duration_turns"}, "zone")
+                flags = _integer(payload["flags"], "zone.flags")
+                friction = _integer(payload["friction_multiplier_raw"], "zone.friction")
+                acceleration_x = _integer(payload["acceleration_x_raw"], "zone.acceleration_x")
+                acceleration_y = _integer(payload["acceleration_y_raw"], "zone.acceleration_y")
+                offset_x = _integer(payload["offset_x_raw"], "zone.offset_x")
+                offset_y = _integer(payload["offset_y_raw"], "zone.offset_y")
+                duration = _integer(payload["duration_turns"], "zone.duration")
+                vertices_raw = payload["vertices"]
+                if flags not in (0, 1) or friction < 0 or not 0 <= duration <= 1024 or not isinstance(vertices_raw, list) or not 3 <= len(vertices_raw) <= 64:
+                    raise ContentError("INVALID_DOMAIN:zone")
+                if flags == 1 and (friction != FIX_SCALE or acceleration_x != 0 or acceleration_y != 0):
+                    raise ContentError("INVALID_DOMAIN:kill_zone")
+                vertices: list[tuple[int, int]] = []
+                for raw_vertex in vertices_raw:
+                    vertex = _exact(raw_vertex, {"x_raw", "y_raw"}, "zone.vertex")
+                    x_raw = _integer(vertex["x_raw"], "zone.vertex.x")
+                    y_raw = _integer(vertex["y_raw"], "zone.vertex.y")
+                    if not (-POSITION_COMPONENT_LIMIT_RAW <= x_raw <= POSITION_COMPONENT_LIMIT_RAW and -POSITION_COMPONENT_LIMIT_RAW <= y_raw <= POSITION_COMPONENT_LIMIT_RAW):
+                        raise ContentError("INVALID_DOMAIN:zone.vertex")
+                    vertices.append((x_raw, y_raw))
+                zone = ZonePayload(flags, friction, acceleration_x, acceleration_y, offset_x, offset_y, tuple(vertices), duration)
             if effect_kind >= 12 and (value_a != 0 or value_b != 0 or operation_id != 0):
                 raise ContentError("INVALID_DOMAIN:dynamic_effect_values")
-            effects.append(Effect(effect_kind, selector, value_a, value_b, operation_id, spawn, transform, attach))
+            effects.append(Effect(effect_kind, selector, value_a, value_b, operation_id, spawn, transform, attach, zone))
         ability_ids.add(numeric_id)
         ability_strings.add(string_id)
         abilities.append(Ability(numeric_id, string_id, trigger_id, tuple(conditions), tuple(effects)))
@@ -875,6 +1090,97 @@ def load_catalog(root: Path) -> Catalog:
         synergy_ids.add(numeric_id); synergy_strings.add(string_id); synergy_tags.add(tag_ref.numeric_id)
     synergies.sort(key=lambda item: item.numeric_id)
 
+    enemies_doc = _exact(_load_file(root, "enemies.json"), {"schema_version", "records"}, "enemies")
+    if _integer(enemies_doc["schema_version"], "enemies.schema_version") != 1 or not isinstance(enemies_doc["records"], list) or len(enemies_doc["records"]) > RECORD_MAX_COUNT:
+        raise ContentError("UNSUPPORTED_SCHEMA:enemies")
+    enemies: list[EnemyDefinition] = []; enemy_ids: set[int] = set(); enemy_strings: set[str] = set()
+    override_names = ("max_hp", "attack", "speed_stat", "mass_raw", "radius_raw", "friction_multiplier_raw", "critical_basis_points")
+    for raw in enemies_doc["records"]:
+        item = _exact(raw, {"numeric_id", "id", "base_piece_ref", "override"}, "enemy")
+        numeric_id = _u32(item["numeric_id"], "enemy.numeric_id"); string_id = _string_id(item["id"], "enemy.id")
+        active_pair(6, numeric_id, string_id)
+        base_raw = _exact(item["base_piece_ref"], {"numeric_id", "id"}, "enemy.base_piece_ref")
+        base_ref = Ref(_u32(base_raw["numeric_id"], "enemy.base.numeric_id"), _string_id(base_raw["id"], "enemy.base.id"))
+        active_pair(1, base_ref.numeric_id, base_ref.string_id)
+        base_piece = piece_by_id.get(base_ref.numeric_id)
+        if base_piece is None or base_piece.string_id != base_ref.string_id:
+            raise ContentError("MISSING_REFERENCE:enemy.base_piece")
+        override_raw = item["override"]
+        if not isinstance(override_raw, dict) or not set(override_raw).issubset(set(override_names) | {"ability_refs"}):
+            raise ContentError("KEY_SET:enemy.override")
+        mask = 0; values = [0] * 7
+        for index, name in enumerate(override_names):
+            if name in override_raw:
+                mask |= 1 << index; values[index] = _integer(override_raw[name], f"enemy.override.{name}")
+        if mask & 1 and not 1 <= values[0] <= 1_000_000: raise ContentError("INVALID_DOMAIN:enemy.max_hp")
+        if mask & 2 and not 1 <= values[1] <= 1_000_000: raise ContentError("INVALID_DOMAIN:enemy.attack")
+        if mask & 4 and not 50 <= values[2] <= 200: raise ContentError("INVALID_DOMAIN:enemy.speed")
+        if mask & 8 and not 65_536 <= values[3] <= 16_777_216: raise ContentError("INVALID_DOMAIN:enemy.mass")
+        if mask & 16 and not 524_288 <= values[4] <= 8_388_608: raise ContentError("INVALID_DOMAIN:enemy.radius")
+        if mask & 32 and values[5] < 0: raise ContentError("INVALID_DOMAIN:enemy.friction")
+        if mask & 64 and not 0 <= values[6] <= 10_000: raise ContentError("INVALID_DOMAIN:enemy.critical")
+        refs: list[Ref] = []
+        if "ability_refs" in override_raw:
+            mask |= 1 << 7; raw_refs = override_raw["ability_refs"]
+            if not isinstance(raw_refs, list) or len(raw_refs) > ABILITY_REFS_MAX_COUNT: raise ContentError("CATALOG_LIMIT:enemy.ability_refs")
+            for raw_ref in raw_refs:
+                ref_raw = _exact(raw_ref, {"numeric_id", "id"}, "enemy.ability_ref")
+                ref = Ref(_u32(ref_raw["numeric_id"], "enemy.ability.numeric_id"), _string_id(ref_raw["id"], "enemy.ability.id"))
+                active_pair(2, ref.numeric_id, ref.string_id)
+                if ref.numeric_id not in ability_by_id or ability_by_id[ref.numeric_id].string_id != ref.string_id: raise ContentError("MISSING_REFERENCE:enemy.ability")
+                refs.append(ref)
+            refs.sort(key=lambda ref: ref.numeric_id)
+            if len({ref.numeric_id for ref in refs}) != len(refs): raise ContentError("DUPLICATE_ID:enemy.ability")
+        if numeric_id in enemy_ids or string_id in enemy_strings: raise ContentError("DUPLICATE_ID:enemy")
+        enemies.append(EnemyDefinition(numeric_id, string_id, base_ref, EnemyOverride(mask, tuple(values), tuple(refs))))
+        enemy_ids.add(numeric_id); enemy_strings.add(string_id)
+    enemies.sort(key=lambda item: item.numeric_id)
+
+    max_radius = max((level.radius_raw for piece in pieces for level in piece.levels), default=0)
+    for enemy in enemies:
+        radius = enemy.override.values[4] if enemy.override.presence_mask & (1 << 4) else piece_by_id[enemy.base_piece_ref.numeric_id].levels[0].radius_raw
+        max_radius = max(max_radius, radius)
+
+    maps_doc = _exact(_load_file(root, "maps.json"), {"schema_version", "records"}, "maps")
+    if _integer(maps_doc["schema_version"], "maps.schema_version") != 1 or not isinstance(maps_doc["records"], list) or len(maps_doc["records"]) > RECORD_MAX_COUNT:
+        raise ContentError("UNSUPPORTED_SCHEMA:maps")
+    if maps_doc["records"] and max_radius == 0: raise ContentError("INVALID_DOMAIN:map.radius_candidates")
+    maps: list[MapDefinition] = []; map_ids: set[int] = set(); map_strings: set[str] = set()
+    for raw in maps_doc["records"]:
+        item = _exact(raw, {"numeric_id", "id", "boundary_type_id", "boundary_vertices", "deploy_count", "player_slots", "enemy_slots", "zones", "obstacles"}, "map")
+        numeric_id = _u32(item["numeric_id"], "map.numeric_id"); string_id = _string_id(item["id"], "map.id")
+        active_pair(7, numeric_id, string_id)
+        boundary_type = _integer(item["boundary_type_id"], "map.boundary_type")
+        boundary = tuple(_point(vertex, "map.boundary.vertex") for vertex in item["boundary_vertices"]) if isinstance(item["boundary_vertices"], list) else ()
+        _validate_polygon(boundary, True, "map.boundary")
+        deploy_count = _integer(item["deploy_count"], "map.deploy_count")
+        player_slots = tuple(_point(slot, "map.player_slot") for slot in item["player_slots"]) if isinstance(item["player_slots"], list) else ()
+        enemy_slots = tuple(_point(slot, "map.enemy_slot") for slot in item["enemy_slots"]) if isinstance(item["enemy_slots"], list) else ()
+        if boundary_type not in (1, 2) or not 3 <= deploy_count <= 5 or not 3 <= len(player_slots) <= 16 or not 3 <= len(enemy_slots) <= 16 or len(player_slots) < deploy_count or len(enemy_slots) < deploy_count:
+            raise ContentError("INVALID_DOMAIN:map")
+        if not isinstance(item["zones"], list) or len(item["zones"]) > 32 or item["obstacles"] != []: raise ContentError("INVALID_DOMAIN:map.zones_obstacles")
+        zones: list[MapZone] = []; local_ids: set[int] = set()
+        for raw_zone in item["zones"]:
+            zone_raw = _exact(raw_zone, {"local_id", "flags", "friction_multiplier_raw", "acceleration_x_raw", "acceleration_y_raw", "vertices"}, "map.zone")
+            local_id = _u32(zone_raw["local_id"], "map.zone.local_id"); flags = _integer(zone_raw["flags"], "map.zone.flags")
+            friction = _integer(zone_raw["friction_multiplier_raw"], "map.zone.friction"); ax = _integer(zone_raw["acceleration_x_raw"], "map.zone.ax"); ay = _integer(zone_raw["acceleration_y_raw"], "map.zone.ay")
+            vertices = tuple(_point(vertex, "map.zone.vertex") for vertex in zone_raw["vertices"]) if isinstance(zone_raw["vertices"], list) else ()
+            _validate_polygon(vertices, False, "map.zone")
+            if local_id in local_ids or flags not in (0, 1) or friction < 0 or (flags == 1 and (friction != FIX_SCALE or ax != 0 or ay != 0)):
+                raise ContentError("INVALID_DOMAIN:map.zone")
+            local_ids.add(local_id); zones.append(MapZone(local_id, flags, friction, ax, ay, vertices))
+        zones.sort(key=lambda zone: zone.local_id)
+        all_slots = player_slots + enemy_slots
+        kill_zones = [zone.vertices for zone in zones if zone.flags == 1]
+        for index, slot in enumerate(all_slots):
+            if _point_class(boundary, slot) != 2 or any(_point_class(zone, slot) == 2 for zone in kill_zones): raise ContentError("INVALID_MAP_SLOT:inside")
+            if any(_distance_to_segment(slot, boundary[edge], boundary[(edge + 1) % len(boundary)]) <= max_radius for edge in range(len(boundary))): raise ContentError("INVALID_MAP_SLOT:clearance")
+            if any((slot[0] - prior[0]) ** 2 + (slot[1] - prior[1]) ** 2 <= (2 * max_radius) ** 2 for prior in all_slots[:index]): raise ContentError("INVALID_MAP_SLOT:overlap")
+        if numeric_id in map_ids or string_id in map_strings: raise ContentError("DUPLICATE_ID:map")
+        maps.append(MapDefinition(numeric_id, string_id, boundary_type, boundary, deploy_count, player_slots, enemy_slots, tuple(zones)))
+        map_ids.add(numeric_id); map_strings.add(string_id)
+    maps.sort(key=lambda item: item.numeric_id)
+
     for ability in abilities:
         for effect in ability.effects:
             if effect.kind_id in (10, 11) and effect.value_a not in status_ids:
@@ -904,14 +1210,20 @@ def load_catalog(root: Path) -> Catalog:
             raise ContentError("MISSING_REFERENCE:status_definition")
         if entry.namespace_id == 4 and entry.numeric_id not in synergy_ids:
             raise ContentError("MISSING_REFERENCE:synergy_definition")
+        if entry.namespace_id == 6 and entry.numeric_id not in enemy_ids:
+            raise ContentError("MISSING_REFERENCE:enemy_definition")
+        if entry.namespace_id == 7 and entry.numeric_id not in map_ids:
+            raise ContentError("MISSING_REFERENCE:map_definition")
 
     entries_tuple = tuple(entries)
     pieces_tuple = tuple(pieces)
     abilities_tuple = tuple(abilities)
     statuses_tuple = tuple(statuses)
     synergies_tuple = tuple(synergies)
-    encoded = canonical_bytes(entries_tuple, pieces_tuple, abilities_tuple, statuses_tuple, synergies_tuple)
-    return Catalog(entries_tuple, pieces_tuple, abilities_tuple, statuses_tuple, synergies_tuple, encoded, hashlib.sha256(encoded).digest())
+    maps_tuple = tuple(maps)
+    enemies_tuple = tuple(enemies)
+    encoded = canonical_bytes(entries_tuple, pieces_tuple, abilities_tuple, statuses_tuple, synergies_tuple, maps_tuple, enemies_tuple)
+    return Catalog(entries_tuple, pieces_tuple, abilities_tuple, statuses_tuple, synergies_tuple, maps_tuple, enemies_tuple, encoded, hashlib.sha256(encoded).digest())
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -927,7 +1239,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.canonical_hex:
         print(f"canonical_hex={catalog.compatibility_bytes.hex()}")
     print(f"fingerprint={catalog.fingerprint.hex()}")
-    print(f"pieces={len(catalog.pieces)} abilities={len(catalog.abilities)} statuses={len(catalog.statuses)} synergies={len(catalog.synergies)} registry_entries={len(catalog.entries)}")
+    print(f"pieces={len(catalog.pieces)} abilities={len(catalog.abilities)} statuses={len(catalog.statuses)} synergies={len(catalog.synergies)} maps={len(catalog.maps)} enemies={len(catalog.enemies)} registry_entries={len(catalog.entries)}")
     print("CONTENT_CATALOG_RESULT: PASS")
     return 0
 

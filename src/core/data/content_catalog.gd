@@ -8,6 +8,8 @@ var _pieces: Array[PieceDefinition] = []
 var _abilities: Array[AbilityDefinition] = []
 var _statuses: Array[StatusDefinition] = []
 var _synergies: Array[SynergyDefinition] = []
+var _maps: Array[MapDefinition] = []
+var _enemies: Array[EnemyDefinition] = []
 var _compatibility_bytes: PackedByteArray = PackedByteArray()
 var _fingerprint: PackedByteArray = PackedByteArray()
 var _initialized: bool = false
@@ -20,6 +22,8 @@ static func create(
 		abilities: Array[AbilityDefinition],
 		statuses: Array[StatusDefinition],
 		synergies: Array[SynergyDefinition],
+		maps: Array[MapDefinition],
+		enemies: Array[EnemyDefinition],
 		compatibility_bytes: PackedByteArray,
 		fingerprint: PackedByteArray,
 		status: ContentStatus
@@ -50,6 +54,12 @@ static func create(
 	for definition: SynergyDefinition in synergies:
 		if definition == null or not definition.is_initialized(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.CATALOG_BUILD); return ContentCatalog.new()
 		result._synergies.append(definition.copy())
+	for definition: MapDefinition in maps:
+		if definition == null or not definition.is_initialized(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.CATALOG_BUILD); return ContentCatalog.new()
+		result._maps.append(definition.copy())
+	for definition: EnemyDefinition in enemies:
+		if definition == null or not definition.is_initialized(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.CATALOG_BUILD); return ContentCatalog.new()
+		result._enemies.append(definition.copy())
 	result._catalog_schema_version = catalog_schema_version
 	result._compatibility_bytes = compatibility_bytes.duplicate()
 	result._fingerprint = fingerprint.duplicate()
@@ -60,7 +70,7 @@ static func create(
 func copy() -> ContentCatalog:
 	if not _initialized: return ContentCatalog.new()
 	var status := ContentStatus.new()
-	return create(_catalog_schema_version, _registry_entries, _pieces, _abilities, _statuses, _synergies, _compatibility_bytes, _fingerprint, status)
+	return create(_catalog_schema_version, _registry_entries, _pieces, _abilities, _statuses, _synergies, _maps, _enemies, _compatibility_bytes, _fingerprint, status)
 
 
 func is_initialized() -> bool: return _initialized
@@ -69,6 +79,8 @@ func piece_count() -> int: return _pieces.size()
 func ability_count() -> int: return _abilities.size()
 func status_count() -> int: return _statuses.size()
 func synergy_count() -> int: return _synergies.size()
+func map_count() -> int: return _maps.size()
+func enemy_count() -> int: return _enemies.size()
 func registry_entry_count() -> int: return _registry_entries.size()
 func fingerprint_bytes() -> PackedByteArray: return _fingerprint.duplicate()
 func compatibility_bytes_for_test() -> PackedByteArray: return _compatibility_bytes.duplicate()
@@ -105,6 +117,14 @@ func status_at(index: int, status: ContentStatus) -> StatusDefinition:
 func synergy_at(index: int, status: ContentStatus) -> SynergyDefinition:
 	if index < 0 or index >= _synergies.size(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.SYNERGIES); return SynergyDefinition.new()
 	return _synergies[index].copy()
+
+func map_at(index: int, status: ContentStatus) -> MapDefinition:
+	if index < 0 or index >= _maps.size(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.MAPS); return MapDefinition.new()
+	return _maps[index].copy()
+
+func enemy_at(index: int, status: ContentStatus) -> EnemyDefinition:
+	if index < 0 or index >= _enemies.size(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.ENEMIES); return EnemyDefinition.new()
+	return _enemies[index].copy()
 
 
 func registry_entry_at(index: int, status: ContentStatus) -> ContentRegistryEntry:
@@ -153,6 +173,20 @@ func synergy_by_numeric_id(id: int, status: ContentStatus) -> SynergyDefinition:
 		if item.numeric_id() > id: break
 	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.SYNERGIES, id)
 	return SynergyDefinition.new()
+
+func map_by_numeric_id(id: int, status: ContentStatus) -> MapDefinition:
+	for item: MapDefinition in _maps:
+		if item.numeric_id() == id: return item.copy()
+		if item.numeric_id() > id: break
+	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.MAPS, id)
+	return MapDefinition.new()
+
+func enemy_by_numeric_id(id: int, status: ContentStatus) -> EnemyDefinition:
+	for item: EnemyDefinition in _enemies:
+		if item.numeric_id() == id: return item.copy()
+		if item.numeric_id() > id: break
+	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.ENEMIES, id)
+	return EnemyDefinition.new()
 
 func synergy_by_tag_numeric_id(id: int, status: ContentStatus) -> SynergyDefinition:
 	for item: SynergyDefinition in _synergies:

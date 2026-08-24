@@ -4,10 +4,12 @@
 |---|---|
 | status | **approved** |
 | drafted | 2026-08-24 |
+| approved | 2026-08-24 · 사용자 P2-M01~21 전체 승인 |
 | phase | P2-5 · 맵·적·환경 |
 | 선행 단계 | P2-1 카탈로그, P2-2 효과 실행, P2-3 상태·시너지·modifier, P2-4 동적 기물 승인·구현·검증 완료 |
 | 후속 단계 | P2-6 콘텐츠 회색상자·완료 검증 |
 | 구현 권한 | **있음.** 2026-08-24 P2-M01~21 전체 승인 범위 |
+| 구현 상태 | **승인 범위 구현·검증 완료** |
 
 ## 목적
 
@@ -607,3 +609,11 @@ U-01 맵 목록 · U-02 환경 요소 채택·수치 · U-03 장애물 종류 ·
 2026-08-24 사용자가 초기 body ID `장애물 → player → enemy`, 슬롯 안전 검사 `카탈로그 최대 반지름`을 선택했다. 이어 정적 장애물 연기, `SPAWN_OBSTACLE` 거부, BattleSnapshot v7, `enemy_eligible` 제거, local zone ID·canonical·배치 계약을 포함한 수정 권장안을 승인해 이 초안에 반영했다.
 
 2026-08-24 사용자가 P2-M01~21 전체 명세를 승인했다. `status: approved`로 전환하고 이 문서 범위의 구현 권한을 열었다.
+
+## 구현·검증 기록
+
+- maps v1·enemies v1·abilities v5·catalog v5와 canonical fingerprint v5를 구현했다. runtime map/enemy records는 비어 있고 production 수치는 추가하지 않았다.
+- P0 폴리곤 규칙과 카탈로그 최대 반지름을 재사용하는 맵·슬롯 검증, exact-key 적 override와 `BattleSetupBuilder`의 player → enemy body ID 배정을 구현했다. 정적 장애물은 계속 거부한다.
+- `SPAWN_ZONE`, local 좌표 합성, 설치 턴 제외 수명, 영구 존, transition rollback을 구현하고 `BattleSnapshot` v7에 설치 존 상태를 저장했다. legacy v1~6은 빈 설치 존으로 복원한다.
+- 독립 Python schema·기하·canonical KAT와 Godot 18개 grouped check가 통과했다. P2-5 setup·존 설치·snapshot 복원을 1,000회 반복했고, P1-5 terminal 결과·20턴·10,699틱은 유지한 채 승인 참조 P2-M15로 v7 hash `8e822066ae3c4b2fb9ad817cf543db4e8e0f7a7eb4e14018cb99f971b935c0ac`로 이관했다.
+- P0/P1/P2 회귀와 Godot 4.6.3 활성 `verify --full` 자동 발견 러너 22종이 통과했다.

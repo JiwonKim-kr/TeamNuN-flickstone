@@ -20,6 +20,9 @@ const EFFECT_CT_MAX: int = CT_THRESHOLD * 2
 const RUNTIME_SPAWN_MAX_BODIES: int = 256
 const DYNAMIC_SPAWN_MAX_PER_TRANSITION: int = 64
 const TRANSFORM_MAX_PER_TRANSITION: int = 64
+const ZONE_SPAWN_MAX_PER_BATTLE: int = 32
+const ZONE_SPAWN_MAX_PER_TRANSITION: int = 16
+const ZONE_TOTAL_MAX: int = 64
 
 
 static func valid_base_speed(value: int) -> bool:

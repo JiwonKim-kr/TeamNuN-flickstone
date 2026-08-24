@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P2-4 동적 기물 생성·변신·부착 구현·검증 완료 — 다음 P2 하위 명세 준비** |
+| 현재 단계 | **P2-5 맵·적·환경 구현·검증 완료 — 다음 P2-6 콘텐츠 회색상자 명세 준비** |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -111,6 +111,10 @@
 - [x] P2-D26 근거로 P0 SimSnapshot v2와 P1-5 BattleSnapshot v6 골든 이관 — 전투 결과·20턴·10,699틱 불변
 - [x] P2-4 독립 Python schema/fingerprint와 Godot narrow 29개 그룹, 동일 fixture 1,000회 복원 결정론 통과
 - [x] P2-4 반영 Godot 4.6.3 `verify --full` — 게이트 #1~4 PASS, lore 미초기화 #5 정상 SKIP, 러너 21종 PASS
+- [x] P2-5 maps/enemies v1·catalog/abilities/fingerprint v5, 맵 기하·슬롯 안전 검사와 enemy override 구현
+- [x] P2-5 `BattleSetupBuilder`, 결정론적 초기 body/zone ID, `SPAWN_ZONE` 수명·rollback, BattleSnapshot v7 구현
+- [x] P2-5 독립 Python KAT와 Godot narrow 18개 그룹·1,000회 결정론, P1-5 v7 terminal golden 이관 완료
+- [x] P2-5 반영 Godot 4.6.3 `verify --full` — 게이트 #1~4 PASS, lore 미초기화 #5 정상 SKIP, 러너 22종 PASS
 
 ### 3.1 P1-2 현재 작업 기록
 
@@ -218,11 +222,27 @@
 - P2-D26 승인 참조로 P0 상태 골든과 P1-5 terminal 골든을 새 snapshot schema로 이관했다. P1-5 결과·20턴·10,699틱은 유지되며 terminal hash는 `66f52e03a8f825e93ccf9787ac959cd4f1c99d625fe88a0858f0c9f11c7bde49`다.
 - runtime piece/ability records는 실제 콘텐츠 승인 전까지 비어 있으며 fixture에만 동적 기물 수치를 둔다.
 
-### 3.8 다음 작업 실행 명령
+### 3.8 P2-5 맵·적·환경 구현 기록
+
+- maps v1·enemies v1을 strict catalog v5에 편입하고 MAP/ENEMY registry, canonical fingerprint v5, 카탈로그 최대 반지름 기반 맵·슬롯 검증을 구현했다.
+- 적은 non-token base piece level 1을 참조하고 whitelist override만 적용한다. `BattleSetupBuilder`는 배치를 진영·슬롯 순으로 정규화해 초기 존과 player → enemy body ID를 결정론적으로 배정한다.
+- `SPAWN_ZONE`은 대상 로컬 좌표 합성, transition당 16·전투당 32·총 64존 한도, 설치 턴 제외 수명과 영구 존, 전체 rollback을 지원한다.
+- `BattleSnapshot` v7이 설치 존 ID·남은 턴·설치 턴을 저장한다. v1~6은 빈 설치 존으로 복원하고 v7로 다시 캡처한다.
+- fixture fingerprint는 `880b30f660e8355d7ff56bb8aa7ad64bef6fb726409f7f175725aa179b0edcea`다. runtime maps/enemies records는 비어 있으며 정적 장애물은 U-03 승인 전까지 거부한다.
+- P1-5 terminal 결과·20턴·10,699틱은 유지되며 v7 terminal hash는 `8e822066ae3c4b2fb9ad817cf543db4e8e0f7a7eb4e14018cb99f971b935c0ac`다.
+
+### 3.9 다음 작업 실행 명령
 
 Windows PowerShell에서 먼저 `$env:PYTHONUTF8='1'`을 설정한다.
 
 ```powershell
+# MVP 단위 작업용 quick 통합 — P0 반복만 20회·순열 3회로 축소
+$env:P0_ALLOW_QUICK='1'
+$env:P0_REPEAT_COUNT='20'
+$env:P0_PERMUTATION_COUNT='3'
+python pipeline/scripts/verify.py --full --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
+Remove-Item Env:P0_ALLOW_QUICK,Env:P0_REPEAT_COUNT,Env:P0_PERMUTATION_COUNT
+
 # 빠른 씬/manifest 확인
 python pipeline/scripts/play_test.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
 
@@ -235,6 +255,9 @@ python pipeline/tests/run_p2_status_synergy_modifiers.py --godot pipeline/artifa
 # P2-4 동적 기물 narrow
 python pipeline/tests/run_p2_dynamic_piece_mechanics.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
 
+# P2-5 맵·적·환경 narrow
+python pipeline/tests/run_p2_maps_enemies_environment.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
+
 # P1-5 결정론 회귀
 python pipeline/tests/run_p1_batch_sim_graybox.py --mode narrow --jobs 4 --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
 python pipeline/tests/run_p1_batch_sim_graybox.py --mode batch --jobs 4 --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
@@ -243,6 +266,8 @@ python pipeline/tests/run_p1_batch_sim_graybox.py --mode exhaustive --jobs 4 --g
 # 최종 통합 게이트
 python pipeline/scripts/verify.py --full --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
 ```
+
+단위 작업에서는 영향받은 narrow 뒤 quick 통합을 사용한다. P0 골든 갱신·단계 종료·릴리스·CI에서는 quick 환경변수를 제거하고 1,000회 정밀 게이트를 유지한다.
 
 ## 4. 구현 우선순위
 
