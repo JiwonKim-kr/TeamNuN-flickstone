@@ -13,6 +13,7 @@ var kill_boundary_destroyed := 0
 var kill_zone_destroyed := 0
 var forced_settle_count := 0
 var terminal_hash := ""
+var result_report: BattleResult = BattleResult.new()
 
 static func create(state: BattleState, turns: int, metrics: Array[int], status: SimStatus) -> P1BattleReport:
 	var report := P1BattleReport.new()
@@ -23,6 +24,7 @@ static func create(state: BattleState, turns: int, metrics: Array[int], status: 
 		status.fail(SimStatus.Code.INVALID_BATTLE_REPORT, SimStatus.Operation.BATTLE_REPORT_CREATE, metrics.size(), 6)
 		return report
 	report.result = state.battle_result(); report.turn_count = turns
+	report.result_report = state.battle_result_report(status)
 	report.player_damage = metrics[0]; report.enemy_damage = metrics[1]
 	report.damage_destroyed = metrics[2]; report.kill_boundary_destroyed = metrics[3]
 	report.kill_zone_destroyed = metrics[4]; report.forced_settle_count = metrics[5]

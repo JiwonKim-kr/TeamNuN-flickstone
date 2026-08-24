@@ -6,7 +6,8 @@ extends RefCounted
 ## little-endian schema and never delegates to Variant/Object serialization.
 
 const MAGIC: PackedByteArray = [70, 76, 73, 67, 75, 83, 73, 77, 0] # FLICKSIM\0
-const SCHEMA_VERSION: int = 1
+const LEGACY_SCHEMA_VERSION: int = 1
+const SCHEMA_VERSION: int = 2
 
 
 class ByteWriter:
@@ -83,6 +84,7 @@ var _stop_speed_raw: int = 0
 var _restitution_raw: int = 0
 var _next_body_id: int = 1
 var _next_zone_id: int = 1
+var _next_link_id: int = 1
 
 var _rng_purpose_id: int = 0
 var _rng_owner_id: int = 0
@@ -95,6 +97,7 @@ var _boundary_type: int = SimWorld.BoundaryType.NONE
 var _boundary_vertices: Array[FixVec2] = []
 var _zones: Array[SimZone] = []
 var _bodies: Array[SimBody] = []
+var _links: Array[SimLink] = []
 var _event_cursor: int = 0
 var _next_event_sequence: int = 1
 var _events: Array[SimEvent] = []
@@ -125,6 +128,7 @@ static func capture(world: SimWorld, status: SimStatus) -> SimSnapshot:
 	snapshot._restitution_raw = world.restitution_raw()
 	snapshot._next_body_id = world.next_body_id()
 	snapshot._next_zone_id = world.next_zone_id()
+	snapshot._next_link_id = world.next_link_id()
 	snapshot._rng_purpose_id = rng.purpose_id()
 	snapshot._rng_owner_id = rng.owner_id()
 	snapshot._rng_ordinal = rng.ordinal()
@@ -144,6 +148,7 @@ static func capture(world: SimWorld, status: SimStatus) -> SimSnapshot:
 		snapshot._zones.append(world.zone_at(index, status))
 	for index: int in range(world.body_count()):
 		snapshot._bodies.append(world.body_at(index, status))
+	for index: int in range(world.link_count()): snapshot._links.append(world.link_at(index, status))
 	snapshot._event_cursor = world.event_cursor()
 	snapshot._next_event_sequence = world.next_event_sequence()
 	for index: int in range(world.event_count()):
@@ -165,10 +170,11 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> SimSnapshot:
 		if reader.u8() != expected:
 			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.SNAPSHOT_DECODE, reader.offset - 1, 0)
 			return snapshot
-	snapshot._schema_version = reader.u16()
-	if snapshot._schema_version != SCHEMA_VERSION:
-		status.fail(SimStatus.Code.UNSUPPORTED_SCHEMA, SimStatus.Operation.SNAPSHOT_DECODE, snapshot._schema_version, SCHEMA_VERSION)
+	var decoded_version: int = reader.u16()
+	if decoded_version != LEGACY_SCHEMA_VERSION and decoded_version != SCHEMA_VERSION:
+		status.fail(SimStatus.Code.UNSUPPORTED_SCHEMA, SimStatus.Operation.SNAPSHOT_DECODE, decoded_version, SCHEMA_VERSION)
 		return snapshot
+	snapshot._schema_version = SCHEMA_VERSION
 	snapshot._tick = reader.i64()
 	snapshot._root_seed_lo = reader.u32(); snapshot._root_seed_hi = reader.u32()
 	snapshot._base_friction_raw = reader.i64(); snapshot._stop_speed_raw = reader.i64(); snapshot._restitution_raw = reader.i64()
@@ -210,6 +216,15 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> SimSnapshot:
 		var position: FixVec2 = reader.vec2(); var velocity: FixVec2 = reader.vec2()
 		snapshot._bodies.append(SimBody.restore(body_id, alive == 1, destructible == 1, position, velocity, reader.i64(), reader.i64(), reader.i64(), status))
 		if not status.is_ok(): return SimSnapshot.new()
+	if decoded_version >= SCHEMA_VERSION:
+		snapshot._next_link_id = reader.u32()
+		var link_count: int = reader.u32()
+		if link_count > SimLimits.LINK_MAX_COUNT or link_count > reader.remaining() / 48:
+			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.SNAPSHOT_DECODE, link_count, reader.remaining()); return SimSnapshot.new()
+		for index: int in range(link_count):
+			var link: SimLink = SimLink.restore(reader.u32(), reader.u32(), reader.u32(), reader.u16(), reader.vec2(), reader.i64(), reader.u16(), reader.u32(), reader.u32(), status)
+			snapshot._links.append(link)
+			if not status.is_ok(): return SimSnapshot.new()
 	snapshot._event_cursor = reader.u32(); snapshot._next_event_sequence = reader.u32()
 	var event_count: int = reader.u32()
 	if event_count > reader.remaining() / 80:
@@ -244,6 +259,7 @@ func _validate(status: SimStatus) -> bool:
 		or not UInt32Math.is_u32(_root_seed_lo)
 		or not UInt32Math.is_u32(_next_body_id)
 		or not UInt32Math.is_u32(_next_zone_id)
+		or not UInt32Math.is_u32(_next_link_id)
 		or _rng_purpose_id != 0
 		or _rng_owner_id != 0
 		or _rng_ordinal != 0
@@ -394,6 +410,19 @@ func _validate(status: SimStatus) -> bool:
 			_bodies[-1].id()
 		)
 		return false
+	var previous_link_id: int = 0
+	for link: SimLink in _links:
+		if link == null or not link.is_initialized() or link.link_id() <= previous_link_id:
+			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.SNAPSHOT_ENCODE, 0 if link == null else link.link_id(), previous_link_id); return false
+		var has_anchor: bool = false; var has_attached: bool = false
+		for body: SimBody in _bodies:
+			if body.id() == link.anchor_body_id(): has_anchor = true
+			if body.id() == link.attached_body_id(): has_attached = true
+		if not has_anchor or not has_attached:
+			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.SNAPSHOT_ENCODE, link.anchor_body_id(), link.attached_body_id()); return false
+		previous_link_id = link.link_id()
+	if not _links.is_empty() and _next_link_id != 0 and _next_link_id <= _links[-1].link_id():
+		status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.SNAPSHOT_ENCODE, _next_link_id, _links[-1].link_id()); return false
 	for event: SimEvent in _events:
 		if (
 			event == null
@@ -505,6 +534,12 @@ func encode(status: SimStatus) -> PackedByteArray:
 		writer.i64(body.mass_raw())
 		writer.i64(body.friction_multiplier_raw())
 
+	writer.u32(_next_link_id)
+	writer.u32(_links.size())
+	for link: SimLink in _links:
+		writer.u32(link.link_id()); writer.u32(link.anchor_body_id()); writer.u32(link.attached_body_id()); writer.u16(link.anchor_mode_id()); writer.vec2(link.anchor_offset())
+		writer.i64(link.attach_distance_raw()); writer.u16(link.inertia_basis_points()); writer.u32(link.remaining_turns()); writer.u32(link.applied_turn_index())
+
 	writer.u32(_event_cursor)
 	writer.u32(_next_event_sequence)
 	writer.u32(_events.size())
@@ -551,10 +586,12 @@ func restore_world(status: SimStatus) -> SimWorld:
 		world.insert_zone_for_restore(zone, status)
 	for body: SimBody in _bodies:
 		world.insert_body_for_restore(body, status)
+	for link: SimLink in _links: world.insert_link_for_restore(link, status)
 	world.restore_authoritative_state(
 		_tick,
 		_next_body_id,
 		_next_zone_id,
+		_next_link_id,
 		_events,
 		_event_cursor,
 		_next_event_sequence,
@@ -581,6 +618,7 @@ func copy_for_test() -> SimSnapshot:
 	result._restitution_raw = _restitution_raw
 	result._next_body_id = _next_body_id
 	result._next_zone_id = _next_zone_id
+	result._next_link_id = _next_link_id
 	result._rng_purpose_id = _rng_purpose_id
 	result._rng_owner_id = _rng_owner_id
 	result._rng_ordinal = _rng_ordinal
@@ -594,6 +632,7 @@ func copy_for_test() -> SimSnapshot:
 		result._zones.append(zone.copy())
 	for body: SimBody in _bodies:
 		result._bodies.append(body.copy())
+	for link: SimLink in _links: result._links.append(link.copy())
 	result._event_cursor = _event_cursor
 	result._next_event_sequence = _next_event_sequence
 	for event: SimEvent in _events:

@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P2-3 상태이상·시너지·modifier 구현·검증 완료 — 다음 P2 하위 명세 준비** |
+| 현재 단계 | **P2-4 동적 기물 생성·변신·부착 구현·검증 완료 — 다음 P2 하위 명세 준비** |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -104,6 +104,13 @@
 - [x] P2-3 body 64·전투 4,096·transition 1,024 경계/초과 rollback과 동일 fixture 1,000회 검증
 - [x] P2-S18 근거로 P1-5 terminal snapshot 골든을 v5로 이관. 결과·턴 수·sim tick은 불변
 - [x] P2-3 반영 Godot 4.6.3 `verify --full` — 게이트 #1~4 PASS, lore 미초기화 #5 정상 SKIP, 러너 20종 PASS
+- [x] P2-4 동적 기물 P2-D01~27과 선택 항목 3건 승인 (`docs/specs/p2_dynamic_piece_mechanics.md`)
+- [x] P2-4 catalog v4·pieces v3·abilities v4, spawn/projectile/transform/attach typed payload와 canonical fingerprint v4 구현
+- [x] P2-4 runtime token·진영·수명, deterministic `SimLink` solver, 링크 충돌 예외, 변신 승계, 원본 piece 결과 보고 구현
+- [x] P2-4 `BattleSnapshot` v6·`SimSnapshot` v2 단일 링크 정본, transition rollback과 링크 64·body별 8 한도 구현
+- [x] P2-D26 근거로 P0 SimSnapshot v2와 P1-5 BattleSnapshot v6 골든 이관 — 전투 결과·20턴·10,699틱 불변
+- [x] P2-4 독립 Python schema/fingerprint와 Godot narrow 29개 그룹, 동일 fixture 1,000회 복원 결정론 통과
+- [x] P2-4 반영 Godot 4.6.3 `verify --full` — 게이트 #1~4 PASS, lore 미초기화 #5 정상 SKIP, 러너 21종 PASS
 
 ### 3.1 P1-2 현재 작업 기록
 
@@ -200,7 +207,18 @@
 - `APPLY_STATUS`·`REMOVE_STATUS`·`MODIFY_STAT`, 상태 변경 리포트, transition rollback, Snapshot v5와 fingerprint mismatch 복원을 구현했다.
 - P2-3 narrow, P2-1/P2-2, P0/P1 회귀와 Godot 4.6.3 `verify --full` 자동 발견 러너 20종이 통과했다.
 
-### 3.7 다음 작업 실행 명령
+### 3.7 P2-4 동적 기물 구현 기록
+
+- `SPAWN_PIECE`·`SPAWN_PROJECTILE`·`TRANSFORM_PIECE`·`ATTACH`를 exact-key typed payload로 추가했다. 생성 body는 token·level 1이며 piece metadata에 따라 owner 또는 neutral 진영을 사용한다.
+- `NONE`·`AFTER_TURNS`·`AFTER_COLLISIONS`·`ON_LINK_RELEASE` 수명과 최초 링크 epoch를 구현했다. expire 제거는 사망 trigger를 만들지 않는다.
+- `SimLink`는 링크 ID 순서로 anchor point와 surface-follow를 해결하고, 링크 쌍 충돌을 제외한다. 역질량 겹침 보정과 solver 뒤 속도 역산도 고정소수점·안정 정렬로 처리한다.
+- 변신은 body ID·진영·위치·속도·상태·링크를 유지하며 HP 비율과 CT를 환산한다. level 1 binding은 다음 public transition부터 적용하고 원본 piece ID는 immutable battle result report에 남긴다.
+- 링크와 `next_link_id`는 `SimSnapshot` v2만 소유하고 `BattleSnapshot` v6은 이를 한 번만 포함한다. 생성·변신·부착 실패는 공개 transition 전체를 원자적으로 롤백한다.
+- fixture catalog fingerprint는 `68af8d2f3d1c0abd46a372a2fb5da632c0650da95d31bd5b7ed7e1b427dd8742`다. 29개 grouped check와 snapshot restore 1,000회가 통과했다.
+- P2-D26 승인 참조로 P0 상태 골든과 P1-5 terminal 골든을 새 snapshot schema로 이관했다. P1-5 결과·20턴·10,699틱은 유지되며 terminal hash는 `66f52e03a8f825e93ccf9787ac959cd4f1c99d625fe88a0858f0c9f11c7bde49`다.
+- runtime piece/ability records는 실제 콘텐츠 승인 전까지 비어 있으며 fixture에만 동적 기물 수치를 둔다.
+
+### 3.8 다음 작업 실행 명령
 
 Windows PowerShell에서 먼저 `$env:PYTHONUTF8='1'`을 설정한다.
 
@@ -213,6 +231,9 @@ python pipeline/tests/run_p2_content_catalog.py --godot pipeline/artifacts/godot
 
 # P2-3 상태·시너지·modifier narrow
 python pipeline/tests/run_p2_status_synergy_modifiers.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
+
+# P2-4 동적 기물 narrow
+python pipeline/tests/run_p2_dynamic_piece_mechanics.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
 
 # P1-5 결정론 회귀
 python pipeline/tests/run_p1_batch_sim_graybox.py --mode narrow --jobs 4 --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe

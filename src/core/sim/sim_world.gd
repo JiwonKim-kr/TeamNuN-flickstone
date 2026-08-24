@@ -127,8 +127,10 @@ var _last_substep_count: int = 1
 
 var _bodies: Array[SimBody] = []
 var _zones: Array[SimZone] = []
+var _links: Array[SimLink] = []
 var _next_body_id: int = 1
 var _next_zone_id: int = 1
+var _next_link_id: int = 1
 
 var _events: Array[SimEvent] = []
 var _event_cursor: int = 0
@@ -226,6 +228,12 @@ static func _copy_zone_array(source: Array[SimZone]) -> Array[SimZone]:
 	var result: Array[SimZone] = []
 	for zone: SimZone in source:
 		result.append(zone.copy())
+	return result
+
+
+static func _copy_link_array(source: Array[SimLink]) -> Array[SimLink]:
+	var result: Array[SimLink] = []
+	for link: SimLink in source: result.append(link.copy())
 	return result
 
 
@@ -336,6 +344,19 @@ func _find_zone_index(zone_id: int) -> int:
 		if _zones[index].id() > zone_id:
 			break
 	return -1
+
+
+func _find_link_index(link_id: int) -> int:
+	for index: int in range(_links.size()):
+		if _links[index].link_id() == link_id: return index
+		if _links[index].link_id() > link_id: break
+	return -1
+
+
+func _pair_is_linked(left_body_id: int, right_body_id: int) -> bool:
+	for link: SimLink in _links:
+		if link.is_pair(left_body_id, right_body_id): return true
+	return false
 
 
 func _append_event(
@@ -685,6 +706,69 @@ func insert_zone_for_restore(zone: SimZone, status: SimStatus) -> void:
 		_next_zone_id = _advance_u32_counter(zone.id())
 
 
+func insert_link_for_restore(link: SimLink, status: SimStatus) -> void:
+	if not _require_initialized(status, SimStatus.Operation.WORLD_ADD_LINK): return
+	if link == null or not link.is_initialized() or link.link_id() == 0 or _find_link_index(link.link_id()) >= 0 or _find_body_index(link.anchor_body_id()) < 0 or _find_body_index(link.attached_body_id()) < 0:
+		status.fail(SimStatus.Code.INVALID_ATTACH_LINK, SimStatus.Operation.WORLD_ADD_LINK, 0 if link == null else link.link_id(), 0); return
+	for existing: SimLink in _links:
+		if existing.is_pair(link.anchor_body_id(), link.attached_body_id()):
+			status.fail(SimStatus.Code.DUPLICATE_ATTACH_LINK, SimStatus.Operation.WORLD_ADD_LINK, link.anchor_body_id(), link.attached_body_id()); return
+	_links.append(link.copy()); _links.sort_custom(func(a: SimLink, b: SimLink) -> bool: return a.link_id() < b.link_id())
+	if _next_link_id != 0 and link.link_id() >= _next_link_id: _next_link_id = _advance_u32_counter(link.link_id())
+
+
+func add_link(link_template: SimLink, status: SimStatus) -> int:
+	if not _require_initialized(status, SimStatus.Operation.WORLD_ADD_LINK): return 0
+	if link_template == null or not link_template.is_initialized() or link_template.link_id() != 0 or _find_body_index(link_template.anchor_body_id()) < 0 or _find_body_index(link_template.attached_body_id()) < 0:
+		status.fail(SimStatus.Code.INVALID_ATTACH_LINK, SimStatus.Operation.WORLD_ADD_LINK, 0 if link_template == null else link_template.anchor_body_id(), 0); return 0
+	if _links.size() >= SimLimits.LINK_MAX_COUNT:
+		status.fail(SimStatus.Code.ATTACH_LIMIT_EXCEEDED, SimStatus.Operation.WORLD_ADD_LINK, _links.size() + 1, SimLimits.LINK_MAX_COUNT); return 0
+	var anchor_count: int = 0; var attached_count: int = 0
+	for existing: SimLink in _links:
+		if existing.is_pair(link_template.anchor_body_id(), link_template.attached_body_id()):
+			status.fail(SimStatus.Code.DUPLICATE_ATTACH_LINK, SimStatus.Operation.WORLD_ADD_LINK, link_template.anchor_body_id(), link_template.attached_body_id()); return 0
+		if existing.contains_body(link_template.anchor_body_id()): anchor_count += 1
+		if existing.contains_body(link_template.attached_body_id()): attached_count += 1
+	if anchor_count >= SimLimits.LINK_MAX_PER_BODY or attached_count >= SimLimits.LINK_MAX_PER_BODY:
+		status.fail(SimStatus.Code.ATTACH_LIMIT_EXCEEDED, SimStatus.Operation.WORLD_ADD_LINK, link_template.anchor_body_id(), link_template.attached_body_id()); return 0
+	if _next_link_id == 0:
+		status.fail(SimStatus.Code.COUNTER_EXHAUSTED, SimStatus.Operation.WORLD_ADD_LINK); return 0
+	var assigned: SimLink = link_template.assigned_copy(_next_link_id, status)
+	if not status.is_ok(): return 0
+	var assigned_id: int = _next_link_id; _next_link_id = _advance_u32_counter(_next_link_id); _links.append(assigned)
+	return assigned_id
+
+
+func remove_link(link_id: int, status: SimStatus) -> void:
+	if not _require_initialized(status, SimStatus.Operation.WORLD_REMOVE_LINK): return
+	var index: int = _find_link_index(link_id)
+	if index < 0: status.fail(SimStatus.Code.NOT_FOUND, SimStatus.Operation.WORLD_REMOVE_LINK, link_id, 0); return
+	_links.remove_at(index)
+
+
+func expire_link_turns(completed_turn_index: int, status: SimStatus) -> Array[int]:
+	var released_bodies: Array[int] = []
+	if not _require_initialized(status, SimStatus.Operation.WORLD_REMOVE_LINK) or completed_turn_index < 0: return released_bodies
+	var survivors: Array[SimLink] = []
+	for link: SimLink in _links:
+		if link.applied_turn_index() >= completed_turn_index:
+			survivors.append(link); continue
+		if link.remaining_turns() <= 1:
+			if not released_bodies.has(link.anchor_body_id()): released_bodies.append(link.anchor_body_id())
+			if not released_bodies.has(link.attached_body_id()): released_bodies.append(link.attached_body_id())
+		else:
+			survivors.append(link.with_remaining_turns(link.remaining_turns() - 1, status))
+	_links = survivors; released_bodies.sort()
+	return released_bodies
+
+
+func _remove_links_for_body(body_id: int) -> void:
+	var survivors: Array[SimLink] = []
+	for link: SimLink in _links:
+		if not link.contains_body(body_id): survivors.append(link)
+	_links = survivors
+
+
 func queue_body_spawn(
 		body_template: SimBody,
 		cause_body_id: int,
@@ -850,6 +934,7 @@ func remove_body(body_id: int, status: SimStatus) -> void:
 	if not status.is_ok():
 		return
 	_bodies.remove_at(index)
+	_remove_links_for_body(body_id)
 
 
 func destroy_body(
@@ -906,6 +991,7 @@ func destroy_body(
 	if not status.is_ok():
 		return false
 	_bodies.remove_at(index)
+	_remove_links_for_body(body_id)
 	return true
 
 
@@ -942,12 +1028,54 @@ func set_body_velocity(
 	if status.is_ok():
 		_bodies[index] = updated
 
+
+func set_body_motion(body_id: int, position: FixVec2, velocity: FixVec2, status: SimStatus) -> void:
+	if not _require_initialized(status, SimStatus.Operation.WORLD_BODY_UPDATE): return
+	var index: int = _find_body_index(body_id)
+	if index < 0: status.fail(SimStatus.Code.NOT_FOUND, SimStatus.Operation.WORLD_BODY_UPDATE, body_id, 0); return
+	_bodies[index] = _bodies[index].with_motion(position, velocity, status)
+
 func set_body_physical_stats(body_id: int, radius_raw: int, mass_raw: int, friction_multiplier_raw: int, status: SimStatus) -> void:
 	if not _require_initialized(status, SimStatus.Operation.WORLD_BODY_UPDATE): return
 	var index: int = _find_body_index(body_id)
 	if index < 0: status.fail(SimStatus.Code.NOT_FOUND, SimStatus.Operation.WORLD_BODY_UPDATE, body_id, 0); return
 	var updated: SimBody = _bodies[index].with_physical_stats(radius_raw, mass_raw, friction_multiplier_raw, status)
 	if status.is_ok(): _bodies[index] = updated
+
+
+func position_inside_boundary(position: FixVec2, status: SimStatus) -> bool:
+	if not _require_initialized(status, SimStatus.Operation.WORLD_BOUNDARY_CONFIG) or position == null: return false
+	if _boundary_type == BoundaryType.NONE: return true
+	return _boundary.classify_point(position, status) != SimPolygon.PointClass.OUTSIDE
+
+
+func correct_body_overlap_once(body_id: int, status: SimStatus) -> bool:
+	if not _require_initialized(status, SimStatus.Operation.COLLISION_CIRCLE): return false
+	var target_index: int = _find_body_index(body_id)
+	if target_index < 0: status.fail(SimStatus.Code.NOT_FOUND, SimStatus.Operation.COLLISION_CIRCLE, body_id, 0); return false
+	for other_index: int in range(_bodies.size()):
+		if other_index == target_index: continue
+		var low_index: int = mini(target_index, other_index); var high_index: int = maxi(target_index, other_index)
+		var velocity_low: FixVec2 = _bodies[low_index].velocity(); var velocity_high: FixVec2 = _bodies[high_index].velocity()
+		var result: SimCollision.CircleResult = SimCollision.resolve_circle_pair(_bodies[low_index], _bodies[high_index], 0, status)
+		if not status.is_ok(): return false
+		_bodies[low_index] = result.body_a.with_velocity(velocity_low, status)
+		_bodies[high_index] = result.body_b.with_velocity(velocity_high, status)
+		target_index = _find_body_index(body_id)
+	if _boundary_type == BoundaryType.WALL:
+		for index: int in range(_bodies.size()):
+			var velocity: FixVec2 = _bodies[index].velocity()
+			var wall_result: SimCollision.WallResult = SimCollision.resolve_wall(_bodies[index], _boundary, 0, status)
+			if not status.is_ok(): return false
+			_bodies[index] = wall_result.body.with_velocity(velocity, status)
+	var target: SimBody = _bodies[_find_body_index(body_id)]
+	if not position_inside_boundary(target.position(), status): return false
+	for other: SimBody in _bodies:
+		if other.id() == body_id: continue
+		var distance_raw: int = other.position().sub(target.position(), status).length_raw(status)
+		var radii_raw: int = FixMath.add_raw(other.radius_raw(), target.radius_raw(), status)
+		if not status.is_ok() or distance_raw < radii_raw: return false
+	return true
 
 
 func _compose_zone_effects(
@@ -1159,6 +1287,7 @@ func _settle_segment_kills(
 		status: SimStatus
 ) -> void:
 	var survivors: Array[SimBody] = []
+	var removed_body_ids: Array[int] = []
 	for index: int in range(_bodies.size()):
 		var body: SimBody = _bodies[index]
 		if not body.alive():
@@ -1190,7 +1319,9 @@ func _settle_segment_kills(
 		)
 		if not status.is_ok():
 			return
+		removed_body_ids.append(body.id())
 	_bodies = survivors
+	for body_id: int in removed_body_ids: _remove_links_for_body(body_id)
 
 
 func _settle_point_kills(substep: int, status: SimStatus) -> void:
@@ -1254,6 +1385,8 @@ func _resolve_circle_contacts(substep: int, status: SimStatus) -> void:
 			for high_index: int in range(low_index + 1, _bodies.size()):
 				if not _bodies[high_index].alive():
 					continue
+				if not _links.is_empty() and _pair_is_linked(_bodies[low_index].id(), _bodies[high_index].id()):
+					continue
 				var result: SimCollision.CircleResult = (
 					SimCollision.resolve_circle_pair(
 						_bodies[low_index],
@@ -1316,6 +1449,63 @@ func _resolve_circle_contacts(substep: int, status: SimStatus) -> void:
 				pass_index
 			)
 			return
+
+
+func _resolve_links(status: SimStatus) -> void:
+	for link: SimLink in _links:
+		var anchor_index: int = _find_body_index(link.anchor_body_id())
+		var attached_index: int = _find_body_index(link.attached_body_id())
+		if anchor_index < 0 or attached_index < 0:
+			status.fail(SimStatus.Code.INVALID_ATTACH_LINK, SimStatus.Operation.WORLD_RESOLVE_LINKS, link.link_id(), 0); return
+		var anchor: SimBody = _bodies[anchor_index]; var attached: SimBody = _bodies[attached_index]
+		var center_offset: FixVec2 = attached.position().sub(anchor.position(), status)
+		var center_distance_raw: int = 0
+		var direction: FixVec2
+		if center_offset.is_zero(): direction = FixVec2.from_raw(FixMath.ONE_RAW if attached.id() > anchor.id() else -FixMath.ONE_RAW, 0)
+		else:
+			center_distance_raw = center_offset.length_raw(status)
+			direction = center_offset.divided(center_distance_raw, status)
+		var distance_raw: int = 0
+		var target_distance_raw: int = 0
+		var constraint_direction: FixVec2 = direction
+		if link.anchor_mode_id() == SimLink.AnchorMode.SURFACE_FOLLOW:
+			distance_raw = center_distance_raw
+			target_distance_raw = FixMath.add_raw(FixMath.add_raw(anchor.radius_raw(), attached.radius_raw(), status), link.attach_distance_raw(), status)
+		else:
+			var anchor_point: FixVec2 = anchor.position().add(link.anchor_offset(), status)
+			var offset: FixVec2 = attached.position().sub(anchor_point, status)
+			if not offset.is_zero():
+				distance_raw = offset.length_raw(status)
+				constraint_direction = offset.divided(distance_raw, status)
+			target_distance_raw = FixMath.add_raw(attached.radius_raw(), link.attach_distance_raw(), status)
+		var error_raw: int = FixMath.sub_raw(distance_raw, target_distance_raw, status)
+		var inertia_raw: int = FixMath.from_ratio(link.inertia_basis_points(), 10000, status)
+		var mass_sum_raw: int = FixMath.add_raw(anchor.mass_raw(), attached.mass_raw(), status)
+		var anchor_share_raw: int = FixMath.mul_ratio_raw(error_raw, attached.mass_raw(), mass_sum_raw, status)
+		var attached_share_raw: int = FixMath.mul_ratio_raw(error_raw, anchor.mass_raw(), mass_sum_raw, status)
+		anchor_share_raw = FixMath.mul_raw(anchor_share_raw, inertia_raw, status)
+		attached_share_raw = FixMath.mul_raw(attached_share_raw, inertia_raw, status)
+		var anchor_position: FixVec2 = anchor.position().add(constraint_direction.scaled(anchor_share_raw, status), status)
+		var attached_position: FixVec2 = attached.position().sub(constraint_direction.scaled(attached_share_raw, status), status)
+		if not status.is_ok(): return
+		_bodies[anchor_index] = anchor.with_motion(anchor_position, anchor.velocity(), status)
+		_bodies[attached_index] = attached.with_motion(attached_position, attached.velocity(), status)
+		if not status.is_ok(): return
+
+
+func _derive_linked_velocities(start_ids: Array[int], start_positions: Array[FixVec2], status: SimStatus) -> void:
+	var linked_ids: Array[int] = []
+	for link: SimLink in _links:
+		if not linked_ids.has(link.anchor_body_id()): linked_ids.append(link.anchor_body_id())
+		if not linked_ids.has(link.attached_body_id()): linked_ids.append(link.attached_body_id())
+	linked_ids.sort()
+	for body_id: int in linked_ids:
+		var body_index: int = _find_body_index(body_id); var start_index: int = start_ids.find(body_id)
+		if body_index < 0 or start_index < 0: continue
+		var delta: FixVec2 = _bodies[body_index].position().sub(start_positions[start_index], status)
+		var velocity := FixVec2.from_raw(FixMath.multiply_int(delta.x_raw(), DT_DEN, status), FixMath.multiply_int(delta.y_raw(), DT_DEN, status))
+		_bodies[body_index] = _bodies[body_index].with_velocity(velocity, status)
+		if not status.is_ok(): return
 
 
 func _acceleration_for_body(
@@ -1395,17 +1585,24 @@ func step_with_acceleration_mode(mode: int, status: SimStatus) -> bool:
 	# history on every 120 Hz tick. Public copy() remains a deep copy.
 	var bodies_before: Array[SimBody] = _bodies.duplicate()
 	var zones_before: Array[SimZone] = _zones.duplicate()
+	var links_before: Array[SimLink] = _links.duplicate()
 	var events_before: Array[SimEvent] = _events.duplicate()
 	var body_requests_before: Array[BodySpawnRequest] = _pending_body_spawns.duplicate()
 	var zone_requests_before: Array[ZoneSpawnRequest] = _pending_zone_spawns.duplicate()
 	var next_body_before: int = _next_body_id
 	var next_zone_before: int = _next_zone_id
+	var next_link_before: int = _next_link_id
 	var next_sequence_before: int = _next_event_sequence
 	var last_substeps_before: int = _last_substep_count
 
 	_flush_pending_spawns(status)
 	if status.is_ok():
 		_settle_point_kills(0, status)
+	var tick_start_ids: Array[int] = []
+	var tick_start_positions: Array[FixVec2] = []
+	if status.is_ok() and not _links.is_empty():
+		for body: SimBody in _bodies:
+			tick_start_ids.append(body.id()); tick_start_positions.append(body.position())
 	var prepared: Array[PreparedBody] = []
 	if status.is_ok():
 		var prepared_bodies: Array[SimBody] = []
@@ -1431,10 +1628,13 @@ func step_with_acceleration_mode(mode: int, status: SimStatus) -> bool:
 			)
 			_resolve_walls(substep, status)
 			_resolve_circle_contacts(substep, status)
+			if not _links.is_empty(): _resolve_links(status)
 			_resolve_walls(substep, status)
 			_settle_point_kills(substep, status)
 			if not status.is_ok():
 				break
+	if status.is_ok() and not _links.is_empty():
+		_derive_linked_velocities(tick_start_ids, tick_start_positions, status)
 	if status.is_ok():
 		_apply_stop_threshold(
 			prepared, maxi(0, substeps - 1), status
@@ -1446,11 +1646,13 @@ func step_with_acceleration_mode(mode: int, status: SimStatus) -> bool:
 	_tick = tick_before
 	_bodies = bodies_before
 	_zones = zones_before
+	_links = links_before
 	_events = events_before
 	_pending_body_spawns = body_requests_before
 	_pending_zone_spawns = zone_requests_before
 	_next_body_id = next_body_before
 	_next_zone_id = next_zone_before
+	_next_link_id = next_link_before
 	_next_event_sequence = next_sequence_before
 	_last_substep_count = last_substeps_before
 	return false
@@ -1488,8 +1690,10 @@ func _assign_from(other: SimWorld) -> void:
 	_last_substep_count = other._last_substep_count
 	_bodies = other._bodies
 	_zones = other._zones
+	_links = other._links
 	_next_body_id = other._next_body_id
 	_next_zone_id = other._next_zone_id
+	_next_link_id = other._next_link_id
 	_events = other._events
 	_event_cursor = other._event_cursor
 	_next_event_sequence = other._next_event_sequence
@@ -1533,8 +1737,10 @@ func copy(status: SimStatus) -> SimWorld:
 	result._last_substep_count = _last_substep_count
 	result._bodies = _copy_body_array(_bodies)
 	result._zones = _copy_zone_array(_zones)
+	result._links = _copy_link_array(_links)
 	result._next_body_id = _next_body_id
 	result._next_zone_id = _next_zone_id
+	result._next_link_id = _next_link_id
 	result._events = _copy_event_array(_events)
 	result._event_cursor = _event_cursor
 	result._next_event_sequence = _next_event_sequence
@@ -1557,8 +1763,8 @@ func _transaction_copy(status: SimStatus) -> SimWorld:
 	result._base_friction_raw = _base_friction_raw; result._stop_speed_raw = _stop_speed_raw; result._restitution_raw = _restitution_raw
 	result._rng = _rng.copy(status); result._boundary_type = _boundary_type; result._boundary = _boundary
 	result._last_substep_count = _last_substep_count
-	result._bodies = _bodies.duplicate(); result._zones = _zones.duplicate()
-	result._next_body_id = _next_body_id; result._next_zone_id = _next_zone_id
+	result._bodies = _bodies.duplicate(); result._zones = _zones.duplicate(); result._links = _links.duplicate()
+	result._next_body_id = _next_body_id; result._next_zone_id = _next_zone_id; result._next_link_id = _next_link_id
 	result._events = _events.duplicate(); result._event_cursor = _event_cursor; result._next_event_sequence = _next_event_sequence
 	result._pending_body_spawns = _pending_body_spawns.duplicate(); result._pending_zone_spawns = _pending_zone_spawns.duplicate()
 	result._initial_bodies_committed = _initial_bodies_committed; result._initial_zones_committed = _initial_zones_committed
@@ -1581,6 +1787,7 @@ func restore_authoritative_state(
 		p_tick: int,
 		p_next_body_id: int,
 		p_next_zone_id: int,
+		p_next_link_id: int,
 		p_events: Array[SimEvent],
 		p_event_cursor: int,
 		p_next_event_sequence: int,
@@ -1601,6 +1808,7 @@ func restore_authoritative_state(
 		or p_tick < 0
 		or not UInt32Math.is_u32(p_next_body_id)
 		or not UInt32Math.is_u32(p_next_zone_id)
+		or not UInt32Math.is_u32(p_next_link_id)
 		or p_event_cursor < 0
 		or p_event_cursor > p_events.size()
 		or not UInt32Math.is_u32(p_next_event_sequence)
@@ -1648,6 +1856,7 @@ func restore_authoritative_state(
 	_tick = p_tick
 	_next_body_id = p_next_body_id
 	_next_zone_id = p_next_zone_id
+	_next_link_id = p_next_link_id
 	_events = _copy_event_array(p_events)
 	_event_cursor = p_event_cursor
 	_next_event_sequence = p_next_event_sequence
@@ -1796,6 +2005,25 @@ func next_body_id() -> int:
 
 func next_zone_id() -> int:
 	return _next_zone_id
+
+
+func link_count() -> int: return _links.size()
+
+
+func link_at(index: int, status: SimStatus) -> SimLink:
+	if not _require_initialized(status, SimStatus.Operation.WORLD_ADD_LINK): return SimLink.new()
+	if index < 0 or index >= _links.size(): status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.WORLD_ADD_LINK, index, _links.size()); return SimLink.new()
+	return _links[index].copy()
+
+
+func link_count_for_body(body_id: int) -> int:
+	var count: int = 0
+	for link: SimLink in _links:
+		if link.contains_body(body_id): count += 1
+	return count
+
+
+func next_link_id() -> int: return _next_link_id
 
 
 func has_pending_requests() -> bool:

@@ -1,6 +1,6 @@
 class_name ContentCanonicalEncoder
 extends RefCounted
-## P2-1 compatibility bytes v1. Never delegates to Variant serialization.
+## Canonical compatibility bytes v4. Never delegates to Variant serialization.
 
 const MAGIC: PackedByteArray = [70, 76, 73, 67, 75, 67, 65, 84] # FLICKCAT
 
@@ -23,6 +23,9 @@ class ByteWriter:
 
 	func i64(value: int) -> void:
 		for shift: int in range(0, 64, 8): u8(value >> shift)
+
+	func vec2(value: FixVec2) -> void:
+		i64(value.x_raw()); i64(value.y_raw())
 
 	func string_utf8(value: String) -> void:
 		var bytes: PackedByteArray = value.to_utf8_buffer()
@@ -74,6 +77,12 @@ static func encode(
 		if piece.counts_for_victory(): flags |= 1 << 3
 		if piece.is_token(): flags |= 1 << 4
 		writer.u32(flags)
+		writer.u8(1 if piece.spawnable() else 0)
+		writer.u16(piece.spawn_faction_mode_id())
+		writer.u16(piece.expire_kind_id())
+		writer.u32(piece.expire_value())
+		writer.u16(piece.attach_anchor_mode_id())
+		writer.vec2(piece.attach_anchor_offset())
 		writer.u16(piece.tag_ref_count())
 		for tag_index: int in range(piece.tag_ref_count()):
 			var tag_status := ContentStatus.new(); var tag_ref: ContentIdRef = piece.tag_ref_at(tag_index, tag_status)
@@ -125,6 +134,17 @@ static func encode(
 			var selector: AbilitySelectorDefinition = effect.selector()
 			writer.u16(effect.kind_id()); writer.u16(selector.kind_id()); writer.u16(selector.relation_id()); writer.u16(selector.limit())
 			writer.i64(effect.value_a()); writer.i64(effect.value_b()); writer.u16(effect.operation_id())
+			if effect.kind_id() == AbilityEffectDefinition.Kind.SPAWN_PIECE or effect.kind_id() == AbilityEffectDefinition.Kind.SPAWN_PROJECTILE:
+				writer.u8(1); var payload: SpawnPayloadDefinition = effect.spawn_payload(); var piece_ref: ContentIdRef = payload.piece_ref()
+				writer.u32(piece_ref.numeric_id()); writer.string_utf8(piece_ref.string_id()); writer.vec2(payload.offset()); writer.i64(payload.speed_raw()); writer.u16(payload.direction_mode_id())
+			elif effect.kind_id() == AbilityEffectDefinition.Kind.TRANSFORM_PIECE:
+				writer.u8(2); var payload: TransformPayloadDefinition = effect.transform_payload(); var piece_ref: ContentIdRef = payload.piece_ref()
+				writer.u32(piece_ref.numeric_id()); writer.string_utf8(piece_ref.string_id())
+			elif effect.kind_id() == AbilityEffectDefinition.Kind.ATTACH:
+				writer.u8(3); var payload: AttachPayloadDefinition = effect.attach_payload()
+				writer.u16(payload.owner_role_id()); writer.u16(payload.anchor_mode_id()); writer.vec2(payload.anchor_offset()); writer.i64(payload.attach_distance_raw()); writer.u16(payload.inertia_basis_points()); writer.u32(payload.duration_turns())
+			else:
+				writer.u8(0)
 
 	writer.u16(ContentIds.DocumentKind.STATUSES); writer.u16(ContentIds.STATUSES_SCHEMA_VERSION); writer.u32(statuses.size())
 	for definition: StatusDefinition in statuses:

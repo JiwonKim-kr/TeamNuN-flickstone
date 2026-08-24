@@ -17,7 +17,7 @@ static func _append_damage_records(records: Array[BattleTriggerRecord], next_seq
 	if not status.is_ok(): return
 	next_sequence[0] += 1; records.append(deal); records.append(take)
 
-static func _apply(state: BattleState, owner_id: int, target_id: int, record: BattleTriggerRecord, effect: AbilityEffectDefinition, status_change: Array[int], status: SimStatus) -> bool:
+static func _apply(state: BattleState, owner_id: int, target_id: int, record: BattleTriggerRecord, effect: AbilityEffectDefinition, application_ordinal: int, status_change: Array[int], status: SimStatus) -> bool:
 	var combatant: BattleCombatant
 	var body: SimBody
 	var world: SimWorld
@@ -56,6 +56,12 @@ static func _apply(state: BattleState, owner_id: int, target_id: int, record: Ba
 			return status.is_ok()
 		AbilityEffectDefinition.Kind.MODIFY_STAT:
 			return state._effect_modify_stat(target_id, effect.value_a(), effect.value_b(), status)
+		AbilityEffectDefinition.Kind.SPAWN_PIECE, AbilityEffectDefinition.Kind.SPAWN_PROJECTILE:
+			return state._effect_dynamic_spawn(owner_id, target_id, record, effect, application_ordinal, status)
+		AbilityEffectDefinition.Kind.TRANSFORM_PIECE:
+			return state._effect_transform(target_id, effect, status)
+		AbilityEffectDefinition.Kind.ATTACH:
+			return state._effect_attach(owner_id, target_id, record, effect, status)
 	status.fail(SimStatus.Code.INVALID_EFFECT_DEFINITION, SimStatus.Operation.EFFECT_APPLY, target_id, effect.kind_id()); return false
 
 static func resolve_transition(state: BattleState, registry: AbilityRegistry, records: Array[BattleTriggerRecord], content_fingerprint: PackedByteArray, status: SimStatus) -> EffectResolutionReport:
@@ -64,9 +70,12 @@ static func resolve_transition(state: BattleState, registry: AbilityRegistry, re
 		status.fail(SimStatus.Code.INVALID_EFFECT_DEFINITION, SimStatus.Operation.EFFECT_RESOLVE_TRANSITION); return EffectResolutionReport.new()
 	if registry.fingerprint_bytes() != content_fingerprint:
 		status.fail(SimStatus.Code.CONTENT_FINGERPRINT_MISMATCH, SimStatus.Operation.EFFECT_RESOLVE_TRANSITION); return EffectResolutionReport.new()
+	var state_has_content: bool = state.content_fingerprint_bytes().size() == 32
+	if state_has_content and not state.ability_registry_matches(registry, status):
+		status.fail(SimStatus.Code.INVALID_ABILITY_BINDING, SimStatus.Operation.EFFECT_RESOLVE_TRANSITION); return EffectResolutionReport.new()
 	if records.size() > BattleLimits.TRIGGER_MAX_RECORDS:
 		status.fail(SimStatus.Code.EFFECT_LIMIT_EXCEEDED, SimStatus.Operation.EFFECT_RESOLVE_TRANSITION, records.size(), BattleLimits.TRIGGER_MAX_RECORDS); return EffectResolutionReport.new()
-	var local: BattleState = state.copy(status); var invocations: int = 0; var applications: Array[EffectApplication] = []; var status_applications: int = 0; var status_updates: int = 0; var status_removals: int = 0; var status_changes: int = 0
+	var local: BattleState = state.copy(status); local._dynamic_begin_transition(); var invocations: int = 0; var applications: Array[EffectApplication] = []; var status_applications: int = 0; var status_updates: int = 0; var status_removals: int = 0; var status_changes: int = 0
 	var queue: Array[BattleTriggerRecord] = []; var generated: Array[BattleTriggerRecord] = []
 	for input_record: BattleTriggerRecord in records:
 		if input_record == null or not input_record.is_initialized(): status.fail(SimStatus.Code.INVALID_TRIGGER_RECORD, SimStatus.Operation.EFFECT_RESOLVE_TRANSITION); return EffectResolutionReport.new()
@@ -103,7 +112,7 @@ static func resolve_transition(state: BattleState, registry: AbilityRegistry, re
 						if effect.kind_id() == AbilityEffectDefinition.Kind.DAMAGE:
 							hp_before = local.combatant_by_body_id(target_id, status).current_hp()
 						var status_change: Array[int] = [0]
-						if not status.is_ok() or not _apply(local, binding.owner_body_id(), target_id, record, effect, status_change, status): break
+						if not status.is_ok() or not _apply(local, binding.owner_body_id(), target_id, record, effect, applications.size(), status_change, status): break
 						if status_change[0] == 1: status_applications += 1; status_changes += 1
 						elif status_change[0] == 2: status_updates += 1; status_changes += 1
 						elif status_change[0] == 3: status_removals += 1; status_changes += 1
@@ -129,8 +138,15 @@ static func resolve_transition(state: BattleState, registry: AbilityRegistry, re
 			status_changes += expiration_changes[0] + expiration_changes[1]; expired_bodies[record.subject_body_id()] = true
 			if status_changes > BattleLimits.STATUS_MAX_CHANGES_PER_TRANSITION: status.fail(SimStatus.Code.STATUS_LIMIT_EXCEEDED, SimStatus.Operation.EFFECT_RESOLVE_TRANSITION, status_changes, BattleLimits.STATUS_MAX_CHANGES_PER_TRANSITION); break
 	if not status.is_ok(): return EffectResolutionReport.new()
+	var has_turn_end: bool = false
+	for record: BattleTriggerRecord in queue:
+		if record.trigger_id() == BattleTriggerId.Value.ON_TURN_END and record.phase() == BattleState.Phase.TURN_END: has_turn_end = true; break
+	if not local._dynamic_finish_transition(has_turn_end, status): return EffectResolutionReport.new()
 	var binding_copies: Array[AbilityBinding] = []
-	for binding_index: int in range(registry.binding_count()): binding_copies.append(registry.binding_at(binding_index, status))
+	if state_has_content:
+		for binding_index: int in range(local.ability_binding_count()): binding_copies.append(local.ability_binding_at(binding_index, status))
+	else:
+		for binding_index: int in range(registry.binding_count()): binding_copies.append(registry.binding_at(binding_index, status))
 	if applications.size() > UInt32Math.U32_MAX - local.next_effect_sequence():
 		status.fail(SimStatus.Code.COUNTER_EXHAUSTED, SimStatus.Operation.EFFECT_RESOLVE_TRANSITION, local.next_effect_sequence(), applications.size()); return EffectResolutionReport.new()
 	local._effect_restore_content(content_fingerprint, binding_copies, local.next_effect_sequence() + applications.size(), status)

@@ -52,7 +52,14 @@
       },
       "id": "fixture_puck",
       "numeric_id": 1,
-      "tag_refs": []
+      "tag_refs": [],
+      "spawnable": false,
+      "spawn_faction_mode_id": 1,
+      "expire_kind_id": 1,
+      "expire_value": 0,
+      "attach_anchor_mode_id": 1,
+      "attach_anchor_offset_x_raw": 0,
+      "attach_anchor_offset_y_raw": 0
     },
     {
       "levels": [
@@ -77,8 +84,15 @@
       },
       "id": "fixture_guard",
       "numeric_id": 10,
-      "tag_refs": []
+      "tag_refs": [],
+      "spawnable": false,
+      "spawn_faction_mode_id": 1,
+      "expire_kind_id": 1,
+      "expire_value": 0,
+      "attach_anchor_mode_id": 1,
+      "attach_anchor_offset_x_raw": 0,
+      "attach_anchor_offset_y_raw": 0
     }
   ],
-  "schema_version": 2
+  "schema_version": 3
 }

@@ -29,7 +29,7 @@ assert remaining == 2  # KEEP
 catalog = load_catalog(ROOT / "pipeline/tests/fixtures/p2_status_synergy")
 assert len(catalog.statuses) == 3
 assert len(catalog.synergies) == 1
-assert catalog.fingerprint.hex() == "0fb65c38a3cbddf4379170841f917bd8abcb8108a5a23040153632fe06cbf6d8"
+assert catalog.fingerprint.hex() == "73d02d08bf19d62cf120b567fac4139061d991d6b66df93cfc491c8b31e51daa"
 assert catalog.statuses[0].modifiers[0].value == -500
 assert catalog.synergies[0].tiers[0].modifiers[1].kind_id == 8
 assert catalog.synergies[0].scope_id == 2 and len(catalog.synergies[0].tiers) == 2

@@ -99,8 +99,8 @@ P2는 P1의 결정론적 전투 골격에 콘텐츠 정의, 능력 실행, 상�
 | 1 | `p2_content_catalog.md` | approved · implemented · verified · 2026-08-23 | JSON I/O와 타입 검증, 안정 ID, 원자적 카탈로그, 콘텐츠 지문 |
 | 2 | [`p2_effect_resolution.md`](p2_effect_resolution.md) | **approved · implemented · verified** · 2026-08-23 | 트리거→능력→효과의 고정 순서, 조건·대상·기초 효과 원자, rollback |
 | 3 | [`p2_status_synergy_modifiers.md`](p2_status_synergy_modifiers.md) | **approved** · 2026-08-24 | 상태 수명, passive 재평가, 태그 계수, P1 계산 입력 modifier 결합 |
-| 4 | `p2_dynamic_piece_mechanics.md` | 미작성 | spawn·projectile·attachment·transform·copy 등 승인된 고급 키워드 |
-| 5 | `p2_maps_enemies_environment.md` | 미작성 | 맵·슬롯·존·적 override를 데이터에서 전투 fixture로 구성 |
+| 4 | [`p2_dynamic_piece_mechanics.md`](p2_dynamic_piece_mechanics.md) | **approved** · 2026-08-24 | 런타임 생성·수명(`expire`), 변신 승계, 부착 링크와 구속 solver. 복사·존은 제외 |
+| 5 | `p2_maps_enemies_environment.md` | 미작성 | 맵·슬롯·존·적 override를 데이터에서 전투 fixture로 구성. `SPAWN_ZONE`·`SPAWN_OBSTACLE` 포함 |
 | 6 | `p2_content_graybox.md` | 미작성 | 승인된 최초 콘텐츠 패키지, data-only 신규 기물 증명, batch·수동 검수 |
 
 ```text
@@ -252,8 +252,8 @@ P2-2 첫 구현은 P1에서 승인된 아래 어휘만 사용한다.
 |---|---|---|
 | 기초 전투 | `DAMAGE`, `HEAL`, `KNOCKBACK`, `PULL`, `MODIFY_STAT`, `MODIFY_CT`, `MODIFY_VELOCITY`, `TELEPORT`, `SET_FLAG` | P2-2에서 입력·대상·반올림·실패 원자성 승인 |
 | 상태 | `APPLY_STATUS`, `REMOVE_STATUS` | P2-3 상태 수명·중첩 계약 승인 뒤 활성화 |
-| 월드 생성 | `SPAWN_ZONE`, `SPAWN_OBSTACLE` | P2-4/5에서 지원 가능한 P0 zone·body 형태만 승인 |
-| 동적 기물 | `SPAWN_PROJECTILE`, `SPAWN_PIECE`, `TRANSFORM_PIECE`, `ATTACH` | P2-4의 ID·수명·snapshot·충돌 계약 승인 필요 |
+| 월드 생성 | `SPAWN_ZONE`, `SPAWN_OBSTACLE` | **P2-5 소유로 확정.** 지원 가능한 P0 zone·body 형태만 승인 |
+| 동적 기물 | `SPAWN_PROJECTILE`, `SPAWN_PIECE`, `TRANSFORM_PIECE`, `ATTACH` | **P2-D01~27로 승인 완료.** exact payload·ID·binding·수명·snapshot 단일 정본·충돌 계약 확정 |
 | 행동·입력 | `EXTRA_LAUNCH`, `CONSTRAIN_AIM`, `MID_FLIGHT_INPUT` | CTB·LaunchCommand·리플레이·P3 탐색 영향 별도 승인 필요 |
 | 복사·무적 | `COPY_ABILITY`, `SET_INVULNERABLE` | U-12·U-20 선결 승인 필요 |
 | 런 상태 | `GAIN_CURRENCY` | P4 `RunState` 소유. P2 런타임에서는 지원하지 않음 |
@@ -472,7 +472,7 @@ P2 완료는 수용 기준 1~18과 모든 하위 명세의 승인·구현·검�
 | P2-1 | rarity 축 U-27, ID namespace·schema 상한, 콘텐츠 지문 포함 범위 |
 | P2-2 | 신규 트리거 후보, condition/selector 어휘, 효과·대상 안전 한도, 각 기초 원자의 정확한 단위와 순서 |
 | P2-3 | U-11b, S-6~12, U-20~21, U-36~37·40, 상태 중첩·지속·해제 규칙 |
-| P2-4 | U-12, U-24~31, U-38~39, spawn 수명, projectile/attachment/transform/copy 계약 |
+| P2-4 | spawn 수명·projectile·attachment·transform 계약은 P2-D01~27로 확정. U-12 복사와 U-24~31·U-38~39는 미결 유지 |
 | P2-5 | U-01~03, 적 override와 U-10의 P2/P3 소유권 경계, 맵·슬롯 수 U-34 |
 | P2-6 | P2-A10 최초 기물·적·맵 목록과 수치, 각 placeholder ID, 사람 검수 시나리오 |
 
@@ -480,4 +480,4 @@ P2 완료는 수용 기준 1~18과 모든 하위 명세의 승인·구현·검�
 
 P2 전체 구조와 P2-A01~11은 2026-08-23 승인되었다. P2-1은 같은 날 별도 상세 승인 뒤 구현·검증을 완료했다. 하위 명세는 각각 `draft → approved` 절차를 거치며, 하위 명세 승인 전에는 해당 핵심 구현을 시작하지 않는다.
 
-P2-2 `p2_effect_resolution.md`의 P2-E01~12 승인 범위에서 schema v2, typed 실행 정의, binding, 6개 원자, next-wave, 원자적 resolver, BattleSnapshot v4, wave/record/invocation/application/selector 전 한도와 1,000회 반복 검증을 완료했다. P2-3 `p2_status_synergy_modifiers.md`의 P2-S01~20도 2026-08-24 승인 범위에서 catalog v3, 상태 수명, 동결 시너지 tally, modifier 집계, 세 원자, CTB·피해·물리 연결, BattleSnapshot v5와 전 한도·rollback·1,000회 결정론을 구현하고 Godot 4.6.3 `verify --full` 러너 20종으로 검증했다. 개별 기물 수치와 복사·무적·상태 세부는 명시된 후속 명세 승인까지 미정으로 유지한다.
+P2-2 `p2_effect_resolution.md`의 P2-E01~12 승인 범위에서 schema v2, typed 실행 정의, binding, 6개 원자, next-wave, 원자적 resolver, BattleSnapshot v4, wave/record/invocation/application/selector 전 한도와 1,000회 반복 검증을 완료했다. P2-3 `p2_status_synergy_modifiers.md`의 P2-S01~20도 2026-08-24 승인 범위에서 catalog v3, 상태 수명, 동결 시너지 tally, modifier 집계, 세 원자, CTB·피해·물리 연결, BattleSnapshot v5와 전 한도·rollback·1,000회 결정론을 구현하고 Godot 4.6.3 `verify --full` 러너 20종으로 검증했다. P2-4 `p2_dynamic_piece_mechanics.md`의 P2-D01~27도 같은 날 승인 범위에서 catalog v4, 4개 동적 원자, runtime token·수명, 결정론 링크 solver, 변신 승계, 원자적 rollback, BattleSnapshot v6·SimSnapshot v2를 구현했다. 독립 schema/fingerprint와 29개 grouped check, snapshot 복원 1,000회, Godot 4.6.3 `verify --full` 러너 21종을 통과했다. 개별 기물 수치와 복사·무적·상태 세부는 명시된 후속 명세 승인까지 미정으로 유지한다.

@@ -10,6 +10,8 @@ const RADIUS_MAX_RAW: int = 128 * FixMath.SCALE
 const MASS_MIN_RAW: int = FixMath.SCALE
 const MASS_MAX_RAW: int = 256 * FixMath.SCALE
 const IMPULSE_ABS_LIMIT_RAW: int = 2097152 * FixMath.SCALE
+const LINK_MAX_COUNT: int = 64
+const LINK_MAX_PER_BODY: int = 8
 
 # Worst supported wide intermediates (Q94.32). These equations are the
 # executable safety rationale for P0-1 acceptance criterion 8:

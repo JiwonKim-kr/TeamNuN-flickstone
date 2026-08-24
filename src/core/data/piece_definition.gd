@@ -1,12 +1,21 @@
 class_name PieceDefinition
 extends RefCounted
 
+enum SpawnFactionMode { INVALID = 0, INHERIT_OWNER = 1, NEUTRAL = 2 }
+enum ExpireKind { INVALID = 0, NONE = 1, AFTER_TURNS = 2, AFTER_COLLISIONS = 3, ON_LINK_RELEASE = 4 }
+
 var _id_ref: ContentIdRef
 var _has_turn: bool = false
 var _destructible: bool = false
 var _transformable: bool = false
 var _counts_for_victory: bool = false
 var _is_token: bool = false
+var _spawnable: bool = false
+var _spawn_faction_mode_id: int = SpawnFactionMode.INVALID
+var _expire_kind_id: int = ExpireKind.INVALID
+var _expire_value: int = 0
+var _attach_anchor_mode_id: int = AttachPayloadDefinition.AnchorMode.INVALID
+var _attach_anchor_offset: FixVec2 = FixVec2.zero()
 var _tag_refs: Array[ContentIdRef] = []
 var _levels: Array[PieceLevelDefinition] = []
 var _initialized: bool = false
@@ -19,6 +28,12 @@ static func create(
 		transformable: bool,
 		counts_for_victory: bool,
 		is_token: bool,
+		spawnable: bool,
+		spawn_faction_mode_id: int,
+		expire_kind_id: int,
+		expire_value: int,
+		attach_anchor_mode_id: int,
+		attach_anchor_offset: FixVec2,
 		tag_refs: Array[ContentIdRef],
 		levels: Array[PieceLevelDefinition],
 		status: ContentStatus
@@ -29,6 +44,20 @@ static func create(
 	if (
 		id_ref == null
 		or not id_ref.is_initialized()
+		or spawn_faction_mode_id < SpawnFactionMode.INHERIT_OWNER
+		or spawn_faction_mode_id > SpawnFactionMode.NEUTRAL
+		or expire_kind_id < ExpireKind.NONE
+		or expire_kind_id > ExpireKind.ON_LINK_RELEASE
+		or (expire_kind_id == ExpireKind.NONE and expire_value != 0)
+		or (expire_kind_id == ExpireKind.AFTER_TURNS and (expire_value < 1 or expire_value > ContentLimits.EXPIRE_TURNS_MAX))
+		or (expire_kind_id == ExpireKind.AFTER_COLLISIONS and (expire_value < 1 or expire_value > ContentLimits.EXPIRE_COLLISIONS_MAX))
+		or (expire_kind_id == ExpireKind.ON_LINK_RELEASE and expire_value != 0)
+		or attach_anchor_mode_id < AttachPayloadDefinition.AnchorMode.SURFACE_FOLLOW
+		or attach_anchor_mode_id > AttachPayloadDefinition.AnchorMode.CONTACT_POINT
+		or attach_anchor_offset == null
+		or not SimLimits.is_position_valid(attach_anchor_offset)
+		or (attach_anchor_mode_id != AttachPayloadDefinition.AnchorMode.FIXED_POINT and not attach_anchor_offset.is_zero())
+		or (spawn_faction_mode_id == SpawnFactionMode.NEUTRAL and (has_turn or counts_for_victory))
 		or tag_refs.size() > ContentLimits.PIECE_TAG_REFS_MAX_COUNT
 		or levels.is_empty()
 		or levels.size() > ContentLimits.PIECE_LEVEL_MAX_COUNT
@@ -53,6 +82,12 @@ static func create(
 	result._transformable = transformable
 	result._counts_for_victory = counts_for_victory
 	result._is_token = is_token
+	result._spawnable = spawnable
+	result._spawn_faction_mode_id = spawn_faction_mode_id
+	result._expire_kind_id = expire_kind_id
+	result._expire_value = expire_value
+	result._attach_anchor_mode_id = attach_anchor_mode_id
+	result._attach_anchor_offset = attach_anchor_offset.copy()
 	result._initialized = true
 	return result
 
@@ -62,7 +97,9 @@ func copy() -> PieceDefinition:
 	var status := ContentStatus.new()
 	return create(
 		_id_ref, _has_turn, _destructible, _transformable,
-		_counts_for_victory, _is_token, _tag_refs, _levels, status
+		_counts_for_victory, _is_token, _spawnable, _spawn_faction_mode_id,
+		_expire_kind_id, _expire_value, _attach_anchor_mode_id,
+		_attach_anchor_offset, _tag_refs, _levels, status
 	)
 
 
@@ -75,6 +112,12 @@ func destructible() -> bool: return _destructible
 func transformable() -> bool: return _transformable
 func counts_for_victory() -> bool: return _counts_for_victory
 func is_token() -> bool: return _is_token
+func spawnable() -> bool: return _spawnable
+func spawn_faction_mode_id() -> int: return _spawn_faction_mode_id
+func expire_kind_id() -> int: return _expire_kind_id
+func expire_value() -> int: return _expire_value
+func attach_anchor_mode_id() -> int: return _attach_anchor_mode_id
+func attach_anchor_offset() -> FixVec2: return _attach_anchor_offset.copy()
 func tag_ref_count() -> int: return _tag_refs.size()
 func tag_ref_at(index: int, status: ContentStatus) -> ContentIdRef:
 	if index < 0 or index >= _tag_refs.size(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.PIECES, numeric_id(), ContentStatus.FieldId.TAG_REFS); return ContentIdRef.new()

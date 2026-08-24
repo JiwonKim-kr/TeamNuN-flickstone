@@ -11,8 +11,11 @@ const RECORD_DOCUMENT_KEYS: PackedStringArray = ["schema_version", "records"]
 const ABILITY_KEYS: PackedStringArray = ["numeric_id", "id", "trigger_id", "conditions", "effects"]
 const CONDITION_KEYS: PackedStringArray = ["kind_id", "relation_id", "value_a", "value_b"]
 const EFFECT_KEYS: PackedStringArray = ["kind_id", "selector", "value_a", "value_b", "operation_id"]
+const SPAWN_KEYS: PackedStringArray = ["piece_ref", "offset_x_raw", "offset_y_raw", "speed_raw", "direction_mode_id"]
+const TRANSFORM_KEYS: PackedStringArray = ["piece_ref"]
+const ATTACH_KEYS: PackedStringArray = ["owner_role_id", "anchor_mode_id", "anchor_offset_x_raw", "anchor_offset_y_raw", "attach_distance_raw", "inertia_basis_points", "duration_turns"]
 const SELECTOR_KEYS: PackedStringArray = ["kind_id", "relation_id", "limit"]
-const PIECE_KEYS: PackedStringArray = ["numeric_id", "id", "flags", "tag_refs", "levels"]
+const PIECE_KEYS: PackedStringArray = ["numeric_id", "id", "flags", "spawnable", "spawn_faction_mode_id", "expire_kind_id", "expire_value", "attach_anchor_mode_id", "attach_anchor_offset_x_raw", "attach_anchor_offset_y_raw", "tag_refs", "levels"]
 const FLAG_KEYS: PackedStringArray = ["has_turn", "destructible", "transformable", "counts_for_victory", "is_token"]
 const LEVEL_KEYS: PackedStringArray = ["level", "max_hp", "attack", "speed_stat", "mass_raw", "radius_raw", "friction_multiplier_raw", "critical_basis_points", "ability_refs"]
 const REF_KEYS: PackedStringArray = ["numeric_id", "id"]
@@ -268,6 +271,20 @@ static func _active_registry_pair(
 	return numeric_entry
 
 
+static func _parse_payload_piece_ref(raw_ref: Variant, registry_by_numeric: Dictionary, registry_by_string: Dictionary, ability_numeric_id: int, status: ContentStatus) -> ContentIdRef:
+	const KIND: int = ContentIds.DocumentKind.ABILITIES
+	if typeof(raw_ref) != TYPE_DICTIONARY:
+		status.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.REFERENCE_RESOLVE, KIND, ability_numeric_id, ContentStatus.FieldId.PIECE_REF)
+		return ContentIdRef.new()
+	var value: Dictionary = raw_ref as Dictionary
+	if not _require_exact_keys(value, REF_KEYS, status, KIND, ability_numeric_id, ContentStatus.FieldId.PIECE_REF): return ContentIdRef.new()
+	var numeric_id: int = _int_field(value, "numeric_id", status, KIND, ability_numeric_id, ContentStatus.FieldId.PIECE_REF)
+	var string_id: String = _string_field(value, "id", status, KIND, ability_numeric_id, ContentStatus.FieldId.PIECE_REF)
+	var entry: ContentRegistryEntry = _active_registry_pair(ContentIds.Namespace.PIECE, numeric_id, string_id, registry_by_numeric, registry_by_string, status, KIND, ContentStatus.FieldId.PIECE_REF)
+	if not status.is_ok(): return ContentIdRef.new()
+	return ContentIdRef.create(entry.numeric_id(), entry.string_id(), status)
+
+
 static func _parse_abilities(
 		root: Dictionary,
 		registry_by_numeric: Dictionary,
@@ -322,18 +339,53 @@ static func _parse_abilities(
 			if typeof(raw_effect) != TYPE_DICTIONARY:
 				status.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.EFFECTS); return false
 			var effect_value: Dictionary = raw_effect as Dictionary
-			if not _require_exact_keys(effect_value, EFFECT_KEYS, status, KIND, numeric_id, ContentStatus.FieldId.EFFECTS): return false
+			if not effect_value.has("kind_id"):
+				status.fail(ContentStatus.Code.MISSING_KEY, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.EFFECT_KIND_ID); return false
+			var kind_id: int = _int_field(effect_value, "kind_id", status, KIND, numeric_id, ContentStatus.FieldId.EFFECT_KIND_ID)
+			var expected_keys: PackedStringArray = EFFECT_KEYS.duplicate()
+			if kind_id == AbilityEffectDefinition.Kind.SPAWN_PIECE or kind_id == AbilityEffectDefinition.Kind.SPAWN_PROJECTILE: expected_keys.append("spawn")
+			elif kind_id == AbilityEffectDefinition.Kind.TRANSFORM_PIECE: expected_keys.append("transform")
+			elif kind_id == AbilityEffectDefinition.Kind.ATTACH: expected_keys.append("attach")
+			if not _require_exact_keys(effect_value, expected_keys, status, KIND, numeric_id, ContentStatus.FieldId.EFFECTS): return false
 			var selector_value: Dictionary = _dictionary_field(effect_value, "selector", status, KIND, numeric_id, ContentStatus.FieldId.SELECTOR)
 			if not status.is_ok() or not _require_exact_keys(selector_value, SELECTOR_KEYS, status, KIND, numeric_id, ContentStatus.FieldId.SELECTOR): return false
 			var selector: AbilitySelectorDefinition = AbilitySelectorDefinition.create(
 				_int_field(selector_value, "kind_id", status, KIND, numeric_id, ContentStatus.FieldId.SELECTOR_KIND_ID),
 				_int_field(selector_value, "relation_id", status, KIND, numeric_id, ContentStatus.FieldId.RELATION_ID),
 				_int_field(selector_value, "limit", status, KIND, numeric_id, ContentStatus.FieldId.LIMIT), status)
+			var spawn_payload: SpawnPayloadDefinition = null
+			var transform_payload: TransformPayloadDefinition = null
+			var attach_payload: AttachPayloadDefinition = null
+			if kind_id == AbilityEffectDefinition.Kind.SPAWN_PIECE or kind_id == AbilityEffectDefinition.Kind.SPAWN_PROJECTILE:
+				var payload_value: Dictionary = _dictionary_field(effect_value, "spawn", status, KIND, numeric_id, ContentStatus.FieldId.SPAWN_PAYLOAD)
+				if not status.is_ok() or not _require_exact_keys(payload_value, SPAWN_KEYS, status, KIND, numeric_id, ContentStatus.FieldId.SPAWN_PAYLOAD): return false
+				var piece_ref: ContentIdRef = _parse_payload_piece_ref(payload_value["piece_ref"], registry_by_numeric, registry_by_string, numeric_id, status)
+				spawn_payload = SpawnPayloadDefinition.create(piece_ref,
+					_int_field(payload_value, "offset_x_raw", status, KIND, numeric_id, ContentStatus.FieldId.OFFSET_X_RAW),
+					_int_field(payload_value, "offset_y_raw", status, KIND, numeric_id, ContentStatus.FieldId.OFFSET_Y_RAW),
+					_int_field(payload_value, "speed_raw", status, KIND, numeric_id, ContentStatus.FieldId.SPEED_RAW),
+					_int_field(payload_value, "direction_mode_id", status, KIND, numeric_id, ContentStatus.FieldId.DIRECTION_MODE_ID), status)
+			elif kind_id == AbilityEffectDefinition.Kind.TRANSFORM_PIECE:
+				var payload_value: Dictionary = _dictionary_field(effect_value, "transform", status, KIND, numeric_id, ContentStatus.FieldId.TRANSFORM_PAYLOAD)
+				if not status.is_ok() or not _require_exact_keys(payload_value, TRANSFORM_KEYS, status, KIND, numeric_id, ContentStatus.FieldId.TRANSFORM_PAYLOAD): return false
+				transform_payload = TransformPayloadDefinition.create(_parse_payload_piece_ref(payload_value["piece_ref"], registry_by_numeric, registry_by_string, numeric_id, status), status)
+			elif kind_id == AbilityEffectDefinition.Kind.ATTACH:
+				var payload_value: Dictionary = _dictionary_field(effect_value, "attach", status, KIND, numeric_id, ContentStatus.FieldId.ATTACH_PAYLOAD)
+				if not status.is_ok() or not _require_exact_keys(payload_value, ATTACH_KEYS, status, KIND, numeric_id, ContentStatus.FieldId.ATTACH_PAYLOAD): return false
+				attach_payload = AttachPayloadDefinition.create(
+					_int_field(payload_value, "owner_role_id", status, KIND, numeric_id, ContentStatus.FieldId.OWNER_ROLE_ID),
+					_int_field(payload_value, "anchor_mode_id", status, KIND, numeric_id, ContentStatus.FieldId.ATTACH_ANCHOR_MODE_ID),
+					FixVec2.from_raw(_int_field(payload_value, "anchor_offset_x_raw", status, KIND, numeric_id, ContentStatus.FieldId.ATTACH_ANCHOR_OFFSET_X_RAW), _int_field(payload_value, "anchor_offset_y_raw", status, KIND, numeric_id, ContentStatus.FieldId.ATTACH_ANCHOR_OFFSET_Y_RAW)),
+					_int_field(payload_value, "attach_distance_raw", status, KIND, numeric_id, ContentStatus.FieldId.ATTACH_DISTANCE_RAW),
+					_int_field(payload_value, "inertia_basis_points", status, KIND, numeric_id, ContentStatus.FieldId.INERTIA_BASIS_POINTS),
+					_int_field(payload_value, "duration_turns", status, KIND, numeric_id, ContentStatus.FieldId.DURATION_TURNS), status)
+				if attach_payload.is_initialized() and attach_payload.anchor_mode_id() == AttachPayloadDefinition.AnchorMode.CONTACT_POINT and trigger_id != BattleTriggerId.Value.ON_HIT_DEAL and trigger_id != BattleTriggerId.Value.ON_HIT_TAKE and trigger_id != BattleTriggerId.Value.ON_ALLY_COLLIDE:
+					status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.ATTACH_PAYLOAD); return false
 			var effect: AbilityEffectDefinition = AbilityEffectDefinition.create(
-				_int_field(effect_value, "kind_id", status, KIND, numeric_id, ContentStatus.FieldId.EFFECT_KIND_ID), selector,
+				kind_id, selector,
 				_int_field(effect_value, "value_a", status, KIND, numeric_id, ContentStatus.FieldId.VALUE_A),
 				_int_field(effect_value, "value_b", status, KIND, numeric_id, ContentStatus.FieldId.VALUE_B),
-				_int_field(effect_value, "operation_id", status, KIND, numeric_id, ContentStatus.FieldId.OPERATION_ID), status)
+				_int_field(effect_value, "operation_id", status, KIND, numeric_id, ContentStatus.FieldId.OPERATION_ID), status, spawn_payload, transform_payload, attach_payload)
 			if not status.is_ok(): return false
 			if (effect.kind_id() == AbilityEffectDefinition.Kind.APPLY_STATUS or effect.kind_id() == AbilityEffectDefinition.Kind.REMOVE_STATUS) and not status_by_numeric.has(effect.value_a()):
 				status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.REFERENCE_RESOLVE, KIND, numeric_id, ContentStatus.FieldId.VALUE_A); return false
@@ -459,6 +511,14 @@ static func _parse_pieces(
 		var transformable: bool = _bool_field(flags, "transformable", status, KIND, numeric_id, ContentStatus.FieldId.TRANSFORMABLE)
 		var counts_for_victory: bool = _bool_field(flags, "counts_for_victory", status, KIND, numeric_id, ContentStatus.FieldId.COUNTS_FOR_VICTORY)
 		var is_token: bool = _bool_field(flags, "is_token", status, KIND, numeric_id, ContentStatus.FieldId.IS_TOKEN)
+		var spawnable: bool = _bool_field(record, "spawnable", status, KIND, numeric_id, ContentStatus.FieldId.SPAWNABLE)
+		var spawn_faction_mode_id: int = _int_field(record, "spawn_faction_mode_id", status, KIND, numeric_id, ContentStatus.FieldId.SPAWN_FACTION_MODE_ID)
+		var expire_kind_id: int = _int_field(record, "expire_kind_id", status, KIND, numeric_id, ContentStatus.FieldId.EXPIRE_KIND_ID)
+		var expire_value: int = _int_field(record, "expire_value", status, KIND, numeric_id, ContentStatus.FieldId.EXPIRE_VALUE)
+		var attach_anchor_mode_id: int = _int_field(record, "attach_anchor_mode_id", status, KIND, numeric_id, ContentStatus.FieldId.ATTACH_ANCHOR_MODE_ID)
+		var attach_anchor_offset: FixVec2 = FixVec2.from_raw(
+			_int_field(record, "attach_anchor_offset_x_raw", status, KIND, numeric_id, ContentStatus.FieldId.ATTACH_ANCHOR_OFFSET_X_RAW),
+			_int_field(record, "attach_anchor_offset_y_raw", status, KIND, numeric_id, ContentStatus.FieldId.ATTACH_ANCHOR_OFFSET_Y_RAW))
 		if not status.is_ok(): return false
 		var raw_tags: Array = _array_field(record, "tag_refs", status, KIND, numeric_id, ContentStatus.FieldId.TAG_REFS)
 		if not status.is_ok(): return false
@@ -522,7 +582,7 @@ static func _parse_pieces(
 			levels.append(level_definition)
 
 		var id_ref: ContentIdRef = ContentIdRef.create(registry_entry.numeric_id(), registry_entry.string_id(), status)
-		var piece: PieceDefinition = PieceDefinition.create(id_ref, has_turn, destructible, transformable, counts_for_victory, is_token, tag_refs, levels, status)
+		var piece: PieceDefinition = PieceDefinition.create(id_ref, has_turn, destructible, transformable, counts_for_victory, is_token, spawnable, spawn_faction_mode_id, expire_kind_id, expire_value, attach_anchor_mode_id, attach_anchor_offset, tag_refs, levels, status)
 		if not status.is_ok(): return false
 		pieces_out.append(piece)
 		piece_by_numeric[numeric_id] = piece
@@ -642,6 +702,26 @@ static func _validate_active_registry_coverage(
 	return true
 
 
+static func _validate_dynamic_piece_references(abilities: Array[AbilityDefinition], piece_by_numeric: Dictionary, status: ContentStatus) -> bool:
+	for ability: AbilityDefinition in abilities:
+		for effect_index: int in range(ability.effect_count()):
+			var effect: AbilityEffectDefinition = ability.effect_at(effect_index, status)
+			if not status.is_ok(): return false
+			var piece_ref: ContentIdRef = ContentIdRef.new()
+			var requires_spawnable: bool = false
+			if effect.kind_id() == AbilityEffectDefinition.Kind.SPAWN_PIECE or effect.kind_id() == AbilityEffectDefinition.Kind.SPAWN_PROJECTILE:
+				piece_ref = effect.spawn_payload().piece_ref(); requires_spawnable = true
+			elif effect.kind_id() == AbilityEffectDefinition.Kind.TRANSFORM_PIECE:
+				piece_ref = effect.transform_payload().piece_ref()
+			else:
+				continue
+			if not piece_by_numeric.has(piece_ref.numeric_id()):
+				status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.REFERENCE_RESOLVE, ContentIds.DocumentKind.ABILITIES, ability.numeric_id(), ContentStatus.FieldId.PIECE_REF); return false
+			if requires_spawnable and not (piece_by_numeric[piece_ref.numeric_id()] as PieceDefinition).spawnable():
+				status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.REFERENCE_RESOLVE, ContentIds.DocumentKind.ABILITIES, ability.numeric_id(), ContentStatus.FieldId.SPAWNABLE); return false
+	return true
+
+
 static func build(
 		catalog_document: Dictionary,
 		source_documents: Array[ContentSourceFile],
@@ -672,6 +752,7 @@ static func build(
 	var pieces: Array[PieceDefinition] = []
 	var piece_by_numeric: Dictionary = {}
 	if not _parse_pieces(pieces_root, registry_by_numeric, registry_by_string, ability_by_numeric, pieces, piece_by_numeric, status): return ContentCatalog.new()
+	if not _validate_dynamic_piece_references(abilities, piece_by_numeric, status): return ContentCatalog.new()
 	if not _validate_active_registry_coverage(registry_entries, piece_by_numeric, ability_by_numeric, status_by_numeric, synergy_by_numeric, status): return ContentCatalog.new()
 
 	var compatibility_bytes: PackedByteArray = ContentCanonicalEncoder.encode(registry_entries, pieces, abilities, statuses, synergies, status)

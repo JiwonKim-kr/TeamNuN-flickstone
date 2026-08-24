@@ -16,6 +16,7 @@ static func create(body_id: int, piece_numeric_id: int, level: int, faction: int
 	result._body_id = body_id; result._piece_numeric_id = piece_numeric_id; result._level = level; result._faction = faction; result._is_token = is_token; result._initialized = true; return result
 func copy() -> BattlePieceIdentity:
 	var status := SimStatus.new(); return create(_body_id, _piece_numeric_id, _level, _faction, _is_token, status) if _initialized else BattlePieceIdentity.new()
+func with_piece_numeric_id(value: int, status: SimStatus) -> BattlePieceIdentity: return create(_body_id, value, _level, _faction, _is_token, status)
 func is_initialized() -> bool: return _initialized
 func body_id() -> int: return _body_id
 func piece_numeric_id() -> int: return _piece_numeric_id

@@ -1,7 +1,7 @@
 {
   "documents": [
     {
-      "schema_version": 3,
+      "schema_version": 4,
       "file_name": "abilities.json",
       "kind_id": 3
     },
@@ -11,7 +11,7 @@
       "kind_id": 1
     },
     {
-      "schema_version": 2,
+      "schema_version": 3,
       "file_name": "pieces.json",
       "kind_id": 2
     },
@@ -26,5 +26,5 @@
       "schema_version": 1
     }
   ],
-  "schema_version": 3
+  "schema_version": 4
 }

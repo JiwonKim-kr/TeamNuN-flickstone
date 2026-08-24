@@ -36,13 +36,13 @@ const ABILITIES_FILE: String = "abilities.json"
 const STATUSES_FILE: String = "statuses.json"
 const SYNERGIES_FILE: String = "synergies.json"
 
-const CATALOG_SCHEMA_VERSION: int = 3
+const CATALOG_SCHEMA_VERSION: int = 4
 const REGISTRY_SCHEMA_VERSION: int = 1
-const PIECES_SCHEMA_VERSION: int = 2
-const ABILITIES_SCHEMA_VERSION: int = 3
+const PIECES_SCHEMA_VERSION: int = 3
+const ABILITIES_SCHEMA_VERSION: int = 4
 const STATUSES_SCHEMA_VERSION: int = 1
 const SYNERGIES_SCHEMA_VERSION: int = 1
-const FINGERPRINT_FORMAT_VERSION: int = 3
+const FINGERPRINT_FORMAT_VERSION: int = 4
 
 
 static func is_known_namespace(value: int) -> bool:

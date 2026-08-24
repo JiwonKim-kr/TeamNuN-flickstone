@@ -6,7 +6,8 @@ const LEGACY_SCHEMA_VERSION: int = 1
 const COMBAT_SCHEMA_VERSION: int = 2
 const TRIGGER_SCHEMA_VERSION: int = 3
 const EFFECT_SCHEMA_VERSION: int = 4
-const SCHEMA_VERSION: int = 5
+const STATUS_SCHEMA_VERSION: int = 5
+const SCHEMA_VERSION: int = 6
 const MAX_PARTICIPANTS: int = 65535
 const MAX_COMBATANTS: int = 65535
 const MAX_COOLDOWNS: int = 65535
@@ -72,6 +73,9 @@ var _statuses: Array[StatusInstance] = []
 var _tally: SynergyTally = SynergyTally.new()
 var _identities: Array[BattlePieceIdentity] = []
 var _base_body_stats: Array[BattleBaseBodyStats] = []
+var _expire_states: Array[ExpireState] = []
+var _piece_origins: Array[BattlePieceOrigin] = []
+var _runtime_spawn_count: int = 0
 
 
 static func capture(state: BattleState, status: SimStatus) -> BattleSnapshot:
@@ -103,6 +107,9 @@ static func capture(state: BattleState, status: SimStatus) -> BattleSnapshot:
 	snapshot._tally = state.synergy_tally_copy()
 	for index: int in range(state.piece_identity_count()): snapshot._identities.append(state.piece_identity_at(index, status))
 	for index: int in range(state.base_body_stats_count()): snapshot._base_body_stats.append(state.base_body_stats_at(index, status))
+	for index: int in range(state.expire_state_count()): snapshot._expire_states.append(state.expire_state_at(index, status))
+	for index: int in range(state.piece_origin_count()): snapshot._piece_origins.append(state.piece_origin_at(index, status))
+	snapshot._runtime_spawn_count = state.runtime_spawn_count()
 	if not status.is_ok(): return BattleSnapshot.new()
 	snapshot._initialized = true
 	return snapshot
@@ -154,6 +161,10 @@ func encode(status: SimStatus) -> PackedByteArray:
 	for item: BattlePieceIdentity in _identities: writer.u32(item.body_id()); writer.u32(item.piece_numeric_id()); writer.u16(item.level()); writer.u16(item.faction()); writer.u8(1 if item.is_token() else 0)
 	writer.u32(_base_body_stats.size())
 	for item: BattleBaseBodyStats in _base_body_stats: writer.u32(item.body_id()); writer.i64(item.mass_raw()); writer.i64(item.radius_raw()); writer.i64(item.friction_multiplier_raw())
+	writer.u32(_runtime_spawn_count); writer.u32(_expire_states.size())
+	for item: ExpireState in _expire_states: writer.u32(item.body_id()); writer.u16(item.kind_id()); writer.u32(item.remaining()); writer.u32(item.applied_turn_index()); writer.u8(1 if item.has_linked() else 0)
+	writer.u32(_piece_origins.size())
+	for item: BattlePieceOrigin in _piece_origins: writer.u32(item.body_id()); writer.u32(item.original_piece_numeric_id())
 	writer.u32(_sim_bytes.size()); writer.data.append_array(_sim_bytes)
 	return writer.data
 
@@ -166,7 +177,7 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> BattleSnapshot:
 		if reader.u8() != expected:
 			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, reader.offset, 0); return result
 	var version: int = reader.u16()
-	if version != LEGACY_SCHEMA_VERSION and version != COMBAT_SCHEMA_VERSION and version != TRIGGER_SCHEMA_VERSION and version != EFFECT_SCHEMA_VERSION and version != SCHEMA_VERSION:
+	if version != LEGACY_SCHEMA_VERSION and version != COMBAT_SCHEMA_VERSION and version != TRIGGER_SCHEMA_VERSION and version != EFFECT_SCHEMA_VERSION and version != STATUS_SCHEMA_VERSION and version != SCHEMA_VERSION:
 		status.fail(SimStatus.Code.UNSUPPORTED_SCHEMA, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, version, SCHEMA_VERSION); return result
 	result._phase = reader.u16(); result._current_actor = reader.u32(); result._abstract_time = reader.i64(); result._last_faction = reader.u16()
 	result._normal_ticks = reader.u32(); result._forced_ticks = reader.u32(); var forced: int = reader.u8()
@@ -259,7 +270,7 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> BattleSnapshot:
 		# Legacy snapshots predate content binding. Restore them with the canonical
 		# empty fingerprint so recapturing them as v4 is deterministic.
 		result._content_fingerprint.resize(32)
-	if version == SCHEMA_VERSION:
+	if version >= STATUS_SCHEMA_VERSION:
 		result._turn_index = reader.u32(); result._next_status_sequence = reader.u32(); var status_count: int = reader.u32()
 		if status_count > 4096 or status_count > reader.remaining() / 26: status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, status_count, reader.remaining()); return BattleSnapshot.new()
 		for index: int in range(status_count): result._statuses.append(StatusInstance.create(reader.u32(), reader.u32(), reader.u32(), reader.u16(), reader.u32(), reader.u32(), reader.u32(), status))
@@ -276,6 +287,18 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> BattleSnapshot:
 		var base_count: int = reader.u32()
 		if base_count > MAX_PARTICIPANTS or base_count > reader.remaining() / 28: status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE); return BattleSnapshot.new()
 		for index: int in range(base_count): result._base_body_stats.append(BattleBaseBodyStats.create(reader.u32(), reader.i64(), reader.i64(), reader.i64(), status))
+		if not status.is_ok(): return BattleSnapshot.new()
+	if version >= SCHEMA_VERSION:
+		result._runtime_spawn_count = reader.u32(); var expire_count: int = reader.u32()
+		if result._runtime_spawn_count > BattleLimits.RUNTIME_SPAWN_MAX_BODIES or expire_count > BattleLimits.RUNTIME_SPAWN_MAX_BODIES or expire_count > reader.remaining() / 15:
+			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, expire_count, reader.remaining()); return BattleSnapshot.new()
+		for index: int in range(expire_count):
+			var body_id: int = reader.u32(); var kind_id: int = reader.u16(); var remaining: int = reader.u32(); var applied_turn: int = reader.u32(); var has_linked: int = reader.u8()
+			if has_linked > 1: status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, body_id, has_linked); return BattleSnapshot.new()
+			result._expire_states.append(ExpireState.create(body_id, kind_id, remaining, applied_turn, has_linked == 1, status))
+		var origin_count: int = reader.u32()
+		if origin_count > MAX_PARTICIPANTS or origin_count > reader.remaining() / 8: status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, origin_count, reader.remaining()); return BattleSnapshot.new()
+		for index: int in range(origin_count): result._piece_origins.append(BattlePieceOrigin.create(reader.u32(), reader.u32(), status))
 		if not status.is_ok(): return BattleSnapshot.new()
 	var sim_length: int = reader.u32()
 	if sim_length <= 0 or sim_length > MAX_SIM_BYTES or sim_length != reader.remaining():
@@ -306,8 +329,11 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> BattleSnapshot:
 	if version >= EFFECT_SCHEMA_VERSION:
 		restored._effect_restore_content(result._content_fingerprint, result._ability_bindings, result._next_effect_sequence, validation_status)
 		if not validation_status.is_ok(): status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, validation_status.code(), validation_status.operation()); return BattleSnapshot.new()
-	if version == SCHEMA_VERSION:
+	if version >= STATUS_SCHEMA_VERSION:
 		restored._status_restore_snapshot(result._turn_index, result._identities, result._tally, result._statuses, result._next_status_sequence, result._base_body_stats, validation_status)
+		if not validation_status.is_ok(): status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, validation_status.code(), validation_status.operation()); return BattleSnapshot.new()
+	if version >= SCHEMA_VERSION:
+		restored._dynamic_restore_snapshot(result._expire_states, result._piece_origins, result._runtime_spawn_count, validation_status)
 		if not validation_status.is_ok(): status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, validation_status.code(), validation_status.operation()); return BattleSnapshot.new()
 	result._initialized = true
 	return result
@@ -322,6 +348,7 @@ func restore_state(status: SimStatus) -> BattleState:
 	var restored: BattleState = BattleState.restore_v3(world, _participants, _combatants, _cooldowns, _phase, _current_actor, _abstract_time, _last_faction, _normal_ticks, _forced_ticks, _forced_used, _battle_result, _next_trigger_sequence, _trigger_records, _motion_credits, status)
 	if status.is_ok(): restored._effect_restore_content(_content_fingerprint, _ability_bindings, _next_effect_sequence, status)
 	if status.is_ok(): restored._status_restore_snapshot(_turn_index, _identities, _tally, _statuses, _next_status_sequence, _base_body_stats, status)
+	if status.is_ok(): restored._dynamic_restore_snapshot(_expire_states, _piece_origins, _runtime_spawn_count, status)
 	return restored
 
 func restore_state_with_catalog(catalog: ContentCatalog, status: SimStatus) -> BattleState:

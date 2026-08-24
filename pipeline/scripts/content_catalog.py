@@ -21,6 +21,10 @@ JSON_MAX_ARRAY_ITEMS = 4_096
 JSON_MAX_STRING_BYTES = 4_096
 RECORD_MAX_COUNT = 4_096
 ABILITY_REFS_MAX_COUNT = 32
+FIX_SCALE = 65_536
+POSITION_COMPONENT_LIMIT_RAW = 8_192 * FIX_SCALE
+RADIUS_MAX_RAW = 128 * FIX_SCALE
+LAUNCH_SPEED_LIMIT_RAW = 2_048 * FIX_SCALE
 INT64_MIN = -(1 << 63)
 INT64_MAX = (1 << 63) - 1
 UINT32_MAX = (1 << 32) - 1
@@ -36,8 +40,8 @@ EXPECTED_FILES = {
 }
 DOCUMENTS = {
     1: ("id_registry.json", 1),
-    2: ("pieces.json", 2),
-    3: ("abilities.json", 3),
+    2: ("pieces.json", 3),
+    3: ("abilities.json", 4),
     4: ("statuses.json", 1),
     5: ("synergies.json", 1),
 }
@@ -190,12 +194,40 @@ class Selector:
 
 
 @dataclass(frozen=True)
+class SpawnPayload:
+    piece_ref: "Ref"
+    offset_x_raw: int
+    offset_y_raw: int
+    speed_raw: int
+    direction_mode_id: int
+
+
+@dataclass(frozen=True)
+class TransformPayload:
+    piece_ref: "Ref"
+
+
+@dataclass(frozen=True)
+class AttachPayload:
+    owner_role_id: int
+    anchor_mode_id: int
+    anchor_offset_x_raw: int
+    anchor_offset_y_raw: int
+    attach_distance_raw: int
+    inertia_basis_points: int
+    duration_turns: int
+
+
+@dataclass(frozen=True)
 class Effect:
     kind_id: int
     selector: Selector
     value_a: int
     value_b: int
     operation_id: int
+    spawn: SpawnPayload | None = None
+    transform: TransformPayload | None = None
+    attach: AttachPayload | None = None
 
 
 @dataclass(frozen=True)
@@ -231,6 +263,13 @@ class Piece:
     numeric_id: int
     string_id: str
     flags: tuple[bool, bool, bool, bool, bool]
+    spawnable: bool
+    spawn_faction_mode_id: int
+    expire_kind_id: int
+    expire_value: int
+    attach_anchor_mode_id: int
+    attach_anchor_offset_x_raw: int
+    attach_anchor_offset_y_raw: int
     tag_refs: tuple[Ref, ...]
     levels: tuple[Level, ...]
 
@@ -301,6 +340,10 @@ class Writer:
     def i64(self, value: int) -> None:
         self.data += struct.pack("<q", value)
 
+    def vec2(self, x_raw: int, y_raw: int) -> None:
+        self.i64(x_raw)
+        self.i64(y_raw)
+
     def string(self, value: str) -> None:
         encoded = value.encode("utf-8")
         self.u16(len(encoded))
@@ -313,8 +356,8 @@ def canonical_bytes(
 ) -> bytes:
     writer = Writer()
     writer.data += b"FLICKCAT"
-    writer.u16(3)
-    writer.u16(3)
+    writer.u16(4)
+    writer.u16(4)
     writer.u16(1)
     writer.u16(8)
     for namespace_id in range(1, 9):
@@ -328,13 +371,19 @@ def canonical_bytes(
 
     writer.u16(4)
     writer.u16(2)
-    writer.u16(2)
+    writer.u16(3)
     writer.u32(len(pieces))
     for piece in pieces:
         writer.u32(piece.numeric_id)
         writer.string(piece.string_id)
         flags = sum((1 << index) for index, enabled in enumerate(piece.flags) if enabled)
         writer.u32(flags)
+        writer.u8(1 if piece.spawnable else 0)
+        writer.u16(piece.spawn_faction_mode_id)
+        writer.u16(piece.expire_kind_id)
+        writer.u32(piece.expire_value)
+        writer.u16(piece.attach_anchor_mode_id)
+        writer.vec2(piece.attach_anchor_offset_x_raw, piece.attach_anchor_offset_y_raw)
         writer.u16(len(piece.tag_refs))
         for ref in piece.tag_refs:
             writer.u32(ref.numeric_id)
@@ -357,7 +406,7 @@ def canonical_bytes(
                 writer.u32(ref.numeric_id)
                 writer.string(ref.string_id)
     writer.u16(3)
-    writer.u16(3)
+    writer.u16(4)
     writer.u32(len(abilities))
     for ability in abilities:
         writer.u32(ability.numeric_id)
@@ -378,6 +427,27 @@ def canonical_bytes(
             writer.i64(effect.value_a)
             writer.i64(effect.value_b)
             writer.u16(effect.operation_id)
+            if effect.spawn is not None:
+                writer.u8(1)
+                writer.u32(effect.spawn.piece_ref.numeric_id)
+                writer.string(effect.spawn.piece_ref.string_id)
+                writer.vec2(effect.spawn.offset_x_raw, effect.spawn.offset_y_raw)
+                writer.i64(effect.spawn.speed_raw)
+                writer.u16(effect.spawn.direction_mode_id)
+            elif effect.transform is not None:
+                writer.u8(2)
+                writer.u32(effect.transform.piece_ref.numeric_id)
+                writer.string(effect.transform.piece_ref.string_id)
+            elif effect.attach is not None:
+                writer.u8(3)
+                writer.u16(effect.attach.owner_role_id)
+                writer.u16(effect.attach.anchor_mode_id)
+                writer.vec2(effect.attach.anchor_offset_x_raw, effect.attach.anchor_offset_y_raw)
+                writer.i64(effect.attach.attach_distance_raw)
+                writer.u16(effect.attach.inertia_basis_points)
+                writer.u32(effect.attach.duration_turns)
+            else:
+                writer.u8(0)
     writer.u16(4)
     writer.u16(1)
     writer.u32(len(statuses))
@@ -441,7 +511,7 @@ def load_catalog(root: Path) -> Catalog:
         raise ContentError("CATALOG_LIMIT:bytes")
 
     catalog = _exact(_load_file(root, "catalog.json"), {"schema_version", "documents"}, "catalog")
-    if _integer(catalog["schema_version"], "catalog.schema_version") != 3:
+    if _integer(catalog["schema_version"], "catalog.schema_version") != 4:
         raise ContentError("UNSUPPORTED_SCHEMA:catalog")
     documents = catalog["documents"]
     if not isinstance(documents, list) or len(documents) != 5:
@@ -505,7 +575,7 @@ def load_catalog(root: Path) -> Catalog:
         return numeric
 
     abilities_doc = _exact(_load_file(root, "abilities.json"), {"schema_version", "records"}, "abilities")
-    if _integer(abilities_doc["schema_version"], "abilities.schema_version") != 3:
+    if _integer(abilities_doc["schema_version"], "abilities.schema_version") != 4:
         raise ContentError("UNSUPPORTED_SCHEMA:abilities")
     ability_records = abilities_doc["records"]
     if not isinstance(ability_records, list) or len(ability_records) > RECORD_MAX_COUNT:
@@ -547,14 +617,23 @@ def load_catalog(root: Path) -> Catalog:
             raise ContentError("CATALOG_LIMIT:effects")
         effects: list[Effect] = []
         for raw_effect in effects_raw:
-            effect = _exact(raw_effect, {"kind_id", "selector", "value_a", "value_b", "operation_id"}, "effect")
+            if not isinstance(raw_effect, dict) or "kind_id" not in raw_effect:
+                raise ContentError("KEY_SET:effect")
+            effect_kind = _integer(raw_effect["kind_id"], "effect.kind_id")
+            effect_keys = {"kind_id", "selector", "value_a", "value_b", "operation_id"}
+            if effect_kind in (12, 13):
+                effect_keys.add("spawn")
+            elif effect_kind == 14:
+                effect_keys.add("transform")
+            elif effect_kind == 15:
+                effect_keys.add("attach")
+            effect = _exact(raw_effect, effect_keys, "effect")
             selector_raw = _exact(effect["selector"], {"kind_id", "relation_id", "limit"}, "selector")
             selector = Selector(_integer(selector_raw["kind_id"], "selector.kind_id"), _integer(selector_raw["relation_id"], "selector.relation_id"), _integer(selector_raw["limit"], "selector.limit"))
-            effect_kind = _integer(effect["kind_id"], "effect.kind_id")
             value_a = _integer(effect["value_a"], "effect.value_a")
             value_b = _integer(effect["value_b"], "effect.value_b")
             operation_id = _integer(effect["operation_id"], "effect.operation_id")
-            if effect_kind not in (1, 2, 3, 4, 5, 6, 7, 10, 11) or not 1 <= selector.kind_id <= 8 or selector.relation_id != 0 or not 0 <= selector.limit <= 256:
+            if effect_kind not in (1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15) or not 1 <= selector.kind_id <= 8 or selector.relation_id != 0 or not 0 <= selector.limit <= 256:
                 raise ContentError("INVALID_DOMAIN:effect")
             if effect_kind in (1, 2, 3, 4) and (value_a <= 0 or value_b != 0):
                 raise ContentError("INVALID_DOMAIN:effect_values")
@@ -567,7 +646,58 @@ def load_catalog(root: Path) -> Catalog:
                 raise ContentError("INVALID_DOMAIN:apply_status")
             if effect_kind == 11 and (value_a <= 0 or value_b < 0):
                 raise ContentError("INVALID_DOMAIN:remove_status")
-            effects.append(Effect(effect_kind, selector, value_a, value_b, operation_id))
+            spawn: SpawnPayload | None = None
+            transform: TransformPayload | None = None
+            attach: AttachPayload | None = None
+            if effect_kind in (12, 13):
+                payload = _exact(effect["spawn"], {"piece_ref", "offset_x_raw", "offset_y_raw", "speed_raw", "direction_mode_id"}, "spawn")
+                ref_raw = _exact(payload["piece_ref"], {"numeric_id", "id"}, "spawn.piece_ref")
+                piece_ref = Ref(_u32(ref_raw["numeric_id"], "spawn.piece_ref.numeric_id"), _string_id(ref_raw["id"], "spawn.piece_ref.id"))
+                active_pair(1, piece_ref.numeric_id, piece_ref.string_id)
+                offset_x_raw = _integer(payload["offset_x_raw"], "spawn.offset_x_raw")
+                offset_y_raw = _integer(payload["offset_y_raw"], "spawn.offset_y_raw")
+                speed_raw = _integer(payload["speed_raw"], "spawn.speed_raw")
+                direction_mode_id = _integer(payload["direction_mode_id"], "spawn.direction_mode_id")
+                if not (-POSITION_COMPONENT_LIMIT_RAW <= offset_x_raw <= POSITION_COMPONENT_LIMIT_RAW and -POSITION_COMPONENT_LIMIT_RAW <= offset_y_raw <= POSITION_COMPONENT_LIMIT_RAW):
+                    raise ContentError("INVALID_DOMAIN:spawn_offset")
+                if offset_x_raw * offset_x_raw + offset_y_raw * offset_y_raw > (RADIUS_MAX_RAW * 8) ** 2:
+                    raise ContentError("INVALID_DOMAIN:spawn_offset")
+                if not 0 <= speed_raw <= LAUNCH_SPEED_LIMIT_RAW or direction_mode_id not in (1, 2, 3):
+                    raise ContentError("INVALID_DOMAIN:spawn")
+                if effect_kind == 12 and (speed_raw != 0 or direction_mode_id != 1):
+                    raise ContentError("INVALID_DOMAIN:spawn_piece")
+                if effect_kind == 13 and speed_raw <= 0:
+                    raise ContentError("INVALID_DOMAIN:spawn_projectile")
+                spawn = SpawnPayload(piece_ref, offset_x_raw, offset_y_raw, speed_raw, direction_mode_id)
+            elif effect_kind == 14:
+                payload = _exact(effect["transform"], {"piece_ref"}, "transform")
+                ref_raw = _exact(payload["piece_ref"], {"numeric_id", "id"}, "transform.piece_ref")
+                piece_ref = Ref(_u32(ref_raw["numeric_id"], "transform.piece_ref.numeric_id"), _string_id(ref_raw["id"], "transform.piece_ref.id"))
+                active_pair(1, piece_ref.numeric_id, piece_ref.string_id)
+                transform = TransformPayload(piece_ref)
+            elif effect_kind == 15:
+                payload = _exact(effect["attach"], {"owner_role_id", "anchor_mode_id", "anchor_offset_x_raw", "anchor_offset_y_raw", "attach_distance_raw", "inertia_basis_points", "duration_turns"}, "attach")
+                owner_role_id = _integer(payload["owner_role_id"], "attach.owner_role_id")
+                anchor_mode_id = _integer(payload["anchor_mode_id"], "attach.anchor_mode_id")
+                offset_x_raw = _integer(payload["anchor_offset_x_raw"], "attach.anchor_offset_x_raw")
+                offset_y_raw = _integer(payload["anchor_offset_y_raw"], "attach.anchor_offset_y_raw")
+                attach_distance_raw = _integer(payload["attach_distance_raw"], "attach.attach_distance_raw")
+                inertia_basis_points = _integer(payload["inertia_basis_points"], "attach.inertia_basis_points")
+                duration_turns = _integer(payload["duration_turns"], "attach.duration_turns")
+                if owner_role_id not in (1, 2) or anchor_mode_id not in (1, 2, 3):
+                    raise ContentError("INVALID_DOMAIN:attach")
+                if not (-POSITION_COMPONENT_LIMIT_RAW <= offset_x_raw <= POSITION_COMPONENT_LIMIT_RAW and -POSITION_COMPONENT_LIMIT_RAW <= offset_y_raw <= POSITION_COMPONENT_LIMIT_RAW):
+                    raise ContentError("INVALID_DOMAIN:attach_offset")
+                if anchor_mode_id != 2 and (offset_x_raw != 0 or offset_y_raw != 0):
+                    raise ContentError("INVALID_DOMAIN:attach_offset")
+                if not 0 <= attach_distance_raw <= RADIUS_MAX_RAW or not 1 <= inertia_basis_points <= 10_000 or not 1 <= duration_turns <= 1_024:
+                    raise ContentError("INVALID_DOMAIN:attach")
+                if anchor_mode_id == 3 and trigger_id not in (5, 6, 7):
+                    raise ContentError("INVALID_DOMAIN:contact_point_trigger")
+                attach = AttachPayload(owner_role_id, anchor_mode_id, offset_x_raw, offset_y_raw, attach_distance_raw, inertia_basis_points, duration_turns)
+            if effect_kind >= 12 and (value_a != 0 or value_b != 0 or operation_id != 0):
+                raise ContentError("INVALID_DOMAIN:dynamic_effect_values")
+            effects.append(Effect(effect_kind, selector, value_a, value_b, operation_id, spawn, transform, attach))
         ability_ids.add(numeric_id)
         ability_strings.add(string_id)
         abilities.append(Ability(numeric_id, string_id, trigger_id, tuple(conditions), tuple(effects)))
@@ -575,7 +705,7 @@ def load_catalog(root: Path) -> Catalog:
     ability_by_id = {item.numeric_id: item for item in abilities}
 
     pieces_doc = _exact(_load_file(root, "pieces.json"), {"schema_version", "records"}, "pieces")
-    if _integer(pieces_doc["schema_version"], "pieces.schema_version") != 2:
+    if _integer(pieces_doc["schema_version"], "pieces.schema_version") != 3:
         raise ContentError("UNSUPPORTED_SCHEMA:pieces")
     piece_records = pieces_doc["records"]
     if not isinstance(piece_records, list) or len(piece_records) > RECORD_MAX_COUNT:
@@ -584,7 +714,7 @@ def load_catalog(root: Path) -> Catalog:
     piece_ids: set[int] = set()
     piece_strings: set[str] = set()
     for raw in piece_records:
-        item = _exact(raw, {"numeric_id", "id", "flags", "tag_refs", "levels"}, "piece")
+        item = _exact(raw, {"numeric_id", "id", "flags", "spawnable", "spawn_faction_mode_id", "expire_kind_id", "expire_value", "attach_anchor_mode_id", "attach_anchor_offset_x_raw", "attach_anchor_offset_y_raw", "tag_refs", "levels"}, "piece")
         numeric_id = _u32(item["numeric_id"], "piece.numeric_id")
         string_id = _string_id(item["id"], "piece.id")
         active_pair(1, numeric_id, string_id)
@@ -595,6 +725,25 @@ def load_catalog(root: Path) -> Catalog:
         if any(not isinstance(flags_raw[name], bool) for name in flag_names):
             raise ContentError("INVALID_TYPE:flag")
         flags = tuple(flags_raw[name] for name in flag_names)
+        spawnable = item["spawnable"]
+        if not isinstance(spawnable, bool):
+            raise ContentError("INVALID_TYPE:spawnable")
+        spawn_faction_mode_id = _integer(item["spawn_faction_mode_id"], "piece.spawn_faction_mode_id")
+        expire_kind_id = _integer(item["expire_kind_id"], "piece.expire_kind_id")
+        expire_value = _integer(item["expire_value"], "piece.expire_value")
+        attach_anchor_mode_id = _integer(item["attach_anchor_mode_id"], "piece.attach_anchor_mode_id")
+        attach_anchor_offset_x_raw = _integer(item["attach_anchor_offset_x_raw"], "piece.attach_anchor_offset_x_raw")
+        attach_anchor_offset_y_raw = _integer(item["attach_anchor_offset_y_raw"], "piece.attach_anchor_offset_y_raw")
+        if spawn_faction_mode_id not in (1, 2) or expire_kind_id not in (1, 2, 3, 4) or attach_anchor_mode_id not in (1, 2, 3):
+            raise ContentError("INVALID_DOMAIN:piece_dynamic")
+        if (expire_kind_id in (1, 4) and expire_value != 0) or (expire_kind_id == 2 and not 1 <= expire_value <= 1_024) or (expire_kind_id == 3 and not 1 <= expire_value <= 255):
+            raise ContentError("INVALID_DOMAIN:piece_expire")
+        if not (-POSITION_COMPONENT_LIMIT_RAW <= attach_anchor_offset_x_raw <= POSITION_COMPONENT_LIMIT_RAW and -POSITION_COMPONENT_LIMIT_RAW <= attach_anchor_offset_y_raw <= POSITION_COMPONENT_LIMIT_RAW):
+            raise ContentError("INVALID_DOMAIN:piece_attach_offset")
+        if attach_anchor_mode_id != 2 and (attach_anchor_offset_x_raw != 0 or attach_anchor_offset_y_raw != 0):
+            raise ContentError("INVALID_DOMAIN:piece_attach_offset")
+        if spawn_faction_mode_id == 2 and (flags[0] or flags[3]):
+            raise ContentError("INVALID_DOMAIN:neutral_piece")
         tag_refs_raw = item["tag_refs"]
         if not isinstance(tag_refs_raw, list) or len(tag_refs_raw) > 8:
             raise ContentError("CATALOG_LIMIT:tag_refs")
@@ -646,8 +795,9 @@ def load_catalog(root: Path) -> Catalog:
             levels.append(Level(ability_refs=tuple(refs), **values))
         piece_ids.add(numeric_id)
         piece_strings.add(string_id)
-        pieces.append(Piece(numeric_id, string_id, flags, tuple(tag_refs), tuple(levels)))
+        pieces.append(Piece(numeric_id, string_id, flags, spawnable, spawn_faction_mode_id, expire_kind_id, expire_value, attach_anchor_mode_id, attach_anchor_offset_x_raw, attach_anchor_offset_y_raw, tuple(tag_refs), tuple(levels)))
     pieces.sort(key=lambda item: item.numeric_id)
+    piece_by_id = {item.numeric_id: item for item in pieces}
 
     statuses_doc = _exact(_load_file(root, "statuses.json"), {"schema_version", "records"}, "statuses")
     if _integer(statuses_doc["schema_version"], "statuses.schema_version") != 1:
@@ -729,6 +879,19 @@ def load_catalog(root: Path) -> Catalog:
         for effect in ability.effects:
             if effect.kind_id in (10, 11) and effect.value_a not in status_ids:
                 raise ContentError("MISSING_REFERENCE:status")
+            dynamic_ref: Ref | None = None
+            requires_spawnable = False
+            if effect.spawn is not None:
+                dynamic_ref = effect.spawn.piece_ref
+                requires_spawnable = True
+            elif effect.transform is not None:
+                dynamic_ref = effect.transform.piece_ref
+            if dynamic_ref is not None:
+                piece = piece_by_id.get(dynamic_ref.numeric_id)
+                if piece is None or piece.string_id != dynamic_ref.string_id:
+                    raise ContentError("MISSING_REFERENCE:dynamic_piece")
+                if requires_spawnable and not piece.spawnable:
+                    raise ContentError("INVALID_DOMAIN:spawnable")
 
     for entry in entries:
         if entry.state_id != 1:

@@ -42,6 +42,11 @@ var _synergy_tally: SynergyTally = SynergyTally.new()
 var _statuses: StatusCollection = StatusCollection.new()
 var _modifier_resolver: ModifierResolver = ModifierResolver.new()
 var _base_body_stats: Array[BattleBaseBodyStats] = []
+var _expire_states: Array[ExpireState] = []
+var _piece_origins: Array[BattlePieceOrigin] = []
+var _runtime_spawn_count: int = 0
+var _dynamic_spawn_transition_count: int = 0
+var _dynamic_transform_body_ids: Array[int] = []
 
 
 static func _participant_less(left: BattleParticipant, right: BattleParticipant) -> bool:
@@ -419,6 +424,34 @@ func _find_combatant(body_id: int) -> int:
 	return -1
 
 
+func _find_identity(body_id: int) -> int:
+	for index: int in range(_piece_identities.size()):
+		if _piece_identities[index].body_id() == body_id: return index
+		if _piece_identities[index].body_id() > body_id: break
+	return -1
+
+
+func _find_base_body_stats(body_id: int) -> int:
+	for index: int in range(_base_body_stats.size()):
+		if _base_body_stats[index].body_id() == body_id: return index
+		if _base_body_stats[index].body_id() > body_id: break
+	return -1
+
+
+func _find_expire_state(body_id: int) -> int:
+	for index: int in range(_expire_states.size()):
+		if _expire_states[index].body_id() == body_id: return index
+		if _expire_states[index].body_id() > body_id: break
+	return -1
+
+
+func _remove_ability_bindings(body_id: int) -> void:
+	var survivors: Array[AbilityBinding] = []
+	for binding: AbilityBinding in _ability_bindings:
+		if binding.owner_body_id() != body_id: survivors.append(binding)
+	_ability_bindings = survivors
+
+
 func _find_cooldown(low_body_id: int, high_body_id: int) -> int:
 	for index: int in range(_cooldowns.size()):
 		var item: DamagePairCooldown = _cooldowns[index]
@@ -486,7 +519,8 @@ func _transfer_motion_credit(attacker_id: int, victim_id: int, source_sequence: 
 		_set_motion_credit(victim_id, root_id, root_faction, source_sequence, tick, status)
 
 
-func _remove_body_state(body_id: int) -> void:
+func _remove_body_state(body_id: int, status: SimStatus = null) -> void:
+	var mutation_status: SimStatus = status if status != null else SimStatus.new()
 	_statuses.remove_target(body_id)
 	var participant_index: int = _find_participant(body_id)
 	if participant_index >= 0:
@@ -501,6 +535,15 @@ func _remove_body_state(body_id: int) -> void:
 	_cooldowns = survivors
 	var credit_index: int = _find_motion_credit(body_id)
 	if credit_index >= 0: _motion_credits.remove_at(credit_index)
+	var identity_index: int = _find_identity(body_id)
+	if identity_index >= 0: _piece_identities.remove_at(identity_index)
+	var base_index: int = _find_base_body_stats(body_id)
+	if base_index >= 0: _base_body_stats.remove_at(base_index)
+	var expire_index: int = _find_expire_state(body_id)
+	if expire_index >= 0: _expire_states.remove_at(expire_index)
+	_remove_ability_bindings(body_id)
+	if _content_catalog.is_initialized():
+		_modifier_resolver = ModifierResolver.build(_content_catalog, _piece_identities, _synergy_tally, mutation_status)
 
 
 func _effective_participants(status: SimStatus) -> Array[BattleParticipant]:
@@ -511,6 +554,18 @@ func _effective_participants(status: SimStatus) -> Array[BattleParticipant]:
 		var speed: int = EffectiveStats.resolve(participant.speed_stat(), aggregate, ModifierKind.Value.SPEED_STAT, status)
 		result.append(participant.with_effective_speed_stat(speed, status))
 		if not status.is_ok(): return []
+	return result
+
+
+static func _copy_expire_states(source: Array[ExpireState]) -> Array[ExpireState]:
+	var result: Array[ExpireState] = []
+	for item: ExpireState in source: result.append(item.copy())
+	return result
+
+
+static func _copy_piece_origins(source: Array[BattlePieceOrigin]) -> Array[BattlePieceOrigin]:
+	var result: Array[BattlePieceOrigin] = []
+	for item: BattlePieceOrigin in source: result.append(item.copy())
 	return result
 
 
@@ -807,7 +862,7 @@ func _process_destroy_event(event: SimEvent, status: SimStatus) -> void:
 		killer_faction = _participant_faction(direct_attacker)
 	if killer_id > 0 and ((killer_faction == BattleParticipant.Faction.PLAYER and victim_faction == BattleParticipant.Faction.ENEMY) or (killer_faction == BattleParticipant.Faction.ENEMY and victim_faction == BattleParticipant.Faction.PLAYER)):
 		_emit_trigger(BattleTriggerId.Value.ON_KILL, event.sequence(), killer_id, victim_id, direct_attacker, event.cause_id(), event.position(), event.vector(), 0, 0, status)
-	_remove_body_state(victim_id)
+	_remove_body_state(victim_id, status)
 
 
 func _consume_world_events(status: SimStatus) -> void:
@@ -819,15 +874,18 @@ func _consume_world_events(status: SimStatus) -> void:
 		if not status.is_ok():
 			return
 		if event.type_id() == SimEvent.TypeId.BODY_COLLIDED:
+			_expire_collision_body(event.source_body_id(), event.sequence(), status)
+			_expire_collision_body(event.target_body_id(), event.sequence(), status)
 			_process_collision_event(
 				event, pending_body_ids, pending_cause_ids, status
 			)
 		elif event.type_id() == SimEvent.TypeId.BODY_HIT_WALL:
+			_expire_collision_body(event.source_body_id(), event.sequence(), status)
 			_emit_trigger(BattleTriggerId.Value.ON_WALL_BOUNCE, event.sequence(), event.source_body_id(), 0, 0, SimEvent.CauseId.NONE, event.position(), event.vector(), event.value_a(), event.value_b(), status)
 		elif event.type_id() == SimEvent.TypeId.BODY_DESTROYED:
 			_process_destroy_event(event, status)
 		elif event.type_id() == SimEvent.TypeId.BODY_REMOVED:
-			_remove_body_state(event.source_body_id())
+			_remove_body_state(event.source_body_id(), status)
 	if not status.is_ok():
 		return
 	for index: int in range(pending_body_ids.size()):
@@ -864,6 +922,28 @@ func _consume_world_events(status: SimStatus) -> void:
 		_process_destroy_event(event, status)
 
 
+func _register_dynamic_spawn(body_id: int, request: DynamicSpawnRequest, status: SimStatus) -> bool:
+	if request == null or body_id == 0 or _runtime_spawn_count >= BattleLimits.RUNTIME_SPAWN_MAX_BODIES:
+		status.fail(SimStatus.Code.SPAWN_LIMIT_EXCEEDED, SimStatus.Operation.BATTLE_DYNAMIC_SPAWN, _runtime_spawn_count + 1, BattleLimits.RUNTIME_SPAWN_MAX_BODIES); return false
+	var identity: BattlePieceIdentity = BattlePieceIdentity.create(body_id, request.piece_numeric_id, 1, request.faction, true, status)
+	var body: SimBody = _world.body_by_id(body_id, status)
+	var base_stats: BattleBaseBodyStats = BattleBaseBodyStats.create(body_id, body.mass_raw(), body.radius_raw(), body.friction_multiplier_raw(), status)
+	var expire: ExpireState = ExpireState.create(body_id, request.expire_kind_id, request.expire_value, request.applied_turn_index, false, status)
+	if not status.is_ok(): return false
+	_piece_identities.append(identity); _piece_identities.sort_custom(func(a: BattlePieceIdentity, b: BattlePieceIdentity) -> bool: return a.body_id() < b.body_id())
+	_base_body_stats.append(base_stats); _base_body_stats.sort_custom(func(a: BattleBaseBodyStats, b: BattleBaseBodyStats) -> bool: return a.body_id() < b.body_id())
+	_expire_states.append(expire); _expire_states.sort_custom(func(a: ExpireState, b: ExpireState) -> bool: return a.body_id() < b.body_id())
+	for ability_id: int in request.ability_numeric_ids: _ability_bindings.append(AbilityBinding.create(body_id, ability_id, status))
+	_ability_bindings.sort_custom(func(a: AbilityBinding, b: AbilityBinding) -> bool: return a.owner_body_id() < b.owner_body_id() or (a.owner_body_id() == b.owner_body_id() and a.ability_numeric_id() < b.ability_numeric_id()))
+	_runtime_spawn_count += 1
+	_modifier_resolver = ModifierResolver.build(_content_catalog, _piece_identities, _synergy_tally, status)
+	if not status.is_ok() or not _materialize_physical_stats(status): return false
+	if not _world.correct_body_overlap_once(body_id, status):
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_SPAWN_REQUEST, SimStatus.Operation.BATTLE_DYNAMIC_SPAWN, body_id, request.piece_numeric_id)
+		return false
+	return true
+
+
 func _apply_barrier(status: SimStatus) -> bool:
 	if _pending.is_empty():
 		_consume_world_events(status)
@@ -894,15 +974,18 @@ func _apply_barrier(status: SimStatus) -> bool:
 					)
 				)
 				_combatants.sort_custom(_combatant_less)
+			if status.is_ok() and request.dynamic_spawn != null:
+				_register_dynamic_spawn(event.source_body_id(), request.dynamic_spawn, status)
 		else:
 			_world.remove_body(request.body_id, status)
 			if status.is_ok():
-				_remove_body_state(request.body_id)
+				_remove_body_state(request.body_id, status)
 				_consume_world_events(status)
 		if not status.is_ok(): break
 	if status.is_ok():
 		_pending.clear()
 		_consume_world_events(status)
+		if status.is_ok(): _settle_link_release_expire(status)
 		return status.is_ok()
 	_assign_from(backup)
 	return false
@@ -961,6 +1044,15 @@ func queue_combatant_body_spawn(
 		ordinal,
 		status
 	)
+
+
+func queue_dynamic_spawn(request: DynamicSpawnRequest, status: SimStatus) -> bool:
+	if request == null or request.body_template == null or request.participant_template == null or request.piece_numeric_id == 0 or _dynamic_spawn_transition_count >= BattleLimits.DYNAMIC_SPAWN_MAX_PER_TRANSITION or _runtime_spawn_count + _dynamic_spawn_transition_count >= BattleLimits.RUNTIME_SPAWN_MAX_BODIES:
+		status.fail(SimStatus.Code.SPAWN_LIMIT_EXCEEDED, SimStatus.Operation.BATTLE_DYNAMIC_SPAWN, _dynamic_spawn_transition_count + 1, BattleLimits.DYNAMIC_SPAWN_MAX_PER_TRANSITION); return false
+	var queued: bool = _queue_request(BattleMutationRequest.Kind.SPAWN, 0, request.body_template, request.participant_template, request.combatant_template, request.cause_body_id, request.event_type_id, request.ordinal, status)
+	if queued:
+		_pending[-1].dynamic_spawn = request.copy(); _dynamic_spawn_transition_count += 1
+	return queued
 
 
 func queue_participant_removal(body_id: int, cause_body_id: int, event_type_id: int, ordinal: int, status: SimStatus) -> bool:
@@ -1226,6 +1318,8 @@ func copy(status: SimStatus) -> BattleState:
 	for identity: BattlePieceIdentity in _piece_identities: result._piece_identities.append(identity.copy())
 	result._synergy_tally = _synergy_tally.copy(); result._statuses = _statuses.copy(); result._modifier_resolver = _modifier_resolver.copy()
 	for base_stats: BattleBaseBodyStats in _base_body_stats: result._base_body_stats.append(base_stats.copy())
+	result._expire_states = _copy_expire_states(_expire_states); result._piece_origins = _copy_piece_origins(_piece_origins); result._runtime_spawn_count = _runtime_spawn_count
+	result._dynamic_spawn_transition_count = _dynamic_spawn_transition_count; result._dynamic_transform_body_ids = _dynamic_transform_body_ids.duplicate()
 	return result
 
 
@@ -1245,6 +1339,7 @@ func _rollback_snapshot() -> BattleState:
 	result._last_trigger_batch = _last_trigger_batch.duplicate(); result._motion_credits = _motion_credits.duplicate()
 	result._content_fingerprint = _content_fingerprint.duplicate(); result._ability_bindings = _ability_bindings.duplicate(); result._next_effect_sequence = _next_effect_sequence
 	result._turn_index = _turn_index; result._content_catalog = _content_catalog; result._piece_identities = _piece_identities.duplicate(); result._synergy_tally = _synergy_tally; result._statuses = _statuses.copy(); result._modifier_resolver = _modifier_resolver; result._base_body_stats = _base_body_stats.duplicate()
+	result._expire_states = _expire_states.duplicate(); result._piece_origins = _piece_origins.duplicate(); result._runtime_spawn_count = _runtime_spawn_count; result._dynamic_spawn_transition_count = _dynamic_spawn_transition_count; result._dynamic_transform_body_ids = _dynamic_transform_body_ids.duplicate()
 	return result
 
 
@@ -1263,6 +1358,7 @@ func _assign_from(other: BattleState) -> void:
 	for binding: AbilityBinding in other._ability_bindings: _ability_bindings.append(binding.copy())
 	_next_effect_sequence = other._next_effect_sequence
 	_turn_index = other._turn_index; _content_catalog = other._content_catalog; _piece_identities = other._piece_identities; _synergy_tally = other._synergy_tally; _statuses = other._statuses; _modifier_resolver = other._modifier_resolver; _base_body_stats = other._base_body_stats
+	_expire_states = other._expire_states; _piece_origins = other._piece_origins; _runtime_spawn_count = other._runtime_spawn_count; _dynamic_spawn_transition_count = other._dynamic_spawn_transition_count; _dynamic_transform_body_ids = other._dynamic_transform_body_ids
 
 
 func attach_content(catalog: ContentCatalog, identities: Array[BattlePieceIdentity], bindings: Array[AbilityBinding], status: SimStatus) -> bool:
@@ -1285,9 +1381,171 @@ func attach_content(catalog: ContentCatalog, identities: Array[BattlePieceIdenti
 	var registry: AbilityRegistry = AbilityRegistry.bind(catalog, bindings, status)
 	if not status.is_ok() or not registry.is_initialized(): return false
 	_content_catalog = catalog.copy(); _piece_identities = sorted; _base_body_stats = bases; _synergy_tally = tally; _modifier_resolver = resolver
+	_piece_origins.clear()
+	for identity: BattlePieceIdentity in sorted:
+		if not identity.is_token(): _piece_origins.append(BattlePieceOrigin.create(identity.body_id(), identity.piece_numeric_id(), status))
 	_content_fingerprint = catalog.fingerprint_bytes(); _ability_bindings.clear()
 	for index: int in range(registry.binding_count()): _ability_bindings.append(registry.binding_at(index, status))
 	return status.is_ok()
+
+
+func _dynamic_begin_transition() -> void:
+	_dynamic_spawn_transition_count = 0; _dynamic_transform_body_ids.clear()
+
+
+func _level_one_ability_ids(piece: PieceDefinition, status: SimStatus) -> Array[int]:
+	var result: Array[int] = []; var content_status := ContentStatus.new(); var level: PieceLevelDefinition = piece.level_definition(1, content_status)
+	if not content_status.is_ok(): status.fail(SimStatus.Code.INVALID_SPAWN_REQUEST, SimStatus.Operation.BATTLE_DYNAMIC_SPAWN, piece.numeric_id(), 1); return result
+	for index: int in range(level.ability_ref_count()):
+		var ref: ContentIdRef = level.ability_ref_at(index, content_status); result.append(ref.numeric_id())
+	if not content_status.is_ok(): status.fail(SimStatus.Code.INVALID_SPAWN_REQUEST, SimStatus.Operation.BATTLE_DYNAMIC_SPAWN, piece.numeric_id(), 1)
+	return result
+
+
+func _effect_dynamic_spawn(owner_body_id: int, target_body_id: int, record: BattleTriggerRecord, effect: AbilityEffectDefinition, ordinal: int, status: SimStatus) -> bool:
+	if not _content_catalog.is_initialized(): status.fail(SimStatus.Code.INVALID_SPAWN_REQUEST, SimStatus.Operation.BATTLE_DYNAMIC_SPAWN, owner_body_id, 0); return false
+	var payload: SpawnPayloadDefinition = effect.spawn_payload(); var content_status := ContentStatus.new()
+	var piece: PieceDefinition = _content_catalog.piece_by_numeric_id(payload.piece_ref().numeric_id(), content_status)
+	if not content_status.is_ok() or not piece.spawnable(): status.fail(SimStatus.Code.INVALID_SPAWN_REQUEST, SimStatus.Operation.BATTLE_DYNAMIC_SPAWN, owner_body_id, payload.piece_ref().numeric_id()); return false
+	var owner: SimBody = _world.body_by_id(owner_body_id, status); var position: FixVec2 = owner.position().add(payload.offset(), status)
+	if not status.is_ok() or not _world.position_inside_boundary(position, status):
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_SPAWN_REQUEST, SimStatus.Operation.BATTLE_DYNAMIC_SPAWN, owner_body_id, piece.numeric_id())
+		return false
+	var velocity: FixVec2 = FixVec2.zero()
+	if effect.kind_id() == AbilityEffectDefinition.Kind.SPAWN_PROJECTILE:
+		var direction: FixVec2
+		if payload.direction_mode_id() == SpawnPayloadDefinition.DirectionMode.OWNER_VELOCITY: direction = owner.velocity()
+		elif payload.direction_mode_id() == SpawnPayloadDefinition.DirectionMode.OWNER_TO_TARGET:
+			direction = _world.body_by_id(target_body_id, status).position().sub(owner.position(), status)
+		else: direction = record.vector()
+		if not status.is_ok() or direction.is_zero():
+			if status.is_ok(): status.fail(SimStatus.Code.INVALID_SPAWN_REQUEST, SimStatus.Operation.BATTLE_DYNAMIC_SPAWN, owner_body_id, payload.direction_mode_id())
+			return false
+		velocity = direction.normalized(status).scaled(payload.speed_raw(), status)
+	var level: PieceLevelDefinition = piece.level_definition(1, content_status)
+	if not content_status.is_ok(): status.fail(SimStatus.Code.INVALID_SPAWN_REQUEST, SimStatus.Operation.BATTLE_DYNAMIC_SPAWN, piece.numeric_id(), 1); return false
+	var faction: int = BattleParticipant.Faction.NEUTRAL if piece.spawn_faction_mode_id() == PieceDefinition.SpawnFactionMode.NEUTRAL else _participant_faction(owner_body_id)
+	if faction == BattleParticipant.Faction.INVALID: status.fail(SimStatus.Code.INVALID_SPAWN_REQUEST, SimStatus.Operation.BATTLE_DYNAMIC_SPAWN, owner_body_id, faction); return false
+	var body_template: SimBody = SimBody.create_unassigned(position, velocity, level.radius_raw(), level.mass_raw(), status, level.friction_multiplier_raw(), piece.destructible())
+	var participant_template: BattleParticipant = BattleParticipant.create_unassigned(faction, piece.has_turn(), faction == BattleParticipant.Faction.PLAYER and piece.has_turn(), piece.counts_for_victory(), level.speed_stat(), status)
+	var combatant_template: BattleCombatant = null
+	if piece.destructible(): combatant_template = BattleCombatant.create_unassigned(faction, level.max_hp(), level.attack(), level.critical_basis_points(), status)
+	if not status.is_ok(): return false
+	var request := DynamicSpawnRequest.new(); request.body_template = body_template; request.participant_template = participant_template; request.combatant_template = combatant_template
+	request.piece_numeric_id = piece.numeric_id(); request.faction = faction; request.ability_numeric_ids = _level_one_ability_ids(piece, status); request.expire_kind_id = piece.expire_kind_id(); request.expire_value = piece.expire_value(); request.applied_turn_index = _turn_index
+	request.cause_body_id = owner_body_id; request.event_type_id = effect.kind_id(); request.ordinal = ordinal
+	return status.is_ok() and queue_dynamic_spawn(request, status)
+
+
+func _replace_bindings_for_piece(body_id: int, piece: PieceDefinition, status: SimStatus) -> void:
+	_remove_ability_bindings(body_id)
+	for ability_id: int in _level_one_ability_ids(piece, status): _ability_bindings.append(AbilityBinding.create(body_id, ability_id, status))
+	_ability_bindings.sort_custom(func(a: AbilityBinding, b: AbilityBinding) -> bool: return a.owner_body_id() < b.owner_body_id() or (a.owner_body_id() == b.owner_body_id() and a.ability_numeric_id() < b.ability_numeric_id()))
+
+
+func transform_body(body_id: int, piece: PieceDefinition, status: SimStatus) -> bool:
+	if piece == null or not piece.is_initialized() or _dynamic_transform_body_ids.size() >= BattleLimits.TRANSFORM_MAX_PER_TRANSITION or _dynamic_transform_body_ids.has(body_id):
+		status.fail(SimStatus.Code.TRANSFORM_LIMIT_EXCEEDED, SimStatus.Operation.BATTLE_TRANSFORM, body_id, _dynamic_transform_body_ids.size()); return false
+	var identity_index: int = _find_identity(body_id)
+	if identity_index < 0: status.fail(SimStatus.Code.INVALID_TRANSFORM_TARGET, SimStatus.Operation.BATTLE_TRANSFORM, body_id, piece.numeric_id()); return false
+	var content_status := ContentStatus.new(); var current_piece: PieceDefinition = _content_catalog.piece_by_numeric_id(_piece_identities[identity_index].piece_numeric_id(), content_status)
+	if not content_status.is_ok(): status.fail(SimStatus.Code.INVALID_TRANSFORM_TARGET, SimStatus.Operation.BATTLE_TRANSFORM, body_id, piece.numeric_id()); return false
+	if not current_piece.transformable() or current_piece.numeric_id() == piece.numeric_id(): return true
+	var level: PieceLevelDefinition = piece.level_definition(1, content_status)
+	var combatant_index: int = _find_combatant(body_id); var participant_index: int = _find_participant(body_id); var base_index: int = _find_base_body_stats(body_id)
+	if not content_status.is_ok() or combatant_index < 0 or participant_index < 0 or base_index < 0: status.fail(SimStatus.Code.INVALID_TRANSFORM_TARGET, SimStatus.Operation.BATTLE_TRANSFORM, body_id, piece.numeric_id()); return false
+	var combatant: BattleCombatant = _combatants[combatant_index]
+	var numerator: int = FixMath.multiply_int(level.max_hp(), combatant.current_hp(), status)
+	var next_hp: int = maxi(1, FixMath.floor_div_int(numerator, combatant.max_hp(), status))
+	_combatants[combatant_index] = combatant.with_transformed_stats(next_hp, level.max_hp(), level.attack(), level.critical_basis_points(), status)
+	var participant: BattleParticipant = _participants[participant_index]; var next_ct: int = participant.ct()
+	if participant.faction() != BattleParticipant.Faction.NEUTRAL and participant.ct() < BattleLimits.CT_THRESHOLD:
+		var remaining: int = BattleLimits.CT_THRESHOLD - participant.ct()
+		var old_time: int = FixMath.ceil_div_int(remaining, participant.speed_stat(), status); var new_time: int = FixMath.ceil_div_int(remaining, level.speed_stat(), status)
+		var target_time: int = mini(old_time, new_time) if participant.faction() == BattleParticipant.Faction.PLAYER else maxi(old_time, new_time)
+		next_ct = clampi(BattleLimits.CT_THRESHOLD - target_time * level.speed_stat(), 0, BattleLimits.CT_THRESHOLD)
+	_participants[participant_index] = participant.with_speed_stat(level.speed_stat(), status).with_ct(next_ct, status)
+	_piece_identities[identity_index] = _piece_identities[identity_index].with_piece_numeric_id(piece.numeric_id(), status)
+	_base_body_stats[base_index] = BattleBaseBodyStats.create(body_id, level.mass_raw(), level.radius_raw(), level.friction_multiplier_raw(), status)
+	_replace_bindings_for_piece(body_id, piece, status); _dynamic_transform_body_ids.append(body_id); _dynamic_transform_body_ids.sort()
+	_modifier_resolver = ModifierResolver.build(_content_catalog, _piece_identities, _synergy_tally, status)
+	if not status.is_ok() or not _materialize_physical_stats(status): return false
+	if not _world.correct_body_overlap_once(body_id, status):
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_TRANSFORM_REQUEST, SimStatus.Operation.BATTLE_TRANSFORM, body_id, piece.numeric_id())
+		return false
+	return true
+
+
+func _effect_transform(body_id: int, effect: AbilityEffectDefinition, status: SimStatus) -> bool:
+	var content_status := ContentStatus.new(); var piece: PieceDefinition = _content_catalog.piece_by_numeric_id(effect.transform_payload().piece_ref().numeric_id(), content_status)
+	if not content_status.is_ok(): status.fail(SimStatus.Code.INVALID_TRANSFORM_TARGET, SimStatus.Operation.BATTLE_TRANSFORM, body_id, effect.transform_payload().piece_ref().numeric_id()); return false
+	return transform_body(body_id, piece, status)
+
+
+func attach(anchor_id: int, attached_id: int, payload: AttachPayloadDefinition, record: BattleTriggerRecord, status: SimStatus) -> bool:
+	var offset: FixVec2 = payload.anchor_offset()
+	if payload.anchor_mode_id() == AttachPayloadDefinition.AnchorMode.CONTACT_POINT:
+		offset = record.position().sub(_world.body_by_id(anchor_id, status).position(), status)
+	var link: SimLink = SimLink.create_unassigned(anchor_id, attached_id, payload.anchor_mode_id(), offset, payload.attach_distance_raw(), payload.inertia_basis_points(), payload.duration_turns(), _turn_index, status)
+	if not status.is_ok() or _world.add_link(link, status) == 0: return false
+	for body_id: int in [anchor_id, attached_id]:
+		var expire_index: int = _find_expire_state(body_id)
+		if expire_index >= 0 and _expire_states[expire_index].kind_id() == PieceDefinition.ExpireKind.ON_LINK_RELEASE and not _expire_states[expire_index].has_linked(): _expire_states[expire_index] = _expire_states[expire_index].with_has_linked(status)
+	return status.is_ok()
+
+
+func _effect_attach(owner_id: int, target_id: int, record: BattleTriggerRecord, effect: AbilityEffectDefinition, status: SimStatus) -> bool:
+	var payload: AttachPayloadDefinition = effect.attach_payload()
+	var anchor_id: int = owner_id if payload.owner_role_id() == AttachPayloadDefinition.LinkRole.ANCHOR else target_id
+	var attached_id: int = target_id if payload.owner_role_id() == AttachPayloadDefinition.LinkRole.ANCHOR else owner_id
+	return attach(anchor_id, attached_id, payload, record, status)
+
+
+func _expire_collision_body(body_id: int, event_sequence: int, status: SimStatus) -> void:
+	var index: int = _find_expire_state(body_id)
+	if index < 0 or _expire_states[index].kind_id() != PieceDefinition.ExpireKind.AFTER_COLLISIONS: return
+	if _expire_states[index].remaining() > 1:
+		_expire_states[index] = _expire_states[index].with_remaining(_expire_states[index].remaining() - 1, status); return
+	for pending: BattleMutationRequest in _pending:
+		if pending.kind == BattleMutationRequest.Kind.REMOVE and pending.body_id == body_id: return
+	queue_participant_removal(body_id, body_id, SimStatus.Operation.BATTLE_EXPIRE, event_sequence, status)
+
+
+func _settle_link_release_expire(status: SimStatus) -> void:
+	while status.is_ok():
+		var removals: Array[int] = []
+		for expire: ExpireState in _expire_states:
+			if expire.kind_id() == PieceDefinition.ExpireKind.ON_LINK_RELEASE and expire.has_linked() and _world.link_count_for_body(expire.body_id()) == 0: removals.append(expire.body_id())
+		if removals.is_empty(): return
+		for body_id: int in removals:
+			var lookup := SimStatus.new(); _world.body_by_id(body_id, lookup)
+			if not lookup.is_ok(): continue
+			_world.remove_body(body_id, status)
+			if not status.is_ok(): return
+		_consume_world_events(status)
+
+
+func _expire_dynamic_turn_end(status: SimStatus) -> void:
+	var completed_turn: int = maxi(0, _turn_index - 1)
+	var removals: Array[int] = []
+	for index: int in range(_expire_states.size()):
+		var expire: ExpireState = _expire_states[index]
+		if expire.kind_id() != PieceDefinition.ExpireKind.AFTER_TURNS or expire.applied_turn_index() >= completed_turn: continue
+		if expire.remaining() <= 1: removals.append(expire.body_id())
+		else: _expire_states[index] = expire.with_remaining(expire.remaining() - 1, status)
+	var released: Array[int] = _world.expire_link_turns(completed_turn, status)
+	for body_id: int in removals:
+		if _find_participant(body_id) >= 0: queue_participant_removal(body_id, body_id, SimStatus.Operation.BATTLE_EXPIRE, completed_turn, status)
+	if not released.is_empty(): _settle_link_release_expire(status)
+
+
+func _dynamic_finish_transition(has_turn_end: bool, status: SimStatus) -> bool:
+	if not _apply_barrier(status): return false
+	if has_turn_end: _expire_dynamic_turn_end(status)
+	if status.is_ok() and not _pending.is_empty() and not _apply_barrier(status): return false
+	if status.is_ok(): _settle_link_release_expire(status)
+	_dynamic_spawn_transition_count = 0; _dynamic_transform_body_ids.clear()
+	return status.is_ok() and _pending.is_empty() and not _world.has_pending_requests()
 
 func _materialize_physical_stats(status: SimStatus) -> bool:
 	if not _modifier_resolver.is_initialized(): return true
@@ -1374,6 +1632,7 @@ func forced_settle_used() -> bool: return _forced_settle_used
 func world_copy(status: SimStatus) -> SimWorld: return _world.copy(status)
 func has_pending_mutations() -> bool: return not _pending.is_empty()
 func battle_result() -> int: return _battle_result
+func battle_result_report(status: SimStatus) -> BattleResult: return BattleResult.create(_battle_result, _piece_origins, status)
 func next_trigger_sequence() -> int: return _next_trigger_sequence
 func trigger_record_count() -> int: return _last_trigger_batch.size()
 func trigger_record_at(index: int, status: SimStatus) -> BattleTriggerRecord:
@@ -1391,6 +1650,15 @@ func ability_binding_count() -> int: return _ability_bindings.size()
 func ability_binding_at(index: int, status: SimStatus) -> AbilityBinding:
 	if index < 0 or index >= _ability_bindings.size(): status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.ABILITY_BIND, index, _ability_bindings.size()); return AbilityBinding.new()
 	return _ability_bindings[index].copy()
+func ability_registry(status: SimStatus) -> AbilityRegistry:
+	if not _content_catalog.is_initialized(): status.fail(SimStatus.Code.INVALID_ABILITY_BINDING, SimStatus.Operation.ABILITY_BIND); return AbilityRegistry.new()
+	return AbilityRegistry.bind(_content_catalog, _ability_bindings, status)
+func ability_registry_matches(registry: AbilityRegistry, status: SimStatus) -> bool:
+	if registry == null or not registry.is_initialized() or registry.binding_count() != _ability_bindings.size(): return false
+	for index: int in range(_ability_bindings.size()):
+		var other: AbilityBinding = registry.binding_at(index, status)
+		if not status.is_ok() or other.owner_body_id() != _ability_bindings[index].owner_body_id() or other.ability_numeric_id() != _ability_bindings[index].ability_numeric_id(): return false
+	return registry.fingerprint_bytes() == _content_fingerprint
 func next_effect_sequence() -> int: return _next_effect_sequence
 func turn_index() -> int: return _turn_index
 func status_count() -> int: return _statuses.count()
@@ -1405,6 +1673,16 @@ func base_body_stats_count() -> int: return _base_body_stats.size()
 func base_body_stats_at(index: int, status: SimStatus) -> BattleBaseBodyStats:
 	if index < 0 or index >= _base_body_stats.size(): status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.BATTLE_PHYSICAL_STATS_APPLY, index, _base_body_stats.size()); return BattleBaseBodyStats.new()
 	return _base_body_stats[index].copy()
+func expire_state_count() -> int: return _expire_states.size()
+func expire_state_at(index: int, status: SimStatus) -> ExpireState:
+	if index < 0 or index >= _expire_states.size(): status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.BATTLE_EXPIRE, index, _expire_states.size()); return ExpireState.new()
+	return _expire_states[index].copy()
+func piece_origin_count() -> int: return _piece_origins.size()
+func piece_origin_at(index: int, status: SimStatus) -> BattlePieceOrigin:
+	if index < 0 or index >= _piece_origins.size(): status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.BATTLE_PIECE_IDENTITY_READ, index, _piece_origins.size()); return BattlePieceOrigin.new()
+	return _piece_origins[index].copy()
+func runtime_spawn_count() -> int: return _runtime_spawn_count
+func link_collection_copy(status: SimStatus) -> AttachLinkCollection: return AttachLinkCollection.from_world(_world, status)
 
 func _effect_restore_content(fingerprint: PackedByteArray, bindings: Array[AbilityBinding], next_sequence: int, status: SimStatus) -> bool:
 	if fingerprint.size() != 32 or next_sequence < 1:
@@ -1431,6 +1709,21 @@ func _status_restore_snapshot(turn_index: int, identities: Array[BattlePieceIden
 		if base_stats == null or not base_stats.is_initialized() or base_stats.body_id() <= previous: status.fail(SimStatus.Code.MODIFIER_RANGE_VIOLATION, SimStatus.Operation.CONTENT_SNAPSHOT_VALIDATE); return false
 		_base_body_stats.append(base_stats.copy()); previous = base_stats.body_id()
 	_turn_index = turn_index; _synergy_tally = tally.copy(); _statuses = collection; return true
+
+func _dynamic_restore_snapshot(expire_states: Array[ExpireState], origins: Array[BattlePieceOrigin], runtime_spawn_count: int, status: SimStatus) -> bool:
+	if runtime_spawn_count < 0 or runtime_spawn_count > BattleLimits.RUNTIME_SPAWN_MAX_BODIES:
+		status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.CONTENT_SNAPSHOT_VALIDATE, runtime_spawn_count, BattleLimits.RUNTIME_SPAWN_MAX_BODIES); return false
+	var previous: int = 0; _expire_states.clear()
+	for expire: ExpireState in expire_states:
+		if expire == null or not expire.is_initialized() or expire.body_id() <= previous:
+			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.CONTENT_SNAPSHOT_VALIDATE, 0 if expire == null else expire.body_id(), previous); return false
+		_expire_states.append(expire.copy()); previous = expire.body_id()
+	previous = 0; _piece_origins.clear()
+	for origin: BattlePieceOrigin in origins:
+		if origin == null or not origin.is_initialized() or origin.body_id() <= previous:
+			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.CONTENT_SNAPSHOT_VALIDATE, 0 if origin == null else origin.body_id(), previous); return false
+		_piece_origins.append(origin.copy()); previous = origin.body_id()
+	_runtime_spawn_count = runtime_spawn_count; return true
 
 func _status_bind_restored_catalog(catalog: ContentCatalog, status: SimStatus) -> bool:
 	if catalog == null or not catalog.is_initialized() or catalog.fingerprint_bytes() != _content_fingerprint:

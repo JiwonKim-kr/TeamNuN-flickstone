@@ -1,10 +1,30 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "documents": [
-    {"kind_id": 1, "file_name": "id_registry.json", "schema_version": 1},
-    {"kind_id": 2, "file_name": "pieces.json", "schema_version": 2},
-    {"kind_id": 3, "file_name": "abilities.json", "schema_version": 3},
-    {"kind_id": 4, "file_name": "statuses.json", "schema_version": 1},
-    {"kind_id": 5, "file_name": "synergies.json", "schema_version": 1}
+    {
+      "kind_id": 1,
+      "file_name": "id_registry.json",
+      "schema_version": 1
+    },
+    {
+      "kind_id": 2,
+      "file_name": "pieces.json",
+      "schema_version": 3
+    },
+    {
+      "kind_id": 3,
+      "file_name": "abilities.json",
+      "schema_version": 4
+    },
+    {
+      "kind_id": 4,
+      "file_name": "statuses.json",
+      "schema_version": 1
+    },
+    {
+      "kind_id": 5,
+      "file_name": "synergies.json",
+      "schema_version": 1
+    }
   ]
 }
