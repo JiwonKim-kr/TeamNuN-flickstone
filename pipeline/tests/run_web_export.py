@@ -15,10 +15,10 @@ def main() -> int:
     workflow = (ROOT / ".github/workflows/pages.yml").read_text(encoding="utf-8")
     project = (ROOT / "project.godot").read_text(encoding="utf-8")
     preview_server = (ROOT / "pipeline/scripts/serve_web.py").read_text(encoding="utf-8")
+    legacy_workflow = ROOT / ".github/workflows/deploy-web.yml"
     required_preset = ('name="Web"', 'platform="Web"', 'variant/thread_support=false', 'export_path="build/web/index.html"')
     required_workflow = (
         "actions/configure-pages@v5",
-        "enablement: true",
         "actions/upload-pages-artifact@v3",
         "actions/deploy-pages@v4",
         "pages: write",
@@ -27,7 +27,12 @@ def main() -> int:
     if not all(token in preset for token in required_preset):
         print("[FAIL] WEB preset contract")
         return 1
-    if not all(token in workflow for token in required_workflow) or "pull_request:" in workflow:
+    if (
+        not all(token in workflow for token in required_workflow)
+        or "pull_request:" in workflow
+        or "enablement: true" in workflow
+        or legacy_workflow.exists()
+    ):
         print("[FAIL] Pages workflow permission/trigger contract")
         return 1
     if 'renderer/rendering_method="gl_compatibility"' not in project:

@@ -86,6 +86,16 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _placeholder_texture_errors(log: str, relative_paths: list[str]) -> list[str]:
+    """Return import errors that name one of this test's generated textures."""
+    texture_names = {Path(path).name for path in relative_paths}
+    return [
+        line.strip()
+        for line in log.splitlines()
+        if "error" in line.casefold() and any(name in line for name in texture_names)
+    ]
+
+
 # ---------------------------------------------------------------------------
 # 최소 PNG 디코더 (검증용 — 생성기와 독립적으로 픽셀을 되읽는다)
 # ---------------------------------------------------------------------------
@@ -533,8 +543,20 @@ def section_godot_import() -> None:
         ]
         check("4종(스프라이트/타일/32px/비정사각) 전부 임포트", all(others))
         err = (r.stderr or "") + (r.stdout or "")
-        check("임포트 로그에 텍스처 오류 없음",
-              "Error" not in err and "ERROR: Cannot" not in err)
+        check("비대상 Error 로그는 placeholder 판정에서 제외",
+              not _placeholder_texture_errors(
+                  "ERROR: Error importing res://assets/fonts/unrelated.ttf",
+                  [rel for rel, _ in specs],
+              ))
+        check("대상 텍스처 Error 로그는 감지",
+              bool(_placeholder_texture_errors(
+                  "ERROR: Error importing PLACEHOLDER_wall.png",
+                  [rel for rel, _ in specs],
+              )))
+        texture_errors = _placeholder_texture_errors(err, [rel for rel, _ in specs])
+        for error_line in texture_errors:
+            print(f"    {error_line}")
+        check("생성한 텍스처 관련 임포트 오류 없음", not texture_errors)
 
         # 원본 저장소 불변
         check("원본 assets/ 에 신규 파일 없음",
