@@ -101,7 +101,7 @@ P2는 P1의 결정론적 전투 골격에 콘텐츠 정의, 능력 실행, 상�
 | 3 | [`p2_status_synergy_modifiers.md`](p2_status_synergy_modifiers.md) | **approved · implemented · verified** · 2026-08-24 | 상태 수명, passive 재평가, 태그 계수, P1 계산 입력 modifier 결합 |
 | 4 | [`p2_dynamic_piece_mechanics.md`](p2_dynamic_piece_mechanics.md) | **approved · implemented · verified** · 2026-08-24 | 런타임 생성·수명(`expire`), 변신 승계, 부착 링크와 구속 solver. 복사·존은 제외 |
 | 5 | [`p2_maps_enemies_environment.md`](p2_maps_enemies_environment.md) | **approved · implemented · verified** · 2026-08-24 | 맵·슬롯·존·적 override와 `SPAWN_ZONE`. 정적 장애물·`SPAWN_OBSTACLE`은 U-03 뒤로 연기 |
-| 6 | [`p2_content_graybox.md`](p2_content_graybox.md) | **approved · implemented · automated verified · human review pending** · 2026-08-24 | 승인된 최초 콘텐츠 패키지, data-only 신규 기물 증명, batch·수동 검수 |
+| 6 | [`p2_content_graybox.md`](p2_content_graybox.md) | **approved · implemented · verified · human reviewed** · 2026-08-24 | 승인된 최초 콘텐츠 패키지, data-only 신규 기물 증명, batch·수동 검수 |
 
 ```text
 P2-1 콘텐츠 카탈로그
@@ -485,4 +485,4 @@ P2-2 `p2_effect_resolution.md`의 P2-E01~12 승인 범위에서 schema v2, typed
 
 P2-5 `p2_maps_enemies_environment.md`의 P2-M01~21은 2026-08-24 전체 승인되었다. 정적 장애물 연기, 카탈로그 최대 반지름 슬롯 검사, 미래 장애물 → player → enemy ID 순서, BattleSnapshot v7을 구현 기준선으로 사용한다.
 
-P2-6 `p2_content_graybox.md`의 P2-G01~16도 2026-08-24 승인 범위에서 구현·자동 검증을 완료했다. 최초 non-empty runtime 패키지의 canonical fingerprint는 `f721ffce47ff27324a92dd8c9564e75463113fd5adb10ee7ebb388889511cf0e`이며, core GDScript 변경 없이 generic 전투 어댑터와 플레이 가능한 세로 회색상자를 연결했다. 1,000회 제한 반복, 기본·stacked 16×2 terminal 골든, snapshot 복원, Godot 4.6.3 활성 `verify --full` 러너 23종이 통과했다. P2 전체 완료 판정에는 `p2_content_graybox.md`의 사람 검수 시나리오 1~7 승인이 남아 있다.
+P2-6 `p2_content_graybox.md`의 P2-G01~16도 2026-08-24 승인 범위에서 구현·자동 검증을 완료했다. 최초 non-empty runtime 패키지의 canonical fingerprint는 `f721ffce47ff27324a92dd8c9564e75463113fd5adb10ee7ebb388889511cf0e`이며, core GDScript 변경 없이 generic 전투 어댑터와 플레이 가능한 세로 회색상자를 연결했다. 1,000회 제한 반복, 기본·stacked 16×2 terminal 골든, snapshot 복원, Godot 4.6.3 활성 `verify --full` 러너 23종이 통과했다. 같은 날 사용자가 보정 반영본을 직접 플레이해 사람 검수 시나리오 1~7과 표시·진행 보정을 승인했으며, 이로써 P2 전체 완료 조건을 충족했다.
