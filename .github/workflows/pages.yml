@@ -42,6 +42,8 @@ jobs:
       - name: Export Web release
         run: python3 pipeline/scripts/web_export.py
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: build/web

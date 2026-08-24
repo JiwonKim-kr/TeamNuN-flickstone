@@ -16,7 +16,14 @@ def main() -> int:
     project = (ROOT / "project.godot").read_text(encoding="utf-8")
     preview_server = (ROOT / "pipeline/scripts/serve_web.py").read_text(encoding="utf-8")
     required_preset = ('name="Web"', 'platform="Web"', 'variant/thread_support=false', 'export_path="build/web/index.html"')
-    required_workflow = ("actions/configure-pages@v5", "actions/upload-pages-artifact@v3", "actions/deploy-pages@v4", "pages: write", "id-token: write")
+    required_workflow = (
+        "actions/configure-pages@v5",
+        "enablement: true",
+        "actions/upload-pages-artifact@v3",
+        "actions/deploy-pages@v4",
+        "pages: write",
+        "id-token: write",
+    )
     if not all(token in preset for token in required_preset):
         print("[FAIL] WEB preset contract")
         return 1
