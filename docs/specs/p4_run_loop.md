@@ -25,7 +25,7 @@ P4 완료는 정식 3막 밸런스 완료가 아니다. 동일한 런 코어와 
 - `docs/specs/p3_ai_shot_selection.md`: enemy의 `ai_grade_id`와 결정론적 적 발사
 - `docs/specs/p4_submission_web_preview.md`: 640×1,024 Web 빌드와 Pages 배포 계약
 
-현재 runtime에는 플레이어 기물 2종과 명시적 graybox 전용 기물 1종, COMMON/ELITE/BOSS 적 5종, 맵 1종, 개발 Act 1개와 encounter 4개가 있다. relic·consumable 문서는 P4-2에서 빈 schema만 선점했고 실제 record와 event 데이터, `RunManager`·`SaveManager`는 아직 없다.
+현재 runtime에는 플레이어 기물 2종과 명시적 graybox 전용 기물 1종, COMMON/ELITE/BOSS 적 5종, 맵 1종, 개발 Act 1개와 encounter 4개가 있다. P4-5가 개발용 relic·consumable·shop·event record를 각 1개 추가했으며, `RunManager`·`SaveManager`와 런 UI는 아직 없다.
 
 ### P4 이름 충돌
 
@@ -91,7 +91,7 @@ P4 완료는 정식 3막 밸런스 완료가 아니다. 동일한 런 코어와 
 | P4-2 | [`p4_act_encounter_map_generation.md`](p4_act_encounter_map_generation.md) · act·encounter catalog와 분기 노드맵 | **승인·구현·자동 검증 완료** · catalog v7, generated graph exact 복원, 전 노드 도달 가능 |
 | P4-3 | [`p4_formation_battle_outcome_life.md`](p4_formation_battle_outcome_life.md) · 편성·BattleSetup 요청·전투 결과·라이프 | **승인·구현·자동 검증 완료** · 전투 승패가 정확히 한 번 런 상태에 반영됨 |
 | P4-4 | [`p4_reward_recruitment_rest_merge.md`](p4_reward_recruitment_rest_merge.md) · 영입·골드·휴식·합성·보복 보상 | **구현 완료 · P4-6 누적 검증 대기** · 후보 고정, 상한·중복·레벨 3, 다음 전투 boon, 선택 rollback |
-| P4-5 | [`p4_relic_consumable_shop_event.md`](p4_relic_consumable_shop_event.md) · 유물·소모품·상점·이벤트 공통 프레임 | **상세 명세 승인 · 구현 중** · 최소 승인 콘텐츠로 여섯 노드 유형을 모두 완료 가능 |
+| P4-5 | [`p4_relic_consumable_shop_event.md`](p4_relic_consumable_shop_event.md) · 유물·소모품·상점·이벤트 공통 프레임 | **구현 완료 · P4-6 누적 검증 대기** · catalog v9, 고정 SHOP/EVENT, 소모품 사용, 유물 승리 gold 보너스 |
 | P4-6 | 축약 Act 1 UI·저장/이어하기·배치 런 | 처음부터 보스까지 자동/사람 완주 |
 
 이 문서는 P4 전체 인덱스 역할을 겸한다. **전체 초안 승인만으로 하위 단계의 `src/core/` 구현 권한을 열지 않고, P4-1부터 상세 명세를 별도 승인한다.**

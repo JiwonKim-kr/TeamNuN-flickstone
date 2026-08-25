@@ -87,7 +87,7 @@ func reload_catalog(root_path: String, status: ContentStatus) -> bool:
 	var catalog_document: Dictionary = _parse_object(bytes_by_name[ContentIds.CATALOG_FILE], ContentIds.DocumentKind.INVALID, status)
 	if not status.is_ok(): return false
 	var source_documents: Array[ContentSourceFile] = []
-	for kind_id: int in range(ContentIds.DocumentKind.ID_REGISTRY, ContentIds.DocumentKind.CONSUMABLES + 1):
+	for kind_id: int in range(ContentIds.DocumentKind.ID_REGISTRY, ContentIds.DocumentKind.EVENTS + 1):
 		var file_name: String = ContentIds.file_for_document_kind(kind_id)
 		var root: Dictionary = _parse_object(bytes_by_name[file_name], kind_id, status)
 		if not status.is_ok(): return false
@@ -177,6 +177,102 @@ func encounter_by_numeric_id(id: int, status: ContentStatus) -> EncounterDefinit
 		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
 		return EncounterDefinition.new()
 	return _catalog.encounter_by_numeric_id(id, status)
+
+func relic_count(status: ContentStatus) -> int:
+	if not is_ready():
+		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
+		return 0
+	return _catalog.relic_count()
+
+func relic_at(index: int, status: ContentStatus) -> RelicDefinition:
+	if not is_ready():
+		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
+		return RelicDefinition.new()
+	return _catalog.relic_at(index, status)
+
+func relic_by_numeric_id(id: int, status: ContentStatus) -> RelicDefinition:
+	if not is_ready():
+		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
+		return RelicDefinition.new()
+	return _catalog.relic_by_numeric_id(id, status)
+
+func relic_by_string_id(id: String, status: ContentStatus) -> RelicDefinition:
+	if not is_ready():
+		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
+		return RelicDefinition.new()
+	return _catalog.relic_by_string_id(id, status)
+
+func consumable_by_numeric_id(id: int, status: ContentStatus) -> ConsumableDefinition:
+	if not is_ready():
+		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
+		return ConsumableDefinition.new()
+	return _catalog.consumable_by_numeric_id(id, status)
+
+func consumable_count(status: ContentStatus) -> int:
+	if not is_ready():
+		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
+		return 0
+	return _catalog.consumable_count()
+
+func consumable_at(index: int, status: ContentStatus) -> ConsumableDefinition:
+	if not is_ready():
+		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
+		return ConsumableDefinition.new()
+	return _catalog.consumable_at(index, status)
+
+func consumable_by_string_id(id: String, status: ContentStatus) -> ConsumableDefinition:
+	if not is_ready():
+		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
+		return ConsumableDefinition.new()
+	return _catalog.consumable_by_string_id(id, status)
+
+func shop_by_numeric_id(id: int, status: ContentStatus) -> ShopDefinition:
+	if not is_ready():
+		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
+		return ShopDefinition.new()
+	return _catalog.shop_by_numeric_id(id, status)
+
+func shop_count(status: ContentStatus) -> int:
+	if not is_ready():
+		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
+		return 0
+	return _catalog.shop_count()
+
+func shop_at(index: int, status: ContentStatus) -> ShopDefinition:
+	if not is_ready():
+		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
+		return ShopDefinition.new()
+	return _catalog.shop_at(index, status)
+
+func shop_by_string_id(id: String, status: ContentStatus) -> ShopDefinition:
+	if not is_ready():
+		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
+		return ShopDefinition.new()
+	return _catalog.shop_by_string_id(id, status)
+
+func event_by_numeric_id(id: int, status: ContentStatus) -> EventDefinition:
+	if not is_ready():
+		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
+		return EventDefinition.new()
+	return _catalog.event_by_numeric_id(id, status)
+
+func event_count(status: ContentStatus) -> int:
+	if not is_ready():
+		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
+		return 0
+	return _catalog.event_count()
+
+func event_at(index: int, status: ContentStatus) -> EventDefinition:
+	if not is_ready():
+		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
+		return EventDefinition.new()
+	return _catalog.event_at(index, status)
+
+func event_by_string_id(id: String, status: ContentStatus) -> EventDefinition:
+	if not is_ready():
+		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
+		return EventDefinition.new()
+	return _catalog.event_by_string_id(id, status)
 
 
 func fingerprint_bytes(status: ContentStatus) -> PackedByteArray:

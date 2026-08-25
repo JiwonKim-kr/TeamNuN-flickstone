@@ -1,4 +1,16 @@
 {
-  "schema_version": 1,
-  "records": []
+  "schema_version": 2,
+  "records": [
+    {
+      "numeric_id": 1,
+      "id": "development_life_flask",
+      "max_stack": 3,
+      "use_phase_id": 1,
+      "effect": {
+        "kind_id": 2,
+        "primary_numeric_id": 0,
+        "amount": 1
+      }
+    }
+  ]
 }

@@ -16,6 +16,8 @@ enum DocumentKind {
 	RELICS = 10,
 	CONSUMABLES = 11,
 	REWARD_PROFILES = 12,
+	SHOPS = 13,
+	EVENTS = 14,
 }
 
 enum Namespace {
@@ -33,6 +35,8 @@ enum Namespace {
 	RELIC = 11,
 	CONSUMABLE = 12,
 	REWARD_PROFILE = 13,
+	SHOP = 14,
+	EVENT = 15,
 }
 
 enum EntryState {
@@ -54,8 +58,10 @@ const ENCOUNTERS_FILE: String = "encounters.json"
 const RELICS_FILE: String = "relics.json"
 const CONSUMABLES_FILE: String = "consumables.json"
 const REWARD_PROFILES_FILE: String = "reward_profiles.json"
+const SHOPS_FILE: String = "shops.json"
+const EVENTS_FILE: String = "events.json"
 
-const CATALOG_SCHEMA_VERSION: int = 8
+const CATALOG_SCHEMA_VERSION: int = 9
 const REGISTRY_SCHEMA_VERSION: int = 1
 const PIECES_SCHEMA_VERSION: int = 3
 const ABILITIES_SCHEMA_VERSION: int = 5
@@ -65,18 +71,20 @@ const MAPS_SCHEMA_VERSION: int = 1
 const ENEMIES_SCHEMA_VERSION: int = 2
 const ACTS_SCHEMA_VERSION: int = 1
 const ENCOUNTERS_SCHEMA_VERSION: int = 1
-const RELICS_SCHEMA_VERSION: int = 1
-const CONSUMABLES_SCHEMA_VERSION: int = 1
+const RELICS_SCHEMA_VERSION: int = 2
+const CONSUMABLES_SCHEMA_VERSION: int = 2
 const REWARD_PROFILES_SCHEMA_VERSION: int = 1
-const FINGERPRINT_FORMAT_VERSION: int = 8
+const SHOPS_SCHEMA_VERSION: int = 1
+const EVENTS_SCHEMA_VERSION: int = 1
+const FINGERPRINT_FORMAT_VERSION: int = 9
 
 
 static func is_known_namespace(value: int) -> bool:
-	return value >= Namespace.PIECE and value <= Namespace.REWARD_PROFILE
+	return value >= Namespace.PIECE and value <= Namespace.EVENT
 
 
 static func is_known_document_kind(value: int) -> bool:
-	return value >= DocumentKind.ID_REGISTRY and value <= DocumentKind.REWARD_PROFILES
+	return value >= DocumentKind.ID_REGISTRY and value <= DocumentKind.EVENTS
 
 
 static func valid_string_id(value: String) -> bool:
@@ -101,11 +109,13 @@ static func expected_json_files() -> PackedStringArray:
 		CONSUMABLES_FILE,
 		ENCOUNTERS_FILE,
 		ENEMIES_FILE,
+		EVENTS_FILE,
 		REGISTRY_FILE,
 		MAPS_FILE,
 		PIECES_FILE,
 		RELICS_FILE,
 		REWARD_PROFILES_FILE,
+		SHOPS_FILE,
 		STATUSES_FILE,
 		SYNERGIES_FILE,
 	])
@@ -125,6 +135,8 @@ static func file_for_document_kind(kind_id: int) -> String:
 		DocumentKind.RELICS: return RELICS_FILE
 		DocumentKind.CONSUMABLES: return CONSUMABLES_FILE
 		DocumentKind.REWARD_PROFILES: return REWARD_PROFILES_FILE
+		DocumentKind.SHOPS: return SHOPS_FILE
+		DocumentKind.EVENTS: return EVENTS_FILE
 	return ""
 
 
@@ -142,4 +154,6 @@ static func schema_for_document_kind(kind_id: int) -> int:
 		DocumentKind.RELICS: return RELICS_SCHEMA_VERSION
 		DocumentKind.CONSUMABLES: return CONSUMABLES_SCHEMA_VERSION
 		DocumentKind.REWARD_PROFILES: return REWARD_PROFILES_SCHEMA_VERSION
+		DocumentKind.SHOPS: return SHOPS_SCHEMA_VERSION
+		DocumentKind.EVENTS: return EVENTS_SCHEMA_VERSION
 	return 0

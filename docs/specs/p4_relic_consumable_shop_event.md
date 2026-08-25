@@ -811,3 +811,11 @@ P4-5 전용 runner·fixture·JSON schema 파일과 기존 fixture의 catalog v9 
 ## 승인 기록
 
 2026-08-25 사용자가 P4-I01~18과 전체 명세를 승인했다. catalog v9, 개발용 콘텐츠 값, 상점·이벤트 고정 선택, RunSnapshot v2 유지와 P4-6 누적 검증 이연을 구현 기준으로 고정한다.
+
+## 구현 기록
+
+2026-08-25 catalog/fingerprint v9, relic/consumable schema v2, shop/event schema v1과 typed immutable model을 구현했다. 개발 현상금 장부·생명 플라스크·고정 상점·고정 이벤트를 runtime JSON에 추가하고, Act local pair를 실제 catalog record와 exact 검증하도록 승격했다.
+
+RunState에는 SHOP/EVENT 진입·고정 pending·원자 resolve, sorted unique relic, bounded consumable stack, MAP_CHOICE 소모품 사용과 승리 reward 유물 보너스를 연결했다. RunSnapshot v2 layout은 유지하면서 non-empty inventory 및 SHOP/EVENT capture·restore 의미 검증을 열었다.
+
+독립 Python production parser의 runtime v9 로드와 최소 Godot 4.6.3 import/headless 시작은 통과했다. P4-5 전용 runner, canonical cross-KAT, quick 4런, 대표 회귀와 `verify --demo`는 P4-I18에 따라 P4-6 누적 검증 대기로 남긴다.

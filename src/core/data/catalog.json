@@ -1,5 +1,5 @@
 {
-  "schema_version": 8,
+  "schema_version": 9,
   "documents": [
     {
       "kind_id": 1,
@@ -49,16 +49,26 @@
     {
       "kind_id": 10,
       "file_name": "relics.json",
-      "schema_version": 1
+      "schema_version": 2
     },
     {
       "kind_id": 11,
       "file_name": "consumables.json",
-      "schema_version": 1
+      "schema_version": 2
     },
     {
       "kind_id": 12,
       "file_name": "reward_profiles.json",
+      "schema_version": 1
+    },
+    {
+      "kind_id": 13,
+      "file_name": "shops.json",
+      "schema_version": 1
+    },
+    {
+      "kind_id": 14,
+      "file_name": "events.json",
       "schema_version": 1
     }
   ]

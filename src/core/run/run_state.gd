@@ -135,8 +135,18 @@ func _validate_structure(status: SimStatus) -> bool:
 			if piece.instance_id() > instance_id: break
 		if not found: status.fail(SimStatus.Code.INVALID_RUN_PIECE_INSTANCE, SimStatus.Operation.RUN_STATE_VALIDATE, instance_id, 0); return false
 		deployment_seen.append(instance_id)
-	if _deployment_instance_ids.size() > _deployment_capacity or not _relic_numeric_ids.is_empty() or not _consumable_stacks.is_empty():
-		status.fail(SimStatus.Code.INVALID_RUN_STATE, SimStatus.Operation.RUN_STATE_VALIDATE, _pending_choice.kind_id(), 1); return false
+	if _deployment_instance_ids.size() > _deployment_capacity or _relic_numeric_ids.size() > RunLimits.MAX_RELICS or _consumable_stacks.size() > RunLimits.MAX_CONSUMABLE_STACKS:
+		status.fail(SimStatus.Code.RUN_LIMIT_EXCEEDED, SimStatus.Operation.RUN_INVENTORY_VALIDATE, _relic_numeric_ids.size(), _consumable_stacks.size()); return false
+	var previous_relic_id: int = 0
+	for relic_id: int in _relic_numeric_ids:
+		if relic_id <= previous_relic_id or relic_id > ContentLimits.UINT32_MAX:
+			status.fail(SimStatus.Code.INVALID_RUN_INVENTORY, SimStatus.Operation.RUN_INVENTORY_VALIDATE, relic_id, previous_relic_id); return false
+		previous_relic_id = relic_id
+	var previous_consumable_id: int = 0
+	for stack: RunConsumableStack in _consumable_stacks:
+		if stack == null or not stack.is_initialized() or stack.consumable_numeric_id() <= previous_consumable_id:
+			status.fail(SimStatus.Code.INVALID_RUN_INVENTORY, SimStatus.Operation.RUN_INVENTORY_VALIDATE, 0 if stack == null else stack.consumable_numeric_id(), previous_consumable_id); return false
+		previous_consumable_id = stack.consumable_numeric_id()
 	var current_node := RunNode.new()
 	if _current_node_id != 0:
 		current_node = _graph.node_by_id(_current_node_id, status)
@@ -146,6 +156,8 @@ func _validate_structure(status: SimStatus) -> bool:
 			status.fail(SimStatus.Code.INVALID_RUN_STATE, SimStatus.Operation.RUN_STATE_VALIDATE, _current_node_id, _current_floor); return false
 	var is_battle_node: bool = _current_node_id != 0 and (current_node.node_type_id() == RunNodeType.Value.NORMAL_BATTLE or current_node.node_type_id() == RunNodeType.Value.ELITE_BATTLE or current_node.node_type_id() == RunNodeType.Value.BOSS)
 	var is_rest_node: bool = _current_node_id != 0 and current_node.node_type_id() == RunNodeType.Value.REST
+	var is_shop_node: bool = _current_node_id != 0 and current_node.node_type_id() == RunNodeType.Value.SHOP
+	var is_event_node: bool = _current_node_id != 0 and current_node.node_type_id() == RunNodeType.Value.EVENT
 	var completed_current: bool = false
 	if _current_node_id != 0:
 		var completed_index: int = _completed_node_ids.bsearch(_current_node_id)
@@ -167,6 +179,12 @@ func _validate_structure(status: SimStatus) -> bool:
 	elif _phase_id == RunPhase.Value.REST:
 		if not is_rest_node or completed_current or not _deployment_instance_ids.is_empty() or _pending_choice.kind_id() != RunPendingKind.Value.REST or _pending_choice.source_node_id() != _current_node_id or _life == 0:
 			status.fail(SimStatus.Code.INVALID_RUN_STATE, SimStatus.Operation.RUN_STATE_VALIDATE, _phase_id, _current_node_id); return false
+	elif _phase_id == RunPhase.Value.SHOP:
+		if not is_shop_node or completed_current or not _deployment_instance_ids.is_empty() or _pending_choice.kind_id() != RunPendingKind.Value.SHOP or _pending_choice.source_node_id() != _current_node_id or _life == 0:
+			status.fail(SimStatus.Code.INVALID_RUN_SHOP, SimStatus.Operation.RUN_STATE_VALIDATE, _phase_id, _current_node_id); return false
+	elif _phase_id == RunPhase.Value.EVENT:
+		if not is_event_node or completed_current or not _deployment_instance_ids.is_empty() or _pending_choice.kind_id() != RunPendingKind.Value.EVENT or _pending_choice.source_node_id() != _current_node_id or _life == 0:
+			status.fail(SimStatus.Code.INVALID_RUN_EVENT, SimStatus.Operation.RUN_STATE_VALIDATE, _phase_id, _current_node_id); return false
 	elif _phase_id == RunPhase.Value.ACT_COMPLETE:
 		if not is_battle_node or current_node.node_type_id() != RunNodeType.Value.BOSS or not completed_current or not _deployment_instance_ids.is_empty() or _pending_choice.kind_id() != RunPendingKind.Value.NONE or _next_battle_status_numeric_id != 0 or _life == 0:
 			status.fail(SimStatus.Code.INVALID_RUN_STATE, SimStatus.Operation.RUN_STATE_VALIDATE, _phase_id, _current_node_id); return false
@@ -208,6 +226,7 @@ func validate(catalog: ContentCatalog, status: SimStatus) -> bool:
 
 func _validate_catalog_phase(catalog: ContentCatalog, status: SimStatus) -> bool:
 	if not status.is_ok(): return false
+	if not _validate_inventory(catalog, status): return false
 	if _next_battle_status_numeric_id != 0:
 		var boon_status := ContentStatus.new()
 		var boon: StatusDefinition = catalog.status_by_numeric_id(_next_battle_status_numeric_id, boon_status)
@@ -220,6 +239,12 @@ func _validate_catalog_phase(catalog: ContentCatalog, status: SimStatus) -> bool
 		if node.content_numeric_id() != 0 or _phase_id != RunPhase.Value.REST:
 			status.fail(SimStatus.Code.INVALID_RUN_NODE, SimStatus.Operation.RUN_STATE_VALIDATE, node.node_id(), node.content_numeric_id()); return false
 		return _validate_rest_pending(catalog, status)
+	if node.node_type_id() == RunNodeType.Value.SHOP:
+		if _phase_id != RunPhase.Value.SHOP: status.fail(SimStatus.Code.INVALID_RUN_SHOP, SimStatus.Operation.RUN_STATE_VALIDATE, node.node_id(), _phase_id); return false
+		return _validate_shop_pending(catalog, status)
+	if node.node_type_id() == RunNodeType.Value.EVENT:
+		if _phase_id != RunPhase.Value.EVENT: status.fail(SimStatus.Code.INVALID_RUN_EVENT, SimStatus.Operation.RUN_STATE_VALIDATE, node.node_id(), _phase_id); return false
+		return _validate_event_pending(catalog, status)
 	var content_status := ContentStatus.new()
 	var encounter: EncounterDefinition = catalog.encounter_by_numeric_id(node.content_numeric_id(), content_status)
 	if not content_status.is_ok() or encounter.node_type_id() != node.node_type_id():
@@ -274,6 +299,92 @@ func _validate_rest_pending(catalog: ContentCatalog, status: SimStatus) -> bool:
 	if merge.kind_id() != RunChoiceKind.Value.MERGE_PIECES or merge.primary_numeric_id() != 0 or merge.secondary_numeric_id() != 0 or merge.amount() != 1 or merge.cost() != 0 or merge.enabled() != _has_merge_pair(catalog):
 		status.fail(SimStatus.Code.INVALID_RUN_CHOICE, SimStatus.Operation.RUN_STATE_VALIDATE, merge.kind_id(), 2); return false
 	return recover.enabled() or merge.enabled()
+
+func _validate_inventory(catalog: ContentCatalog, status: SimStatus) -> bool:
+	if not status.is_ok(): return false
+	for relic_id: int in _relic_numeric_ids:
+		var content_status := ContentStatus.new()
+		var definition: RelicDefinition = catalog.relic_by_numeric_id(relic_id, content_status)
+		if not content_status.is_ok() or not definition.is_initialized():
+			status.fail(SimStatus.Code.INVALID_RUN_INVENTORY, SimStatus.Operation.RUN_INVENTORY_VALIDATE, relic_id, 0); return false
+	for stack: RunConsumableStack in _consumable_stacks:
+		var content_status := ContentStatus.new()
+		var definition: ConsumableDefinition = catalog.consumable_by_numeric_id(stack.consumable_numeric_id(), content_status)
+		if not content_status.is_ok() or not definition.is_initialized() or stack.count() > definition.max_stack():
+			status.fail(SimStatus.Code.INVALID_RUN_INVENTORY, SimStatus.Operation.RUN_INVENTORY_VALIDATE, stack.consumable_numeric_id(), stack.count()); return false
+	return true
+
+func _can_add_relic(relic_numeric_id: int) -> bool:
+	if _relic_numeric_ids.size() >= RunLimits.MAX_RELICS: return false
+	var index: int = _relic_numeric_ids.bsearch(relic_numeric_id)
+	return index >= _relic_numeric_ids.size() or _relic_numeric_ids[index] != relic_numeric_id
+
+func _consumable_index(consumable_numeric_id: int) -> int:
+	var low: int = 0; var high: int = _consumable_stacks.size() - 1
+	while low <= high:
+		var middle: int = (low + high) >> 1; var value: int = _consumable_stacks[middle].consumable_numeric_id()
+		if value == consumable_numeric_id: return middle
+		if value < consumable_numeric_id: low = middle + 1
+		else: high = middle - 1
+	return -low - 1
+
+func _can_add_consumable(catalog: ContentCatalog, consumable_numeric_id: int, count: int) -> bool:
+	if count < 1: return false
+	var content_status := ContentStatus.new(); var definition: ConsumableDefinition = catalog.consumable_by_numeric_id(consumable_numeric_id, content_status)
+	if not content_status.is_ok() or not definition.is_initialized(): return false
+	var index: int = _consumable_index(consumable_numeric_id)
+	if index >= 0: return count <= definition.max_stack() - _consumable_stacks[index].count()
+	return _consumable_stacks.size() < RunLimits.MAX_CONSUMABLE_STACKS and count <= definition.max_stack()
+
+func _can_apply_effect(catalog: ContentCatalog, effect: RunEffectDefinition) -> bool:
+	if effect == null or not effect.is_initialized(): return false
+	if effect.kind_id() == RunEffectKind.Value.GAIN_GOLD:
+		return effect.amount() <= ContentLimits.UINT32_MAX - _gold
+	if effect.kind_id() == RunEffectKind.Value.RECOVER_LIFE:
+		return effect.amount() == 1 and _life < _max_life
+	if effect.kind_id() == RunEffectKind.Value.GAIN_CONSUMABLE:
+		return _can_add_consumable(catalog, effect.primary_numeric_id(), effect.amount())
+	return false
+
+func _shop_offer_enabled(catalog: ContentCatalog, offer: ShopOfferDefinition) -> bool:
+	if offer.cost() > _gold: return false
+	if offer.item_kind_id() == RunShopItemKind.Value.RELIC: return offer.count() == 1 and _can_add_relic(offer.item_ref().numeric_id())
+	if offer.item_kind_id() == RunShopItemKind.Value.CONSUMABLE: return _can_add_consumable(catalog, offer.item_ref().numeric_id(), offer.count())
+	return false
+
+func _validate_shop_pending(catalog: ContentCatalog, status: SimStatus) -> bool:
+	var node: RunNode = _graph.node_by_id(_current_node_id, status)
+	var content_status := ContentStatus.new(); var profile: ShopDefinition = catalog.shop_by_numeric_id(node.content_numeric_id(), content_status)
+	if not status.is_ok() or not content_status.is_ok() or not profile.is_initialized() or _pending_choice.generation_ordinal() != _next_transition_sequence or _pending_choice.entry_count() != profile.offer_count() + 1:
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_RUN_SHOP, SimStatus.Operation.RUN_STATE_VALIDATE, _current_node_id, node.content_numeric_id())
+		return false
+	for index: int in range(profile.offer_count()):
+		var offer: ShopOfferDefinition = profile.offer_at(index, content_status); var entry: RunChoiceEntry = _pending_choice.entry_at(index, status)
+		var expected_kind: int = RunChoiceKind.Value.TAKE_RELIC if offer.item_kind_id() == RunShopItemKind.Value.RELIC else RunChoiceKind.Value.TAKE_CONSUMABLE
+		if not content_status.is_ok() or not status.is_ok() or entry.choice_id() != offer.offer_id() or entry.kind_id() != expected_kind or entry.primary_numeric_id() != offer.item_ref().numeric_id() or entry.secondary_numeric_id() != 0 or entry.amount() != offer.count() or entry.cost() != offer.cost() or entry.enabled() != _shop_offer_enabled(catalog, offer):
+			if status.is_ok(): status.fail(SimStatus.Code.INVALID_RUN_SHOP, SimStatus.Operation.RUN_STATE_VALIDATE, index + 1, offer.offer_id())
+			return false
+	var leave: RunChoiceEntry = _pending_choice.entry_at(profile.offer_count(), status)
+	if not status.is_ok() or leave.choice_id() != profile.offer_count() + 1 or leave.kind_id() != RunChoiceKind.Value.LEAVE_SHOP or leave.primary_numeric_id() != 0 or leave.secondary_numeric_id() != 0 or leave.amount() != 0 or leave.cost() != 0 or not leave.enabled():
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_RUN_SHOP, SimStatus.Operation.RUN_STATE_VALIDATE, leave.choice_id(), leave.kind_id())
+		return false
+	return true
+
+func _validate_event_pending(catalog: ContentCatalog, status: SimStatus) -> bool:
+	var node: RunNode = _graph.node_by_id(_current_node_id, status)
+	var content_status := ContentStatus.new(); var profile: EventDefinition = catalog.event_by_numeric_id(node.content_numeric_id(), content_status)
+	if not status.is_ok() or not content_status.is_ok() or not profile.is_initialized() or _pending_choice.generation_ordinal() != _next_transition_sequence or _pending_choice.entry_count() != profile.option_count():
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_RUN_EVENT, SimStatus.Operation.RUN_STATE_VALIDATE, _current_node_id, node.content_numeric_id())
+		return false
+	for index: int in range(profile.option_count()):
+		var option: EventOptionDefinition = profile.option_at(index, content_status); var entry: RunChoiceEntry = _pending_choice.entry_at(index, status)
+		var kind_id: int = 0; var primary_id: int = 0; var amount: int = 0; var enabled: bool = true
+		if option.has_effect():
+			var effect: RunEffectDefinition = option.effect(); kind_id = effect.kind_id(); primary_id = effect.primary_numeric_id(); amount = effect.amount(); enabled = _can_apply_effect(catalog, effect)
+		if not content_status.is_ok() or not status.is_ok() or entry.choice_id() != option.option_id() or entry.kind_id() != RunChoiceKind.Value.EVENT_OPTION or entry.primary_numeric_id() != kind_id or entry.secondary_numeric_id() != primary_id or entry.amount() != amount or entry.cost() != 0 or entry.enabled() != enabled:
+			if status.is_ok(): status.fail(SimStatus.Code.INVALID_RUN_EVENT, SimStatus.Operation.RUN_STATE_VALIDATE, index + 1, option.option_id())
+			return false
+	return true
 
 func _assign_from(other: RunState) -> void:
 	_content_fingerprint = other._content_fingerprint; _seed_hi = other._seed_hi; _seed_lo = other._seed_lo; _phase_id = other._phase_id; _act_numeric_id = other._act_numeric_id
@@ -451,9 +562,15 @@ func prepare_reward(catalog: ContentCatalog, status: SimStatus) -> bool:
 	var candidate: RunState = copy(status)
 	if not status.is_ok(): return false
 	if victory:
-		if candidate._gold > ContentLimits.UINT32_MAX - profile.victory_gold():
-			status.fail(SimStatus.Code.INVALID_RUN_REWARD, SimStatus.Operation.RUN_REWARD_PREPARE, candidate._gold, profile.victory_gold()); return false
-		candidate._gold += profile.victory_gold(); candidate._deployment_instance_ids.clear()
+		var victory_gold: int = profile.victory_gold()
+		for relic_id: int in candidate._relic_numeric_ids:
+			var content_status := ContentStatus.new(); var relic: RelicDefinition = catalog.relic_by_numeric_id(relic_id, content_status); var effect: RunEffectDefinition = relic.effect()
+			if not content_status.is_ok() or not relic.is_initialized() or effect.kind_id() != RunEffectKind.Value.VICTORY_GOLD_BONUS or effect.amount() > ContentLimits.UINT32_MAX - victory_gold:
+				status.fail(SimStatus.Code.INVALID_RUN_EFFECT, SimStatus.Operation.RUN_REWARD_PREPARE, relic_id, victory_gold); return false
+			victory_gold += effect.amount()
+		if candidate._gold > ContentLimits.UINT32_MAX - victory_gold:
+			status.fail(SimStatus.Code.INVALID_RUN_REWARD, SimStatus.Operation.RUN_REWARD_PREPARE, candidate._gold, victory_gold); return false
+		candidate._gold += victory_gold; candidate._deployment_instance_ids.clear()
 		if candidate._roster.size() < candidate._roster_capacity:
 			candidate._pending_choice = generated
 		else:
@@ -504,6 +621,147 @@ func choose_reward(catalog: ContentCatalog, choice_id: int, status: SimStatus) -
 			candidate._finish_to_map_choice(true, status)
 	else:
 		status.fail(SimStatus.Code.INVALID_RUN_CHOICE, SimStatus.Operation.RUN_REWARD_CHOOSE, choice_id, entry.kind_id()); return false
+	if not status.is_ok() or not candidate._validate_structure(status) or not candidate._validate_catalog_phase(catalog, status): return false
+	_assign_from(candidate); return true
+
+func _next_node_matches(node_id: int, expected_type: int, status: SimStatus) -> RunNode:
+	var node: RunNode = _graph.node_by_id(node_id, status)
+	if not status.is_ok() or _is_visited(node_id):
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_RUN_NODE, SimStatus.Operation.RUN_NODE_CHOOSE, node_id, 0)
+		return RunNode.new()
+	var expected_floor: int = 1
+	if not _completed_node_ids.is_empty():
+		var source_id: int = _completed_node_ids[-1]; var source: RunNode = _graph.node_by_id(source_id, status); expected_floor = source.floor_index() + 1
+		var reachable: bool = false
+		for index: int in range(source.next_node_count()):
+			if source.next_node_id_at(index, status) == node_id: reachable = true; break
+		if not reachable: status.fail(SimStatus.Code.INVALID_RUN_NODE, SimStatus.Operation.RUN_NODE_CHOOSE, node_id, source_id); return RunNode.new()
+	if node.floor_index() != expected_floor or node.node_type_id() != expected_type or node.content_numeric_id() <= 0:
+		status.fail(SimStatus.Code.INVALID_RUN_NODE, SimStatus.Operation.RUN_NODE_CHOOSE, node_id, expected_floor); return RunNode.new()
+	return node
+
+func choose_shop_node(catalog: ContentCatalog, node_id: int, status: SimStatus) -> bool:
+	if not status.is_ok(): return false
+	if not _initialized or _phase_id != RunPhase.Value.MAP_CHOICE or catalog == null or not catalog.is_initialized() or _content_fingerprint != catalog.fingerprint_bytes() or not validate(catalog, status):
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_PHASE, SimStatus.Operation.RUN_SHOP_CHOOSE, _phase_id, node_id)
+		return false
+	var node: RunNode = _next_node_matches(node_id, RunNodeType.Value.SHOP, status)
+	var content_status := ContentStatus.new(); var profile: ShopDefinition = catalog.shop_by_numeric_id(node.content_numeric_id(), content_status)
+	if not status.is_ok() or not content_status.is_ok() or not profile.is_initialized():
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_RUN_SHOP, SimStatus.Operation.RUN_SHOP_CHOOSE, node_id, node.content_numeric_id())
+		return false
+	var candidate: RunState = copy(status)
+	candidate._phase_id = RunPhase.Value.SHOP; candidate._current_floor = node.floor_index(); candidate._current_node_id = node_id; candidate._deployment_instance_ids.clear(); candidate._append_sorted_id(candidate._visited_node_ids, node_id)
+	var entries: Array[RunChoiceEntry] = []
+	for index: int in range(profile.offer_count()):
+		var offer: ShopOfferDefinition = profile.offer_at(index, content_status)
+		var kind_id: int = RunChoiceKind.Value.TAKE_RELIC if offer.item_kind_id() == RunShopItemKind.Value.RELIC else RunChoiceKind.Value.TAKE_CONSUMABLE
+		entries.append(RunChoiceEntry.create(offer.offer_id(), kind_id, offer.item_ref().numeric_id(), 0, offer.count(), offer.cost(), candidate._shop_offer_enabled(catalog, offer), status))
+	entries.append(RunChoiceEntry.create(profile.offer_count() + 1, RunChoiceKind.Value.LEAVE_SHOP, 0, 0, 0, 0, true, status))
+	candidate._pending_choice = RunPendingChoice.create(RunPendingKind.Value.SHOP, node_id, candidate._next_transition_sequence, entries, status)
+	if not content_status.is_ok() or not status.is_ok() or not candidate._validate_structure(status) or not candidate._validate_catalog_phase(catalog, status): return false
+	_assign_from(candidate); return true
+
+func _add_relic(relic_numeric_id: int, status: SimStatus) -> bool:
+	if not _can_add_relic(relic_numeric_id): status.fail(SimStatus.Code.INVALID_RUN_INVENTORY, SimStatus.Operation.RUN_EFFECT_APPLY, relic_numeric_id, _relic_numeric_ids.size()); return false
+	_relic_numeric_ids.insert(_relic_numeric_ids.bsearch(relic_numeric_id), relic_numeric_id)
+	return true
+
+func _add_consumable(catalog: ContentCatalog, consumable_numeric_id: int, count: int, status: SimStatus) -> bool:
+	if not _can_add_consumable(catalog, consumable_numeric_id, count): status.fail(SimStatus.Code.INVALID_RUN_INVENTORY, SimStatus.Operation.RUN_EFFECT_APPLY, consumable_numeric_id, count); return false
+	var index: int = _consumable_index(consumable_numeric_id)
+	if index >= 0:
+		_consumable_stacks[index] = RunConsumableStack.create(consumable_numeric_id, _consumable_stacks[index].count() + count, status)
+	else:
+		_consumable_stacks.insert(-index - 1, RunConsumableStack.create(consumable_numeric_id, count, status))
+	return status.is_ok()
+
+func _apply_effect(catalog: ContentCatalog, effect: RunEffectDefinition, status: SimStatus) -> bool:
+	if effect == null or not effect.is_initialized() or not _can_apply_effect(catalog, effect):
+		status.fail(SimStatus.Code.INVALID_RUN_EFFECT, SimStatus.Operation.RUN_EFFECT_APPLY, 0 if effect == null else effect.kind_id(), 0 if effect == null else effect.primary_numeric_id()); return false
+	if effect.kind_id() == RunEffectKind.Value.GAIN_GOLD: _gold += effect.amount()
+	elif effect.kind_id() == RunEffectKind.Value.RECOVER_LIFE: _life += effect.amount()
+	elif effect.kind_id() == RunEffectKind.Value.GAIN_CONSUMABLE: return _add_consumable(catalog, effect.primary_numeric_id(), effect.amount(), status)
+	else: status.fail(SimStatus.Code.INVALID_RUN_EFFECT, SimStatus.Operation.RUN_EFFECT_APPLY, effect.kind_id(), effect.primary_numeric_id()); return false
+	return true
+
+func resolve_shop(catalog: ContentCatalog, choice_id: int, status: SimStatus) -> bool:
+	if not status.is_ok(): return false
+	if not _initialized or _phase_id != RunPhase.Value.SHOP or _pending_choice.kind_id() != RunPendingKind.Value.SHOP or _pending_choice.source_node_id() != _current_node_id or not validate(catalog, status):
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_RUN_SHOP, SimStatus.Operation.RUN_SHOP_RESOLVE, _phase_id, choice_id)
+		return false
+	if choice_id <= 0 or choice_id > _pending_choice.entry_count(): status.fail(SimStatus.Code.INVALID_RUN_CHOICE, SimStatus.Operation.RUN_SHOP_RESOLVE, choice_id, _pending_choice.entry_count()); return false
+	var entry: RunChoiceEntry = _pending_choice.entry_at(choice_id - 1, status)
+	if not status.is_ok() or not entry.enabled():
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_RUN_SHOP, SimStatus.Operation.RUN_SHOP_RESOLVE, choice_id, 0)
+		return false
+	var candidate: RunState = copy(status)
+	if entry.kind_id() == RunChoiceKind.Value.TAKE_RELIC:
+		if entry.cost() > candidate._gold or not candidate._add_relic(entry.primary_numeric_id(), status): return false
+		candidate._gold -= entry.cost()
+	elif entry.kind_id() == RunChoiceKind.Value.TAKE_CONSUMABLE:
+		if entry.cost() > candidate._gold or not candidate._add_consumable(catalog, entry.primary_numeric_id(), entry.amount(), status): return false
+		candidate._gold -= entry.cost()
+	elif entry.kind_id() != RunChoiceKind.Value.LEAVE_SHOP:
+		status.fail(SimStatus.Code.INVALID_RUN_SHOP, SimStatus.Operation.RUN_SHOP_RESOLVE, choice_id, entry.kind_id()); return false
+	candidate._finish_to_map_choice(true, status)
+	if not status.is_ok() or not candidate._validate_structure(status) or not candidate._validate_catalog_phase(catalog, status): return false
+	_assign_from(candidate); return true
+
+func choose_event_node(catalog: ContentCatalog, node_id: int, status: SimStatus) -> bool:
+	if not status.is_ok(): return false
+	if not _initialized or _phase_id != RunPhase.Value.MAP_CHOICE or catalog == null or not catalog.is_initialized() or _content_fingerprint != catalog.fingerprint_bytes() or not validate(catalog, status):
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_PHASE, SimStatus.Operation.RUN_EVENT_CHOOSE, _phase_id, node_id)
+		return false
+	var node: RunNode = _next_node_matches(node_id, RunNodeType.Value.EVENT, status)
+	var content_status := ContentStatus.new(); var profile: EventDefinition = catalog.event_by_numeric_id(node.content_numeric_id(), content_status)
+	if not status.is_ok() or not content_status.is_ok() or not profile.is_initialized():
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_RUN_EVENT, SimStatus.Operation.RUN_EVENT_CHOOSE, node_id, node.content_numeric_id())
+		return false
+	var candidate: RunState = copy(status)
+	candidate._phase_id = RunPhase.Value.EVENT; candidate._current_floor = node.floor_index(); candidate._current_node_id = node_id; candidate._deployment_instance_ids.clear(); candidate._append_sorted_id(candidate._visited_node_ids, node_id)
+	var entries: Array[RunChoiceEntry] = []
+	for index: int in range(profile.option_count()):
+		var option: EventOptionDefinition = profile.option_at(index, content_status); var kind_id: int = 0; var primary_id: int = 0; var amount: int = 0; var enabled: bool = true
+		if option.has_effect():
+			var effect: RunEffectDefinition = option.effect(); kind_id = effect.kind_id(); primary_id = effect.primary_numeric_id(); amount = effect.amount(); enabled = candidate._can_apply_effect(catalog, effect)
+		entries.append(RunChoiceEntry.create(option.option_id(), RunChoiceKind.Value.EVENT_OPTION, kind_id, primary_id, amount, 0, enabled, status))
+	candidate._pending_choice = RunPendingChoice.create(RunPendingKind.Value.EVENT, node_id, candidate._next_transition_sequence, entries, status)
+	if not content_status.is_ok() or not status.is_ok() or not candidate._validate_structure(status) or not candidate._validate_catalog_phase(catalog, status): return false
+	_assign_from(candidate); return true
+
+func resolve_event(catalog: ContentCatalog, choice_id: int, status: SimStatus) -> bool:
+	if not status.is_ok(): return false
+	if not _initialized or _phase_id != RunPhase.Value.EVENT or _pending_choice.kind_id() != RunPendingKind.Value.EVENT or _pending_choice.source_node_id() != _current_node_id or not validate(catalog, status):
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_RUN_EVENT, SimStatus.Operation.RUN_EVENT_RESOLVE, _phase_id, choice_id)
+		return false
+	if choice_id <= 0 or choice_id > _pending_choice.entry_count(): status.fail(SimStatus.Code.INVALID_RUN_CHOICE, SimStatus.Operation.RUN_EVENT_RESOLVE, choice_id, _pending_choice.entry_count()); return false
+	var entry: RunChoiceEntry = _pending_choice.entry_at(choice_id - 1, status)
+	if not status.is_ok() or not entry.enabled() or entry.kind_id() != RunChoiceKind.Value.EVENT_OPTION:
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_RUN_EVENT, SimStatus.Operation.RUN_EVENT_RESOLVE, choice_id, entry.kind_id())
+		return false
+	var node: RunNode = _graph.node_by_id(_current_node_id, status); var content_status := ContentStatus.new(); var profile: EventDefinition = catalog.event_by_numeric_id(node.content_numeric_id(), content_status)
+	var option: EventOptionDefinition = profile.option_at(choice_id - 1, content_status)
+	var candidate: RunState = copy(status)
+	if option.has_effect() and not candidate._apply_effect(catalog, option.effect(), status): return false
+	candidate._finish_to_map_choice(true, status)
+	if not content_status.is_ok() or not status.is_ok() or not candidate._validate_structure(status) or not candidate._validate_catalog_phase(catalog, status): return false
+	_assign_from(candidate); return true
+
+func use_consumable(catalog: ContentCatalog, consumable_numeric_id: int, status: SimStatus) -> bool:
+	if not status.is_ok(): return false
+	if not _initialized or _phase_id != RunPhase.Value.MAP_CHOICE or _current_node_id != 0 or _pending_choice.kind_id() != RunPendingKind.Value.NONE or not validate(catalog, status):
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_PHASE, SimStatus.Operation.RUN_CONSUMABLE_USE, _phase_id, consumable_numeric_id)
+		return false
+	var index: int = _consumable_index(consumable_numeric_id)
+	var content_status := ContentStatus.new(); var definition: ConsumableDefinition = catalog.consumable_by_numeric_id(consumable_numeric_id, content_status)
+	if index < 0 or not content_status.is_ok() or not definition.is_initialized() or definition.use_phase_id() != RunPhase.Value.MAP_CHOICE:
+		status.fail(SimStatus.Code.INVALID_RUN_INVENTORY, SimStatus.Operation.RUN_CONSUMABLE_USE, consumable_numeric_id, 0 if index < 0 else _consumable_stacks[index].count()); return false
+	var candidate: RunState = copy(status)
+	if not candidate._apply_effect(catalog, definition.effect(), status): return false
+	var remaining: int = candidate._consumable_stacks[index].count() - 1
+	if remaining == 0: candidate._consumable_stacks.remove_at(index)
+	else: candidate._consumable_stacks[index] = RunConsumableStack.create(consumable_numeric_id, remaining, status)
 	if not status.is_ok() or not candidate._validate_structure(status) or not candidate._validate_catalog_phase(catalog, status): return false
 	_assign_from(candidate); return true
 

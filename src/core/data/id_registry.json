@@ -68,14 +68,36 @@
         {"numeric_id": 4, "id": "development_boss_pair", "state_id": 1}
       ]
     },
-    {"namespace_id": 11, "entries": []},
-    {"namespace_id": 12, "entries": []},
+    {
+      "namespace_id": 11,
+      "entries": [
+        {"numeric_id": 1, "id": "development_bounty_ledger", "state_id": 1}
+      ]
+    },
+    {
+      "namespace_id": 12,
+      "entries": [
+        {"numeric_id": 1, "id": "development_life_flask", "state_id": 1}
+      ]
+    },
     {
       "namespace_id": 13,
       "entries": [
         {"numeric_id": 1, "id": "development_normal_reward", "state_id": 1},
         {"numeric_id": 2, "id": "development_elite_reward", "state_id": 1},
         {"numeric_id": 3, "id": "development_boss_reward", "state_id": 1}
+      ]
+    },
+    {
+      "namespace_id": 14,
+      "entries": [
+        {"numeric_id": 1, "id": "development_shop_profile", "state_id": 1}
+      ]
+    },
+    {
+      "namespace_id": 15,
+      "entries": [
+        {"numeric_id": 1, "id": "development_event_profile", "state_id": 1}
       ]
     }
   ]

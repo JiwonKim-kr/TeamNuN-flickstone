@@ -1,4 +1,14 @@
 {
-  "schema_version": 1,
-  "records": []
+  "schema_version": 2,
+  "records": [
+    {
+      "numeric_id": 1,
+      "id": "development_bounty_ledger",
+      "effect": {
+        "kind_id": 4,
+        "primary_numeric_id": 0,
+        "amount": 5
+      }
+    }
+  ]
 }

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "numeric_id": 1,
+      "id": "development_event_profile",
+      "options": [
+        {
+          "option_id": 1,
+          "effects": [
+            {"kind_id": 1, "primary_numeric_id": 0, "amount": 5}
+          ]
+        },
+        {
+          "option_id": 2,
+          "effects": [
+            {"kind_id": 3, "primary_numeric_id": 1, "amount": 1}
+          ]
+        },
+        {
+          "option_id": 3,
+          "effects": []
+        }
+      ]
+    }
+  ]
+}

@@ -12,7 +12,11 @@ var _maps: Array[MapDefinition] = []
 var _enemies: Array[EnemyDefinition] = []
 var _acts: Array[ActDefinition] = []
 var _encounters: Array[EncounterDefinition] = []
+var _relics: Array[RelicDefinition] = []
+var _consumables: Array[ConsumableDefinition] = []
 var _reward_profiles: Array[RewardProfileDefinition] = []
+var _shops: Array[ShopDefinition] = []
+var _events: Array[EventDefinition] = []
 var _compatibility_bytes: PackedByteArray = PackedByteArray()
 var _fingerprint: PackedByteArray = PackedByteArray()
 var _initialized: bool = false
@@ -29,7 +33,11 @@ static func create(
 		enemies: Array[EnemyDefinition],
 		acts: Array[ActDefinition],
 		encounters: Array[EncounterDefinition],
+		relics: Array[RelicDefinition],
+		consumables: Array[ConsumableDefinition],
 		reward_profiles: Array[RewardProfileDefinition],
+		shops: Array[ShopDefinition],
+		events: Array[EventDefinition],
 		compatibility_bytes: PackedByteArray,
 		fingerprint: PackedByteArray,
 		status: ContentStatus
@@ -72,9 +80,21 @@ static func create(
 	for definition: EncounterDefinition in encounters:
 		if definition == null or not definition.is_initialized(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.CATALOG_BUILD); return ContentCatalog.new()
 		result._encounters.append(definition.copy())
+	for definition: RelicDefinition in relics:
+		if definition == null or not definition.is_initialized(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.CATALOG_BUILD); return ContentCatalog.new()
+		result._relics.append(definition.copy())
+	for definition: ConsumableDefinition in consumables:
+		if definition == null or not definition.is_initialized(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.CATALOG_BUILD); return ContentCatalog.new()
+		result._consumables.append(definition.copy())
 	for definition: RewardProfileDefinition in reward_profiles:
 		if definition == null or not definition.is_initialized(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.CATALOG_BUILD); return ContentCatalog.new()
 		result._reward_profiles.append(definition.copy())
+	for definition: ShopDefinition in shops:
+		if definition == null or not definition.is_initialized(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.CATALOG_BUILD); return ContentCatalog.new()
+		result._shops.append(definition.copy())
+	for definition: EventDefinition in events:
+		if definition == null or not definition.is_initialized(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.CATALOG_BUILD); return ContentCatalog.new()
+		result._events.append(definition.copy())
 	result._catalog_schema_version = catalog_schema_version
 	result._compatibility_bytes = compatibility_bytes.duplicate()
 	result._fingerprint = fingerprint.duplicate()
@@ -85,7 +105,7 @@ static func create(
 func copy() -> ContentCatalog:
 	if not _initialized: return ContentCatalog.new()
 	var status := ContentStatus.new()
-	return create(_catalog_schema_version, _registry_entries, _pieces, _abilities, _statuses, _synergies, _maps, _enemies, _acts, _encounters, _reward_profiles, _compatibility_bytes, _fingerprint, status)
+	return create(_catalog_schema_version, _registry_entries, _pieces, _abilities, _statuses, _synergies, _maps, _enemies, _acts, _encounters, _relics, _consumables, _reward_profiles, _shops, _events, _compatibility_bytes, _fingerprint, status)
 
 
 func is_initialized() -> bool: return _initialized
@@ -99,8 +119,10 @@ func enemy_count() -> int: return _enemies.size()
 func act_count() -> int: return _acts.size()
 func encounter_count() -> int: return _encounters.size()
 func reward_profile_count() -> int: return _reward_profiles.size()
-func relic_count() -> int: return 0
-func consumable_count() -> int: return 0
+func relic_count() -> int: return _relics.size()
+func consumable_count() -> int: return _consumables.size()
+func shop_count() -> int: return _shops.size()
+func event_count() -> int: return _events.size()
 func registry_entry_count() -> int: return _registry_entries.size()
 func fingerprint_bytes() -> PackedByteArray: return _fingerprint.duplicate()
 func compatibility_bytes_for_test() -> PackedByteArray: return _compatibility_bytes.duplicate()
@@ -157,6 +179,22 @@ func encounter_at(index: int, status: ContentStatus) -> EncounterDefinition:
 func reward_profile_at(index: int, status: ContentStatus) -> RewardProfileDefinition:
 	if index < 0 or index >= _reward_profiles.size(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.REWARD_PROFILES); return RewardProfileDefinition.new()
 	return _reward_profiles[index].copy()
+
+func relic_at(index: int, status: ContentStatus) -> RelicDefinition:
+	if index < 0 or index >= _relics.size(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.RELICS); return RelicDefinition.new()
+	return _relics[index].copy()
+
+func consumable_at(index: int, status: ContentStatus) -> ConsumableDefinition:
+	if index < 0 or index >= _consumables.size(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.CONSUMABLES); return ConsumableDefinition.new()
+	return _consumables[index].copy()
+
+func shop_at(index: int, status: ContentStatus) -> ShopDefinition:
+	if index < 0 or index >= _shops.size(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.SHOPS); return ShopDefinition.new()
+	return _shops[index].copy()
+
+func event_at(index: int, status: ContentStatus) -> EventDefinition:
+	if index < 0 or index >= _events.size(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.EVENTS); return EventDefinition.new()
+	return _events[index].copy()
 
 
 func registry_entry_at(index: int, status: ContentStatus) -> ContentRegistryEntry:
@@ -241,6 +279,34 @@ func reward_profile_by_numeric_id(id: int, status: ContentStatus) -> RewardProfi
 	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.REWARD_PROFILES, id)
 	return RewardProfileDefinition.new()
 
+func relic_by_numeric_id(id: int, status: ContentStatus) -> RelicDefinition:
+	for item: RelicDefinition in _relics:
+		if item.numeric_id() == id: return item.copy()
+		if item.numeric_id() > id: break
+	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.RELICS, id)
+	return RelicDefinition.new()
+
+func consumable_by_numeric_id(id: int, status: ContentStatus) -> ConsumableDefinition:
+	for item: ConsumableDefinition in _consumables:
+		if item.numeric_id() == id: return item.copy()
+		if item.numeric_id() > id: break
+	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.CONSUMABLES, id)
+	return ConsumableDefinition.new()
+
+func shop_by_numeric_id(id: int, status: ContentStatus) -> ShopDefinition:
+	for item: ShopDefinition in _shops:
+		if item.numeric_id() == id: return item.copy()
+		if item.numeric_id() > id: break
+	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.SHOPS, id)
+	return ShopDefinition.new()
+
+func event_by_numeric_id(id: int, status: ContentStatus) -> EventDefinition:
+	for item: EventDefinition in _events:
+		if item.numeric_id() == id: return item.copy()
+		if item.numeric_id() > id: break
+	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.EVENTS, id)
+	return EventDefinition.new()
+
 func synergy_by_tag_numeric_id(id: int, status: ContentStatus) -> SynergyDefinition:
 	for item: SynergyDefinition in _synergies:
 		if item.tag_ref().numeric_id() == id: return item.copy()
@@ -272,3 +338,27 @@ func encounter_by_string_id(id: String, status: ContentStatus) -> EncounterDefin
 		if item.string_id() == id: return item.copy()
 	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.ENCOUNTERS)
 	return EncounterDefinition.new()
+
+func relic_by_string_id(id: String, status: ContentStatus) -> RelicDefinition:
+	for item: RelicDefinition in _relics:
+		if item.string_id() == id: return item.copy()
+	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.RELICS)
+	return RelicDefinition.new()
+
+func consumable_by_string_id(id: String, status: ContentStatus) -> ConsumableDefinition:
+	for item: ConsumableDefinition in _consumables:
+		if item.string_id() == id: return item.copy()
+	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.CONSUMABLES)
+	return ConsumableDefinition.new()
+
+func shop_by_string_id(id: String, status: ContentStatus) -> ShopDefinition:
+	for item: ShopDefinition in _shops:
+		if item.string_id() == id: return item.copy()
+	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.SHOPS)
+	return ShopDefinition.new()
+
+func event_by_string_id(id: String, status: ContentStatus) -> EventDefinition:
+	for item: EventDefinition in _events:
+		if item.string_id() == id: return item.copy()
+	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.EVENTS)
+	return EventDefinition.new()

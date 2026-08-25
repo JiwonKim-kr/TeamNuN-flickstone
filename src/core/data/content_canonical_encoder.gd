@@ -46,7 +46,11 @@ static func encode(
 		enemies: Array[EnemyDefinition],
 		acts: Array[ActDefinition],
 		encounters: Array[EncounterDefinition],
+		relics: Array[RelicDefinition],
+		consumables: Array[ConsumableDefinition],
 		reward_profiles: Array[RewardProfileDefinition],
+		shops: Array[ShopDefinition],
+		events: Array[EventDefinition],
 		status: ContentStatus
 ) -> PackedByteArray:
 	if not status.is_ok(): return PackedByteArray()
@@ -55,8 +59,8 @@ static func encode(
 	writer.u16(ContentIds.FINGERPRINT_FORMAT_VERSION)
 	writer.u16(ContentIds.CATALOG_SCHEMA_VERSION)
 	writer.u16(ContentIds.REGISTRY_SCHEMA_VERSION)
-	writer.u16(ContentIds.Namespace.REWARD_PROFILE)
-	for namespace_id: int in range(ContentIds.Namespace.PIECE, ContentIds.Namespace.REWARD_PROFILE + 1):
+	writer.u16(ContentIds.Namespace.EVENT)
+	for namespace_id: int in range(ContentIds.Namespace.PIECE, ContentIds.Namespace.EVENT + 1):
 		writer.u16(namespace_id)
 		var count: int = 0
 		for entry: ContentRegistryEntry in registry_entries:
@@ -68,7 +72,7 @@ static func encode(
 			writer.string_utf8(entry.string_id())
 			writer.u8(entry.state_id())
 
-	writer.u16(11)
+	writer.u16(13)
 	writer.u16(ContentIds.DocumentKind.PIECES)
 	writer.u16(ContentIds.PIECES_SCHEMA_VERSION)
 	writer.u32(pieces.size())
@@ -243,8 +247,14 @@ static func encode(
 		writer.u32(definition.reward_profile_numeric_id())
 		if not encounter_status.is_ok(): status.fail(ContentStatus.Code.FINGERPRINT_ERROR, ContentStatus.Operation.CANONICAL_ENCODE, ContentIds.DocumentKind.ENCOUNTERS, definition.numeric_id()); return PackedByteArray()
 
-	writer.u16(ContentIds.DocumentKind.RELICS); writer.u16(ContentIds.RELICS_SCHEMA_VERSION); writer.u32(0)
-	writer.u16(ContentIds.DocumentKind.CONSUMABLES); writer.u16(ContentIds.CONSUMABLES_SCHEMA_VERSION); writer.u32(0)
+	writer.u16(ContentIds.DocumentKind.RELICS); writer.u16(ContentIds.RELICS_SCHEMA_VERSION); writer.u32(relics.size())
+	for definition: RelicDefinition in relics:
+		writer.u32(definition.numeric_id()); writer.string_utf8(definition.string_id())
+		var effect: RunEffectDefinition = definition.effect(); writer.u16(effect.kind_id()); writer.u32(effect.primary_numeric_id()); writer.i64(effect.amount())
+	writer.u16(ContentIds.DocumentKind.CONSUMABLES); writer.u16(ContentIds.CONSUMABLES_SCHEMA_VERSION); writer.u32(consumables.size())
+	for definition: ConsumableDefinition in consumables:
+		writer.u32(definition.numeric_id()); writer.string_utf8(definition.string_id()); writer.u16(definition.max_stack()); writer.u16(definition.use_phase_id())
+		var effect: RunEffectDefinition = definition.effect(); writer.u16(effect.kind_id()); writer.u32(effect.primary_numeric_id()); writer.i64(effect.amount())
 	writer.u16(ContentIds.DocumentKind.REWARD_PROFILES); writer.u16(ContentIds.REWARD_PROFILES_SCHEMA_VERSION); writer.u32(reward_profiles.size())
 	for definition: RewardProfileDefinition in reward_profiles:
 		writer.u32(definition.numeric_id()); writer.string_utf8(definition.string_id()); writer.u32(definition.victory_gold()); writer.u16(definition.recruit_choice_count()); writer.u16(definition.recruit_pool_count())
@@ -253,5 +263,22 @@ static func encode(
 			var piece_ref: ContentIdRef = definition.recruit_pool_ref_at(index, reward_status); writer.u32(piece_ref.numeric_id()); writer.string_utf8(piece_ref.string_id())
 		var revenge_ref: ContentIdRef = definition.revenge_status_ref(); writer.u32(revenge_ref.numeric_id()); writer.string_utf8(revenge_ref.string_id())
 		if not reward_status.is_ok(): status.fail(ContentStatus.Code.FINGERPRINT_ERROR, ContentStatus.Operation.CANONICAL_ENCODE, ContentIds.DocumentKind.REWARD_PROFILES, definition.numeric_id()); return PackedByteArray()
+	writer.u16(ContentIds.DocumentKind.SHOPS); writer.u16(ContentIds.SHOPS_SCHEMA_VERSION); writer.u32(shops.size())
+	for definition: ShopDefinition in shops:
+		writer.u32(definition.numeric_id()); writer.string_utf8(definition.string_id()); writer.u16(definition.offer_count())
+		var shop_status := ContentStatus.new()
+		for index: int in range(definition.offer_count()):
+			var offer: ShopOfferDefinition = definition.offer_at(index, shop_status); var item_ref: ContentIdRef = offer.item_ref()
+			writer.u16(offer.offer_id()); writer.u16(offer.item_kind_id()); writer.u32(item_ref.numeric_id()); writer.string_utf8(item_ref.string_id()); writer.u16(offer.count()); writer.u32(offer.cost())
+		if not shop_status.is_ok(): status.fail(ContentStatus.Code.FINGERPRINT_ERROR, ContentStatus.Operation.CANONICAL_ENCODE, ContentIds.DocumentKind.SHOPS, definition.numeric_id()); return PackedByteArray()
+	writer.u16(ContentIds.DocumentKind.EVENTS); writer.u16(ContentIds.EVENTS_SCHEMA_VERSION); writer.u32(events.size())
+	for definition: EventDefinition in events:
+		writer.u32(definition.numeric_id()); writer.string_utf8(definition.string_id()); writer.u16(definition.option_count())
+		var event_status := ContentStatus.new()
+		for index: int in range(definition.option_count()):
+			var option: EventOptionDefinition = definition.option_at(index, event_status); writer.u16(option.option_id()); writer.u8(1 if option.has_effect() else 0)
+			if option.has_effect():
+				var effect: RunEffectDefinition = option.effect(); writer.u16(effect.kind_id()); writer.u32(effect.primary_numeric_id()); writer.i64(effect.amount())
+		if not event_status.is_ok(): status.fail(ContentStatus.Code.FINGERPRINT_ERROR, ContentStatus.Operation.CANONICAL_ENCODE, ContentIds.DocumentKind.EVENTS, definition.numeric_id()); return PackedByteArray()
 	if not status.is_ok(): return PackedByteArray()
 	return writer.data

@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P4-1~3 구현·자동 검증 완료 · P4-4 구현 완료·P4-6 누적 검증 대기 · 다음은 P4-5**. P4-W 제출용 Web 프리뷰는 공개 배포·브라우저 검수 완료 |
+| 현재 단계 | **P4-1~3 구현·자동 검증 완료 · P4-4~5 구현 완료·P4-6 누적 검증 대기 · 다음은 P4-6**. P4-W 제출용 Web 프리뷰는 공개 배포·브라우저 검수 완료 |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -304,7 +304,14 @@
 - RunSnapshot v2는 next-battle boon을 저장하며 legacy v1을 0 boon으로 복원한다. battle request/bridge는 opening status를 player initial body에 적용하고 begin 성공 시 run에서 한 번만 소비한다.
 - 최소 Godot import/class 등록은 통과했다. P4-4 runner·대표 회귀·fingerprint KAT·`verify`는 일정 합의에 따라 P4-6 누적 검증으로 이연했다.
 
-### 3.15 다음 작업 실행 명령
+### 3.15 P4-5 유물·소모품·상점·이벤트 구현 기록
+
+- catalog/fingerprint v9, relic/consumable schema v2와 신규 shop/event schema v1을 구현했다. 개발 현상금 장부(+5 승리 gold), 생명 플라스크(+1 life/max 3), 가격 10/5 고정 상점과 gold/flask/leave 고정 이벤트를 추가했다.
+- RunState는 SHOP/EVENT 고정 pending과 원자 선택, sorted unique relic·bounded consumable stack, MAP_CHOICE 소모품 사용, 승리 reward 유물 보너스를 지원한다. 비전투 node는 revenge boon과 battle transition sequence를 보존한다.
+- RunSnapshot v2 layout을 유지하면서 non-empty inventory와 SHOP/EVENT capture·restore 의미 검증을 열었다. production Python parser runtime 로드와 최소 Godot 4.6.3 import/headless 시작은 통과했다.
+- P4-5 runner·canonical cross-KAT·대표 회귀·quick 4런·`verify --demo`는 승인된 일정 정책에 따라 P4-6 누적 검증으로 이연했다.
+
+### 3.16 다음 작업 실행 명령
 
 Windows PowerShell에서 먼저 `$env:PYTHONUTF8='1'`을 설정한다.
 

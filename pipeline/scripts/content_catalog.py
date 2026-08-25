@@ -46,6 +46,8 @@ EXPECTED_FILES = {
     "relics.json",
     "consumables.json",
     "reward_profiles.json",
+    "shops.json",
+    "events.json",
 }
 DOCUMENTS = {
     1: ("id_registry.json", 1),
@@ -57,9 +59,11 @@ DOCUMENTS = {
     7: ("enemies.json", 2),
     8: ("acts.json", 1),
     9: ("encounters.json", 1),
-    10: ("relics.json", 1),
-    11: ("consumables.json", 1),
+    10: ("relics.json", 2),
+    11: ("consumables.json", 2),
     12: ("reward_profiles.json", 1),
+    13: ("shops.json", 1),
+    14: ("events.json", 1),
 }
 
 
@@ -509,6 +513,58 @@ class RewardProfileDefinition:
 
 
 @dataclass(frozen=True)
+class RunEffectDefinition:
+    kind_id: int
+    primary_numeric_id: int
+    amount: int
+
+
+@dataclass(frozen=True)
+class RelicDefinition:
+    numeric_id: int
+    string_id: str
+    effect: RunEffectDefinition
+
+
+@dataclass(frozen=True)
+class ConsumableDefinition:
+    numeric_id: int
+    string_id: str
+    max_stack: int
+    use_phase_id: int
+    effect: RunEffectDefinition
+
+
+@dataclass(frozen=True)
+class ShopOfferDefinition:
+    offer_id: int
+    item_kind_id: int
+    item_ref: Ref
+    count: int
+    cost: int
+
+
+@dataclass(frozen=True)
+class ShopDefinition:
+    numeric_id: int
+    string_id: str
+    offers: tuple[ShopOfferDefinition, ...]
+
+
+@dataclass(frozen=True)
+class EventOptionDefinition:
+    option_id: int
+    effect: RunEffectDefinition | None
+
+
+@dataclass(frozen=True)
+class EventDefinition:
+    numeric_id: int
+    string_id: str
+    options: tuple[EventOptionDefinition, ...]
+
+
+@dataclass(frozen=True)
 class Catalog:
     entries: tuple[Entry, ...]
     pieces: tuple[Piece, ...]
@@ -519,7 +575,11 @@ class Catalog:
     enemies: tuple[EnemyDefinition, ...]
     acts: tuple[ActDefinition, ...]
     encounters: tuple[EncounterDefinition, ...]
+    relics: tuple[RelicDefinition, ...]
+    consumables: tuple[ConsumableDefinition, ...]
     reward_profiles: tuple[RewardProfileDefinition, ...]
+    shops: tuple[ShopDefinition, ...]
+    events: tuple[EventDefinition, ...]
     compatibility_bytes: bytes
     fingerprint: bytes
 
@@ -555,15 +615,17 @@ def canonical_bytes(
     statuses: tuple[StatusDefinition, ...] = (), synergies: tuple[SynergyDefinition, ...] = (),
     maps: tuple[MapDefinition, ...] = (), enemies: tuple[EnemyDefinition, ...] = (),
     acts: tuple[ActDefinition, ...] = (), encounters: tuple[EncounterDefinition, ...] = (),
-    reward_profiles: tuple[RewardProfileDefinition, ...] = ()
+    relics: tuple[RelicDefinition, ...] = (), consumables: tuple[ConsumableDefinition, ...] = (),
+    reward_profiles: tuple[RewardProfileDefinition, ...] = (), shops: tuple[ShopDefinition, ...] = (),
+    events: tuple[EventDefinition, ...] = ()
 ) -> bytes:
     writer = Writer()
     writer.data += b"FLICKCAT"
-    writer.u16(8)
-    writer.u16(8)
+    writer.u16(9)
+    writer.u16(9)
     writer.u16(1)
-    writer.u16(13)
-    for namespace_id in range(1, 14):
+    writer.u16(15)
+    for namespace_id in range(1, 16):
         selected = [item for item in entries if item.namespace_id == namespace_id]
         writer.u16(namespace_id)
         writer.u32(len(selected))
@@ -572,7 +634,7 @@ def canonical_bytes(
             writer.string(entry.string_id)
             writer.u8(entry.state_id)
 
-    writer.u16(11)
+    writer.u16(13)
     writer.u16(2)
     writer.u16(3)
     writer.u32(len(pieces))
@@ -781,11 +843,25 @@ def canonical_bytes(
             writer.string(ref.string_id)
         writer.u32(definition.reward_profile_numeric_id)
     writer.u16(10)
-    writer.u16(1)
-    writer.u32(0)
+    writer.u16(2)
+    writer.u32(len(relics))
+    for definition in relics:
+        writer.u32(definition.numeric_id)
+        writer.string(definition.string_id)
+        writer.u16(definition.effect.kind_id)
+        writer.u32(definition.effect.primary_numeric_id)
+        writer.i64(definition.effect.amount)
     writer.u16(11)
-    writer.u16(1)
-    writer.u32(0)
+    writer.u16(2)
+    writer.u32(len(consumables))
+    for definition in consumables:
+        writer.u32(definition.numeric_id)
+        writer.string(definition.string_id)
+        writer.u16(definition.max_stack)
+        writer.u16(definition.use_phase_id)
+        writer.u16(definition.effect.kind_id)
+        writer.u32(definition.effect.primary_numeric_id)
+        writer.i64(definition.effect.amount)
     writer.u16(12)
     writer.u16(1)
     writer.u32(len(reward_profiles))
@@ -800,6 +876,34 @@ def canonical_bytes(
             writer.string(ref.string_id)
         writer.u32(definition.revenge_status_ref.numeric_id)
         writer.string(definition.revenge_status_ref.string_id)
+    writer.u16(13)
+    writer.u16(1)
+    writer.u32(len(shops))
+    for definition in shops:
+        writer.u32(definition.numeric_id)
+        writer.string(definition.string_id)
+        writer.u16(len(definition.offers))
+        for offer in definition.offers:
+            writer.u16(offer.offer_id)
+            writer.u16(offer.item_kind_id)
+            writer.u32(offer.item_ref.numeric_id)
+            writer.string(offer.item_ref.string_id)
+            writer.u16(offer.count)
+            writer.u32(offer.cost)
+    writer.u16(14)
+    writer.u16(1)
+    writer.u32(len(events))
+    for definition in events:
+        writer.u32(definition.numeric_id)
+        writer.string(definition.string_id)
+        writer.u16(len(definition.options))
+        for option in definition.options:
+            writer.u16(option.option_id)
+            writer.u8(1 if option.effect is not None else 0)
+            if option.effect is not None:
+                writer.u16(option.effect.kind_id)
+                writer.u32(option.effect.primary_numeric_id)
+                writer.i64(option.effect.amount)
     return bytes(writer.data)
 
 
@@ -824,10 +928,10 @@ def load_catalog(root: Path) -> Catalog:
         raise ContentError("CATALOG_LIMIT:bytes")
 
     catalog = _exact(_load_file(root, "catalog.json"), {"schema_version", "documents"}, "catalog")
-    if _integer(catalog["schema_version"], "catalog.schema_version") != 8:
+    if _integer(catalog["schema_version"], "catalog.schema_version") != 9:
         raise ContentError("UNSUPPORTED_SCHEMA:catalog")
     documents = catalog["documents"]
-    if not isinstance(documents, list) or len(documents) != 12:
+    if not isinstance(documents, list) or len(documents) != 14:
         raise ContentError("INVALID_DOMAIN:documents")
     seen_documents: set[int] = set()
     for raw in documents:
@@ -845,7 +949,7 @@ def load_catalog(root: Path) -> Catalog:
     if _integer(registry["schema_version"], "registry.schema_version") != 1:
         raise ContentError("UNSUPPORTED_SCHEMA:registry")
     namespaces = registry["namespaces"]
-    if not isinstance(namespaces, list) or len(namespaces) != 13:
+    if not isinstance(namespaces, list) or len(namespaces) != 15:
         raise ContentError("INVALID_DOMAIN:namespaces")
     entries: list[Entry] = []
     numeric_keys: set[tuple[int, int]] = set()
@@ -855,11 +959,11 @@ def load_catalog(root: Path) -> Catalog:
         namespace = _exact(raw_namespace, {"namespace_id", "entries"}, "namespace")
         namespace_id = _integer(namespace["namespace_id"], "namespace_id")
         raw_entries = namespace["entries"]
-        if namespace_id not in range(1, 14) or namespace_id in seen_namespaces:
+        if namespace_id not in range(1, 16) or namespace_id in seen_namespaces:
             raise ContentError("DUPLICATE_ID:namespace")
         if not isinstance(raw_entries, list) or len(raw_entries) > RECORD_MAX_COUNT:
             raise ContentError("CATALOG_LIMIT:entries")
-        if namespace_id in (5, 11, 12) and raw_entries:
+        if namespace_id == 5 and raw_entries:
             raise ContentError("INVALID_DOMAIN:inactive_namespace")
         seen_namespaces.add(namespace_id)
         for raw_entry in raw_entries:
@@ -874,7 +978,7 @@ def load_catalog(root: Path) -> Catalog:
             numeric_keys.add((namespace_id, numeric_id))
             string_keys.add((namespace_id, string_id))
             entries.append(Entry(namespace_id, numeric_id, string_id, state_id))
-    if seen_namespaces != set(range(1, 14)):
+    if seen_namespaces != set(range(1, 16)):
         raise ContentError("MISSING_KEY:namespace")
     entries.sort(key=lambda item: (item.namespace_id, item.numeric_id))
     by_numeric = {(item.namespace_id, item.numeric_id): item for item in entries}
@@ -1402,6 +1506,144 @@ def load_catalog(root: Path) -> Catalog:
     encounters.sort(key=lambda definition: definition.numeric_id)
     encounter_by_id = {definition.numeric_id: definition for definition in encounters}
 
+    def parse_run_effect(raw: Any, label: str, allowed_kinds: set[int], consumable_by_id: dict[int, ConsumableDefinition] | None = None) -> RunEffectDefinition:
+        item = _exact(raw, {"kind_id", "primary_numeric_id", "amount"}, label)
+        kind_id = _integer(item["kind_id"], f"{label}.kind_id")
+        primary_numeric_id = _integer(item["primary_numeric_id"], f"{label}.primary_numeric_id")
+        amount = _integer(item["amount"], f"{label}.amount")
+        valid = kind_id in allowed_kinds
+        if kind_id in (1, 4):
+            valid = valid and primary_numeric_id == 0 and 1 <= amount <= 1_000_000
+        elif kind_id == 2:
+            valid = valid and primary_numeric_id == 0 and amount == 1
+        elif kind_id == 3:
+            valid = valid and 1 <= primary_numeric_id <= UINT32_MAX and 1 <= amount <= 65_535
+            definition = None if consumable_by_id is None else consumable_by_id.get(primary_numeric_id)
+            valid = valid and definition is not None and amount <= definition.max_stack
+        else:
+            valid = False
+        if not valid:
+            raise ContentError(f"INVALID_DOMAIN:{label}")
+        return RunEffectDefinition(kind_id, primary_numeric_id, amount)
+
+    relic_doc = _exact(_load_file(root, "relics.json"), {"schema_version", "records"}, "relics")
+    if _integer(relic_doc["schema_version"], "relics.schema_version") != 2:
+        raise ContentError("UNSUPPORTED_SCHEMA:relics")
+    relic_records = relic_doc["records"]
+    if not isinstance(relic_records, list) or len(relic_records) > 256:
+        raise ContentError("CATALOG_LIMIT:relics")
+    relics: list[RelicDefinition] = []
+    relic_ids: set[int] = set()
+    relic_strings: set[str] = set()
+    previous_relic_id = 0
+    for raw in relic_records:
+        item = _exact(raw, {"numeric_id", "id", "effect"}, "relic")
+        numeric_id = _u32(item["numeric_id"], "relic.numeric_id")
+        string_id = _string_id(item["id"], "relic.id")
+        active_pair(11, numeric_id, string_id)
+        if numeric_id <= previous_relic_id or numeric_id in relic_ids or string_id in relic_strings:
+            raise ContentError("DUPLICATE_ID:relic")
+        relics.append(RelicDefinition(numeric_id, string_id, parse_run_effect(item["effect"], "relic.effect", {4})))
+        relic_ids.add(numeric_id); relic_strings.add(string_id); previous_relic_id = numeric_id
+    relic_by_id = {definition.numeric_id: definition for definition in relics}
+
+    consumable_doc = _exact(_load_file(root, "consumables.json"), {"schema_version", "records"}, "consumables")
+    if _integer(consumable_doc["schema_version"], "consumables.schema_version") != 2:
+        raise ContentError("UNSUPPORTED_SCHEMA:consumables")
+    consumable_records = consumable_doc["records"]
+    if not isinstance(consumable_records, list) or len(consumable_records) > 256:
+        raise ContentError("CATALOG_LIMIT:consumables")
+    consumables: list[ConsumableDefinition] = []
+    consumable_ids: set[int] = set()
+    consumable_strings: set[str] = set()
+    previous_consumable_id = 0
+    for raw in consumable_records:
+        item = _exact(raw, {"numeric_id", "id", "max_stack", "use_phase_id", "effect"}, "consumable")
+        numeric_id = _u32(item["numeric_id"], "consumable.numeric_id")
+        string_id = _string_id(item["id"], "consumable.id")
+        active_pair(12, numeric_id, string_id)
+        max_stack = _integer(item["max_stack"], "consumable.max_stack")
+        use_phase_id = _integer(item["use_phase_id"], "consumable.use_phase_id")
+        if numeric_id <= previous_consumable_id or numeric_id in consumable_ids or string_id in consumable_strings or not 1 <= max_stack <= 65_535 or use_phase_id != 1:
+            raise ContentError("INVALID_DOMAIN:consumable")
+        effect = parse_run_effect(item["effect"], "consumable.effect", {2})
+        consumables.append(ConsumableDefinition(numeric_id, string_id, max_stack, use_phase_id, effect))
+        consumable_ids.add(numeric_id); consumable_strings.add(string_id); previous_consumable_id = numeric_id
+    consumable_by_id = {definition.numeric_id: definition for definition in consumables}
+
+    shop_doc = _exact(_load_file(root, "shops.json"), {"schema_version", "records"}, "shops")
+    if _integer(shop_doc["schema_version"], "shops.schema_version") != 1:
+        raise ContentError("UNSUPPORTED_SCHEMA:shops")
+    shop_records = shop_doc["records"]
+    if not isinstance(shop_records, list) or len(shop_records) > 256:
+        raise ContentError("CATALOG_LIMIT:shops")
+    shops: list[ShopDefinition] = []
+    shop_ids: set[int] = set()
+    shop_strings: set[str] = set()
+    previous_shop_id = 0
+    for raw in shop_records:
+        item = _exact(raw, {"numeric_id", "id", "offers"}, "shop")
+        numeric_id = _u32(item["numeric_id"], "shop.numeric_id")
+        string_id = _string_id(item["id"], "shop.id")
+        active_pair(14, numeric_id, string_id)
+        offers_raw = item["offers"]
+        if numeric_id <= previous_shop_id or numeric_id in shop_ids or string_id in shop_strings or not isinstance(offers_raw, list) or not 1 <= len(offers_raw) <= 7:
+            raise ContentError("INVALID_DOMAIN:shop")
+        offers: list[ShopOfferDefinition] = []
+        seen_items: set[tuple[int, int]] = set()
+        for index, raw_offer in enumerate(offers_raw, 1):
+            offer = _exact(raw_offer, {"offer_id", "item_kind_id", "item_ref", "count", "cost"}, "shop.offer")
+            offer_id = _integer(offer["offer_id"], "shop.offer.offer_id")
+            item_kind_id = _integer(offer["item_kind_id"], "shop.offer.item_kind_id")
+            ref_raw = _exact(offer["item_ref"], {"numeric_id", "id"}, "shop.offer.item_ref")
+            item_ref = Ref(_u32(ref_raw["numeric_id"], "shop.offer.item_ref.numeric_id"), _string_id(ref_raw["id"], "shop.offer.item_ref.id"))
+            count = _integer(offer["count"], "shop.offer.count")
+            cost = _integer(offer["cost"], "shop.offer.cost")
+            target = relic_by_id.get(item_ref.numeric_id) if item_kind_id == 1 else consumable_by_id.get(item_ref.numeric_id) if item_kind_id == 2 else None
+            active_pair(11 if item_kind_id == 1 else 12, item_ref.numeric_id, item_ref.string_id) if item_kind_id in (1, 2) else None
+            valid_count = count == 1 if item_kind_id == 1 else target is not None and 1 <= count <= target.max_stack
+            if offer_id != index or target is None or target.string_id != item_ref.string_id or not valid_count or not 1 <= cost <= 1_000_000 or (item_kind_id, item_ref.numeric_id) in seen_items:
+                raise ContentError("INVALID_DOMAIN:shop.offer")
+            seen_items.add((item_kind_id, item_ref.numeric_id)); offers.append(ShopOfferDefinition(offer_id, item_kind_id, item_ref, count, cost))
+        shops.append(ShopDefinition(numeric_id, string_id, tuple(offers)))
+        shop_ids.add(numeric_id); shop_strings.add(string_id); previous_shop_id = numeric_id
+    shop_by_id = {definition.numeric_id: definition for definition in shops}
+
+    event_doc = _exact(_load_file(root, "events.json"), {"schema_version", "records"}, "events")
+    if _integer(event_doc["schema_version"], "events.schema_version") != 1:
+        raise ContentError("UNSUPPORTED_SCHEMA:events")
+    event_records = event_doc["records"]
+    if not isinstance(event_records, list) or len(event_records) > 256:
+        raise ContentError("CATALOG_LIMIT:events")
+    events: list[EventDefinition] = []
+    event_ids: set[int] = set()
+    event_strings: set[str] = set()
+    previous_event_id = 0
+    for raw in event_records:
+        item = _exact(raw, {"numeric_id", "id", "options"}, "event")
+        numeric_id = _u32(item["numeric_id"], "event.numeric_id")
+        string_id = _string_id(item["id"], "event.id")
+        active_pair(15, numeric_id, string_id)
+        options_raw = item["options"]
+        if numeric_id <= previous_event_id or numeric_id in event_ids or string_id in event_strings or not isinstance(options_raw, list) or not 1 <= len(options_raw) <= 8:
+            raise ContentError("INVALID_DOMAIN:event")
+        options: list[EventOptionDefinition] = []
+        has_empty = False
+        for index, raw_option in enumerate(options_raw, 1):
+            option = _exact(raw_option, {"option_id", "effects"}, "event.option")
+            option_id = _integer(option["option_id"], "event.option.option_id")
+            effects = option["effects"]
+            if option_id != index or not isinstance(effects, list) or len(effects) > 1:
+                raise ContentError("INVALID_DOMAIN:event.option")
+            effect = parse_run_effect(effects[0], "event.option.effect", {1, 3}, consumable_by_id) if effects else None
+            has_empty = has_empty or effect is None
+            options.append(EventOptionDefinition(option_id, effect))
+        if not has_empty:
+            raise ContentError("INVALID_DOMAIN:event.empty_option")
+        events.append(EventDefinition(numeric_id, string_id, tuple(options)))
+        event_ids.add(numeric_id); event_strings.add(string_id); previous_event_id = numeric_id
+    event_by_id = {definition.numeric_id: definition for definition in events}
+
     acts_doc = _exact(_load_file(root, "acts.json"), {"schema_version", "records"}, "acts")
     if _integer(acts_doc["schema_version"], "acts.schema_version") != 1:
         raise ContentError("UNSUPPORTED_SCHEMA:acts")
@@ -1423,8 +1665,6 @@ def load_catalog(root: Path) -> Catalog:
         if not isinstance(floors_raw, list) or not 2 <= len(floors_raw) <= 16:
             raise ContentError("INVALID_DOMAIN:act.floors")
         floors: list[ActFloorDefinition] = []
-        local_numeric: dict[int, dict[int, str]] = {3: {}, 4: {}}
-        local_string: dict[int, dict[str, int]] = {3: {}, 4: {}}
         exposed_node_types: set[int] = set()
         for raw_floor in floors_raw:
             floor_raw = _exact(raw_floor, {"floor_index", "slots"}, "act.floor")
@@ -1470,12 +1710,10 @@ def load_catalog(root: Path) -> Catalog:
                             if encounter is None or encounter.string_id != ref.string_id or encounter.node_type_id != node_type_id:
                                 raise ContentError("MISSING_REFERENCE:act.encounter")
                         elif node_type_id in (3, 4):
-                            numeric_match = local_numeric[node_type_id].get(ref.numeric_id)
-                            string_match = local_string[node_type_id].get(ref.string_id)
-                            if (numeric_match is not None and numeric_match != ref.string_id) or (string_match is not None and string_match != ref.numeric_id):
-                                raise ContentError("INVALID_ID:act.local_profile_pair")
-                            local_numeric[node_type_id][ref.numeric_id] = ref.string_id
-                            local_string[node_type_id][ref.string_id] = ref.numeric_id
+                            active_pair(14 if node_type_id == 3 else 15, ref.numeric_id, ref.string_id)
+                            profile = shop_by_id.get(ref.numeric_id) if node_type_id == 3 else event_by_id.get(ref.numeric_id)
+                            if profile is None or profile.string_id != ref.string_id:
+                                raise ContentError("MISSING_REFERENCE:act.profile")
                         refs.append(ref)
                         ref_numeric_ids.add(ref.numeric_id)
                         ref_string_ids.add(ref.string_id)
@@ -1506,13 +1744,6 @@ def load_catalog(root: Path) -> Catalog:
         act_ids.add(numeric_id)
         act_strings.add(string_id)
     acts.sort(key=lambda definition: definition.numeric_id)
-
-    for file_name, label in (("relics.json", "relics"), ("consumables.json", "consumables")):
-        empty_doc = _exact(_load_file(root, file_name), {"schema_version", "records"}, label)
-        if _integer(empty_doc["schema_version"], f"{label}.schema_version") != 1:
-            raise ContentError(f"UNSUPPORTED_SCHEMA:{label}")
-        if empty_doc["records"] != []:
-            raise ContentError(f"INVALID_DOMAIN:{label}.records")
 
     for ability in abilities:
         for effect in ability.effects:
@@ -1553,6 +1784,14 @@ def load_catalog(root: Path) -> Catalog:
             raise ContentError("MISSING_REFERENCE:encounter_definition")
         if entry.namespace_id == 13 and entry.numeric_id not in reward_profile_ids:
             raise ContentError("MISSING_REFERENCE:reward_profile_definition")
+        if entry.namespace_id == 11 and entry.numeric_id not in relic_ids:
+            raise ContentError("MISSING_REFERENCE:relic_definition")
+        if entry.namespace_id == 12 and entry.numeric_id not in consumable_ids:
+            raise ContentError("MISSING_REFERENCE:consumable_definition")
+        if entry.namespace_id == 14 and entry.numeric_id not in shop_ids:
+            raise ContentError("MISSING_REFERENCE:shop_definition")
+        if entry.namespace_id == 15 and entry.numeric_id not in event_ids:
+            raise ContentError("MISSING_REFERENCE:event_definition")
 
     entries_tuple = tuple(entries)
     pieces_tuple = tuple(pieces)
@@ -1563,9 +1802,13 @@ def load_catalog(root: Path) -> Catalog:
     enemies_tuple = tuple(enemies)
     acts_tuple = tuple(acts)
     encounters_tuple = tuple(encounters)
+    relics_tuple = tuple(relics)
+    consumables_tuple = tuple(consumables)
     reward_profiles_tuple = tuple(reward_profiles)
-    encoded = canonical_bytes(entries_tuple, pieces_tuple, abilities_tuple, statuses_tuple, synergies_tuple, maps_tuple, enemies_tuple, acts_tuple, encounters_tuple, reward_profiles_tuple)
-    return Catalog(entries_tuple, pieces_tuple, abilities_tuple, statuses_tuple, synergies_tuple, maps_tuple, enemies_tuple, acts_tuple, encounters_tuple, reward_profiles_tuple, encoded, hashlib.sha256(encoded).digest())
+    shops_tuple = tuple(shops)
+    events_tuple = tuple(events)
+    encoded = canonical_bytes(entries_tuple, pieces_tuple, abilities_tuple, statuses_tuple, synergies_tuple, maps_tuple, enemies_tuple, acts_tuple, encounters_tuple, relics_tuple, consumables_tuple, reward_profiles_tuple, shops_tuple, events_tuple)
+    return Catalog(entries_tuple, pieces_tuple, abilities_tuple, statuses_tuple, synergies_tuple, maps_tuple, enemies_tuple, acts_tuple, encounters_tuple, relics_tuple, consumables_tuple, reward_profiles_tuple, shops_tuple, events_tuple, encoded, hashlib.sha256(encoded).digest())
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1581,7 +1824,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.canonical_hex:
         print(f"canonical_hex={catalog.compatibility_bytes.hex()}")
     print(f"fingerprint={catalog.fingerprint.hex()}")
-    print(f"pieces={len(catalog.pieces)} abilities={len(catalog.abilities)} statuses={len(catalog.statuses)} synergies={len(catalog.synergies)} maps={len(catalog.maps)} enemies={len(catalog.enemies)} acts={len(catalog.acts)} encounters={len(catalog.encounters)} reward_profiles={len(catalog.reward_profiles)} registry_entries={len(catalog.entries)}")
+    print(f"pieces={len(catalog.pieces)} abilities={len(catalog.abilities)} statuses={len(catalog.statuses)} synergies={len(catalog.synergies)} maps={len(catalog.maps)} enemies={len(catalog.enemies)} acts={len(catalog.acts)} encounters={len(catalog.encounters)} relics={len(catalog.relics)} consumables={len(catalog.consumables)} reward_profiles={len(catalog.reward_profiles)} shops={len(catalog.shops)} events={len(catalog.events)} registry_entries={len(catalog.entries)}")
     print("CONTENT_CATALOG_RESULT: PASS")
     return 0
 
