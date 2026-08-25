@@ -90,7 +90,7 @@ P4 완료는 정식 3막 밸런스 완료가 아니다. 동일한 런 코어와 
 | P4-1 | [`p4_run_state_snapshot.md`](p4_run_state_snapshot.md) · RunState·기물 인스턴스·RunSnapshot·원자 명령 | **구현·자동 검증 완료** · 생성/복사/오류 rollback/정규 bytes 결정론 |
 | P4-2 | [`p4_act_encounter_map_generation.md`](p4_act_encounter_map_generation.md) · act·encounter catalog와 분기 노드맵 | **승인·구현·자동 검증 완료** · catalog v7, generated graph exact 복원, 전 노드 도달 가능 |
 | P4-3 | [`p4_formation_battle_outcome_life.md`](p4_formation_battle_outcome_life.md) · 편성·BattleSetup 요청·전투 결과·라이프 | **승인·구현·자동 검증 완료** · 전투 승패가 정확히 한 번 런 상태에 반영됨 |
-| P4-4 | 영입·골드·휴식·합성·덱 관리 | 후보 고정, 상한·중복·레벨 3 계약, 선택 rollback |
+| P4-4 | [`p4_reward_recruitment_rest_merge.md`](p4_reward_recruitment_rest_merge.md) · 영입·골드·휴식·합성·보복 보상 | **상세 명세 승인 · 구현 중** · 후보 고정, 상한·중복·레벨 3, 다음 전투 boon, 선택 rollback |
 | P4-5 | 유물·소모품·상점·이벤트 공통 프레임 | 최소 승인 콘텐츠로 여섯 노드 유형을 모두 완료 가능 |
 | P4-6 | 축약 Act 1 UI·저장/이어하기·배치 런 | 처음부터 보스까지 자동/사람 완주 |
 
@@ -415,12 +415,15 @@ docs/design/game_design.md
 4. P4-4 영입·gold·휴식·합성·로스터 명령을 구현한다.
 5. P4-5 최소 relic/consumable/shop/event record와 effect 경계를 별도 승인한다.
 6. P4-6 5층 개발 Act, run UI, 단일 continue save, 자동 완주 runner를 연결한다.
-7. 각 단계 narrow 뒤 P0~P3 대표 회귀를 실행하고, 데모 기간 일상 검증은 `verify --demo`를 사용한다.
-8. 단계 종료에서 milestone route·실제 렌더·Web 플레이를 확인한다.
-9. 사람 Act 1 완주 승인 뒤 P4 런 루프 완료를 기록한다.
+7. P4-4·5 구현 중에는 반복 runner·대표 회귀·`verify`를 실행하지 않고, 로드 불가 방지용 최소 import만 허용한다.
+8. P4-6까지 전체 구현한 뒤 P4-1~6 narrow, quick 4런, P0~P3 대표 회귀와 `verify --demo`를 누적 실행한다.
+9. 단계 종료에서 milestone route·실제 렌더·Web 플레이를 확인한다.
+10. 사람 Act 1 완주 승인 뒤 P4 런 루프 완료를 기록한다.
 
 ## 승인·후속 결정 기록
 
 2026-08-25 사용자는 시간 제약에 따라 P4-R17의 일상 검증을 8런에서 **4런**으로 줄이고, 그 외 P4-R01~16 및 P4-R17의 milestone·순수 결정론 범위를 승인했다. 이로써 P4 전체 방향과 P4-1~6 분해는 승인되었다.
+
+2026-08-25 사용자는 빠른 MVP 구현을 위해 P4-4·5의 단계별 자동 검증을 이연하고 **P4-6까지 전체 구현한 뒤 누적 검증**하도록 승인했다. quick 검증량은 기존 승인대로 4런이며, 이연은 수용 기준 삭제가 아니라 실행 시점 변경이다.
 
 P4-R15의 개별 graybox 유물·소모품·이벤트 효과와 U-14 보복 효과는 이 승인에 포함되지 않는다. P4-1부터 각 하위 상세 명세를 별도 작성·승인한 뒤 해당 `src/core/` 구현에 들어간다.
