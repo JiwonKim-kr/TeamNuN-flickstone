@@ -89,7 +89,7 @@ P4 완료는 정식 3막 밸런스 완료가 아니다. 동일한 런 코어와 
 |---|---|---|
 | P4-1 | [`p4_run_state_snapshot.md`](p4_run_state_snapshot.md) · RunState·기물 인스턴스·RunSnapshot·원자 명령 | **구현·자동 검증 완료** · 생성/복사/오류 rollback/정규 bytes 결정론 |
 | P4-2 | [`p4_act_encounter_map_generation.md`](p4_act_encounter_map_generation.md) · act·encounter catalog와 분기 노드맵 | **승인·구현·자동 검증 완료** · catalog v7, generated graph exact 복원, 전 노드 도달 가능 |
-| P4-3 | 편성·BattleSetup 요청·전투 결과·라이프 | 전투 승패가 정확히 한 번 런 상태에 반영됨 |
+| P4-3 | [`p4_formation_battle_outcome_life.md`](p4_formation_battle_outcome_life.md) · 편성·BattleSetup 요청·전투 결과·라이프 | **상세 명세 승인 · 구현 진행** · 전투 승패가 정확히 한 번 런 상태에 반영됨 |
 | P4-4 | 영입·골드·휴식·합성·덱 관리 | 후보 고정, 상한·중복·레벨 3 계약, 선택 rollback |
 | P4-5 | 유물·소모품·상점·이벤트 공통 프레임 | 최소 승인 콘텐츠로 여섯 노드 유형을 모두 완료 가능 |
 | P4-6 | 축약 Act 1 UI·저장/이어하기·배치 런 | 처음부터 보스까지 자동/사람 완주 |
