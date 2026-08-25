@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "pipeline" / "scripts"))
 from content_catalog import ContentError, load_catalog  # noqa: E402
 
 RUNTIME = ROOT / "src" / "core" / "data"
-EXPECTED_FINGERPRINT = "89340a848cea8b0ec2b688243a16945bb6e071d6f28e9948e6cefe04e0d011f3"
+EXPECTED_FINGERPRINT = "ed6dd1319f158a539ffe4bc89bce965ea1061586b1e462a7e211bb8f0f561e3e"
 
 
 def mutate(file_name: str, callback) -> tuple[bool, str]:
@@ -61,7 +61,7 @@ def reverse_canonical_records(root: Path) -> None:
     for namespace in registry_value["namespaces"]:
         namespace["entries"].reverse()
     registry.write_text(json.dumps(registry_value, separators=(",", ":")), encoding="utf-8")
-    for name in ("pieces.json", "abilities.json", "statuses.json", "synergies.json", "maps.json", "enemies.json"):
+    for name in ("pieces.json", "abilities.json", "statuses.json", "synergies.json", "maps.json", "enemies.json", "acts.json", "encounters.json"):
         path = root / name
         value = json.loads(path.read_text(encoding="utf-8"))
         value["records"].reverse()
@@ -75,7 +75,7 @@ def main() -> int:
     assert [ability.string_id for ability in catalog.abilities] == ["graybox_opening_haste"]
     assert [status.string_id for status in catalog.statuses] == ["graybox_haste"]
     assert [synergy.string_id for synergy in catalog.synergies] == ["destruction", "steel"]
-    assert [item.string_id for item in catalog.enemies] == ["enemy_baduk_stone", "enemy_bottle_cap", "enemy_graybox_striker"]
+    assert [item.string_id for item in catalog.enemies] == ["enemy_baduk_stone", "enemy_bottle_cap", "enemy_graybox_striker", "graybox_elite_baduk_stone", "graybox_boss_graybox_striker"]
     assert [item.string_id for item in catalog.maps] == ["graybox_pit_arena"]
     assert all(len(piece.levels) == 1 for piece in catalog.pieces)
 

@@ -87,7 +87,7 @@ func reload_catalog(root_path: String, status: ContentStatus) -> bool:
 	var catalog_document: Dictionary = _parse_object(bytes_by_name[ContentIds.CATALOG_FILE], ContentIds.DocumentKind.INVALID, status)
 	if not status.is_ok(): return false
 	var source_documents: Array[ContentSourceFile] = []
-	for kind_id: int in range(ContentIds.DocumentKind.ID_REGISTRY, ContentIds.DocumentKind.ENEMIES + 1):
+	for kind_id: int in range(ContentIds.DocumentKind.ID_REGISTRY, ContentIds.DocumentKind.CONSUMABLES + 1):
 		var file_name: String = ContentIds.file_for_document_kind(kind_id)
 		var root: Dictionary = _parse_object(bytes_by_name[file_name], kind_id, status)
 		if not status.is_ok(): return false
@@ -165,6 +165,18 @@ func enemy_by_numeric_id(id: int, status: ContentStatus) -> EnemyDefinition:
 		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
 		return EnemyDefinition.new()
 	return _catalog.enemy_by_numeric_id(id, status)
+
+func act_by_numeric_id(id: int, status: ContentStatus) -> ActDefinition:
+	if not is_ready():
+		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
+		return ActDefinition.new()
+	return _catalog.act_by_numeric_id(id, status)
+
+func encounter_by_numeric_id(id: int, status: ContentStatus) -> EncounterDefinition:
+	if not is_ready():
+		if status.is_ok(): status.fail(ContentStatus.Code.CATALOG_UNAVAILABLE, ContentStatus.Operation.LOOKUP)
+		return EncounterDefinition.new()
+	return _catalog.encounter_by_numeric_id(id, status)
 
 
 func fingerprint_bytes(status: ContentStatus) -> PackedByteArray:

@@ -25,7 +25,7 @@ P4 완료는 정식 3막 밸런스 완료가 아니다. 동일한 런 코어와 
 - `docs/specs/p3_ai_shot_selection.md`: enemy의 `ai_grade_id`와 결정론적 적 발사
 - `docs/specs/p4_submission_web_preview.md`: 640×1,024 Web 빌드와 Pages 배포 계약
 
-현재 runtime에는 플레이어 기물 2종과 명시적 graybox 전용 기물 1종, COMMON 적 3종, 맵 1종만 있다. 전 기물은 레벨 1만 가지며 act·encounter·relic·consumable·event 데이터와 `RunState`·`RunManager`·`SaveManager`는 아직 없다.
+현재 runtime에는 플레이어 기물 2종과 명시적 graybox 전용 기물 1종, COMMON/ELITE/BOSS 적 5종, 맵 1종, 개발 Act 1개와 encounter 4개가 있다. relic·consumable 문서는 P4-2에서 빈 schema만 선점했고 실제 record와 event 데이터, `RunManager`·`SaveManager`는 아직 없다.
 
 ### P4 이름 충돌
 
@@ -88,7 +88,7 @@ P4 완료는 정식 3막 밸런스 완료가 아니다. 동일한 런 코어와 
 | 하위 단계 | 내용 | 완료 경계 |
 |---|---|---|
 | P4-1 | [`p4_run_state_snapshot.md`](p4_run_state_snapshot.md) · RunState·기물 인스턴스·RunSnapshot·원자 명령 | **구현·자동 검증 완료** · 생성/복사/오류 rollback/정규 bytes 결정론 |
-| P4-2 | act·encounter catalog와 분기 노드맵 | 같은 시드의 graph·node content 일치, 전 노드 도달 가능 |
+| P4-2 | [`p4_act_encounter_map_generation.md`](p4_act_encounter_map_generation.md) · act·encounter catalog와 분기 노드맵 | **승인·구현·자동 검증 완료** · catalog v7, generated graph exact 복원, 전 노드 도달 가능 |
 | P4-3 | 편성·BattleSetup 요청·전투 결과·라이프 | 전투 승패가 정확히 한 번 런 상태에 반영됨 |
 | P4-4 | 영입·골드·휴식·합성·덱 관리 | 후보 고정, 상한·중복·레벨 3 계약, 선택 rollback |
 | P4-5 | 유물·소모품·상점·이벤트 공통 프레임 | 최소 승인 콘텐츠로 여섯 노드 유형을 모두 완료 가능 |
@@ -230,7 +230,7 @@ RunState.resolve_rest(command, status) -> bool
 RunState.resolve_shop(command, status) -> bool
 RunState.resolve_event(command, status) -> bool
 
-RunMapGenerator.generate(act, catalog, seed_hi, seed_lo, status) -> RunNodeGraph
+RunMapGenerator.generate(catalog, act_id, seed_hi, seed_lo, status) -> RunNodeGraph
 RunRewardGenerator.generate(state, profile, status) -> RunPendingChoice
 
 RunBattleBridge.request_for(state, catalog, status) -> RunBattleRequest

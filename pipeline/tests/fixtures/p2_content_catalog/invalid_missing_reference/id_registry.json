@@ -1,10 +1,65 @@
 {
-  "schema_version":1,
-  "namespaces":[
-    {"namespace_id":1,"entries":[{"numeric_id":1,"id":"fixture_puck","state_id":1}]},
-    {"namespace_id":2,"entries":[{"numeric_id":1,"id":"fixture_collision","state_id":1}]},
-    {"namespace_id":3,"entries":[]},{"namespace_id":4,"entries":[]},
-    {"namespace_id":5,"entries":[]},{"namespace_id":6,"entries":[]},
-    {"namespace_id":7,"entries":[]},{"namespace_id":8,"entries":[]}
+  "schema_version": 1,
+  "namespaces": [
+    {
+      "namespace_id": 1,
+      "entries": [
+        {
+          "numeric_id": 1,
+          "id": "fixture_puck",
+          "state_id": 1
+        }
+      ]
+    },
+    {
+      "namespace_id": 2,
+      "entries": [
+        {
+          "numeric_id": 1,
+          "id": "fixture_collision",
+          "state_id": 1
+        }
+      ]
+    },
+    {
+      "namespace_id": 3,
+      "entries": []
+    },
+    {
+      "namespace_id": 4,
+      "entries": []
+    },
+    {
+      "namespace_id": 5,
+      "entries": []
+    },
+    {
+      "namespace_id": 6,
+      "entries": []
+    },
+    {
+      "namespace_id": 7,
+      "entries": []
+    },
+    {
+      "namespace_id": 8,
+      "entries": []
+    },
+    {
+      "namespace_id": 9,
+      "entries": []
+    },
+    {
+      "namespace_id": 10,
+      "entries": []
+    },
+    {
+      "namespace_id": 11,
+      "entries": []
+    },
+    {
+      "namespace_id": 12,
+      "entries": []
+    }
   ]
 }

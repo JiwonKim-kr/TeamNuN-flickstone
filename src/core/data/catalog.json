@@ -1,5 +1,5 @@
 {
-  "schema_version": 6,
+  "schema_version": 7,
   "documents": [
     {
       "kind_id": 1,
@@ -35,6 +35,26 @@
       "kind_id": 7,
       "file_name": "enemies.json",
       "schema_version": 2
+    },
+    {
+      "kind_id": 8,
+      "file_name": "acts.json",
+      "schema_version": 1
+    },
+    {
+      "kind_id": 9,
+      "file_name": "encounters.json",
+      "schema_version": 1
+    },
+    {
+      "kind_id": 10,
+      "file_name": "relics.json",
+      "schema_version": 1
+    },
+    {
+      "kind_id": 11,
+      "file_name": "consumables.json",
+      "schema_version": 1
     }
   ]
 }

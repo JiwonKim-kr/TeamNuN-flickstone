@@ -10,6 +10,8 @@ var _statuses: Array[StatusDefinition] = []
 var _synergies: Array[SynergyDefinition] = []
 var _maps: Array[MapDefinition] = []
 var _enemies: Array[EnemyDefinition] = []
+var _acts: Array[ActDefinition] = []
+var _encounters: Array[EncounterDefinition] = []
 var _compatibility_bytes: PackedByteArray = PackedByteArray()
 var _fingerprint: PackedByteArray = PackedByteArray()
 var _initialized: bool = false
@@ -24,6 +26,8 @@ static func create(
 		synergies: Array[SynergyDefinition],
 		maps: Array[MapDefinition],
 		enemies: Array[EnemyDefinition],
+		acts: Array[ActDefinition],
+		encounters: Array[EncounterDefinition],
 		compatibility_bytes: PackedByteArray,
 		fingerprint: PackedByteArray,
 		status: ContentStatus
@@ -60,6 +64,12 @@ static func create(
 	for definition: EnemyDefinition in enemies:
 		if definition == null or not definition.is_initialized(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.CATALOG_BUILD); return ContentCatalog.new()
 		result._enemies.append(definition.copy())
+	for definition: ActDefinition in acts:
+		if definition == null or not definition.is_initialized(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.CATALOG_BUILD); return ContentCatalog.new()
+		result._acts.append(definition.copy())
+	for definition: EncounterDefinition in encounters:
+		if definition == null or not definition.is_initialized(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.CATALOG_BUILD); return ContentCatalog.new()
+		result._encounters.append(definition.copy())
 	result._catalog_schema_version = catalog_schema_version
 	result._compatibility_bytes = compatibility_bytes.duplicate()
 	result._fingerprint = fingerprint.duplicate()
@@ -70,7 +80,7 @@ static func create(
 func copy() -> ContentCatalog:
 	if not _initialized: return ContentCatalog.new()
 	var status := ContentStatus.new()
-	return create(_catalog_schema_version, _registry_entries, _pieces, _abilities, _statuses, _synergies, _maps, _enemies, _compatibility_bytes, _fingerprint, status)
+	return create(_catalog_schema_version, _registry_entries, _pieces, _abilities, _statuses, _synergies, _maps, _enemies, _acts, _encounters, _compatibility_bytes, _fingerprint, status)
 
 
 func is_initialized() -> bool: return _initialized
@@ -81,6 +91,10 @@ func status_count() -> int: return _statuses.size()
 func synergy_count() -> int: return _synergies.size()
 func map_count() -> int: return _maps.size()
 func enemy_count() -> int: return _enemies.size()
+func act_count() -> int: return _acts.size()
+func encounter_count() -> int: return _encounters.size()
+func relic_count() -> int: return 0
+func consumable_count() -> int: return 0
 func registry_entry_count() -> int: return _registry_entries.size()
 func fingerprint_bytes() -> PackedByteArray: return _fingerprint.duplicate()
 func compatibility_bytes_for_test() -> PackedByteArray: return _compatibility_bytes.duplicate()
@@ -125,6 +139,14 @@ func map_at(index: int, status: ContentStatus) -> MapDefinition:
 func enemy_at(index: int, status: ContentStatus) -> EnemyDefinition:
 	if index < 0 or index >= _enemies.size(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.ENEMIES); return EnemyDefinition.new()
 	return _enemies[index].copy()
+
+func act_at(index: int, status: ContentStatus) -> ActDefinition:
+	if index < 0 or index >= _acts.size(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.ACTS); return ActDefinition.new()
+	return _acts[index].copy()
+
+func encounter_at(index: int, status: ContentStatus) -> EncounterDefinition:
+	if index < 0 or index >= _encounters.size(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.ENCOUNTERS); return EncounterDefinition.new()
+	return _encounters[index].copy()
 
 
 func registry_entry_at(index: int, status: ContentStatus) -> ContentRegistryEntry:
@@ -188,6 +210,20 @@ func enemy_by_numeric_id(id: int, status: ContentStatus) -> EnemyDefinition:
 	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.ENEMIES, id)
 	return EnemyDefinition.new()
 
+func act_by_numeric_id(id: int, status: ContentStatus) -> ActDefinition:
+	for item: ActDefinition in _acts:
+		if item.numeric_id() == id: return item.copy()
+		if item.numeric_id() > id: break
+	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.ACTS, id)
+	return ActDefinition.new()
+
+func encounter_by_numeric_id(id: int, status: ContentStatus) -> EncounterDefinition:
+	for item: EncounterDefinition in _encounters:
+		if item.numeric_id() == id: return item.copy()
+		if item.numeric_id() > id: break
+	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.ENCOUNTERS, id)
+	return EncounterDefinition.new()
+
 func synergy_by_tag_numeric_id(id: int, status: ContentStatus) -> SynergyDefinition:
 	for item: SynergyDefinition in _synergies:
 		if item.tag_ref().numeric_id() == id: return item.copy()
@@ -207,3 +243,15 @@ func ability_by_string_id(id: String, status: ContentStatus) -> AbilityDefinitio
 		if item.string_id() == id: return item.copy()
 	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.ABILITIES)
 	return AbilityDefinition.new()
+
+func act_by_string_id(id: String, status: ContentStatus) -> ActDefinition:
+	for item: ActDefinition in _acts:
+		if item.string_id() == id: return item.copy()
+	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.ACTS)
+	return ActDefinition.new()
+
+func encounter_by_string_id(id: String, status: ContentStatus) -> EncounterDefinition:
+	for item: EncounterDefinition in _encounters:
+		if item.string_id() == id: return item.copy()
+	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.ENCOUNTERS)
+	return EncounterDefinition.new()

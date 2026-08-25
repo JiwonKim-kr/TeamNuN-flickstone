@@ -25,11 +25,13 @@ var _consumable_stacks: Array[RunConsumableStack] = []
 var _pending_choice: RunPendingChoice = RunPendingChoice.new()
 var _initialized: bool = false
 
-static func create(catalog: ContentCatalog, act_numeric_id: int, graph: RunNodeGraph, seed_hi: int, seed_lo: int, initial_pieces: Array[RunPieceInit], status: SimStatus) -> RunState:
+static func create(catalog: ContentCatalog, act_numeric_id: int, seed_hi: int, seed_lo: int, initial_pieces: Array[RunPieceInit], status: SimStatus) -> RunState:
 	var result := RunState.new()
 	if not status.is_ok(): return result
-	if catalog == null or not catalog.is_initialized() or graph == null or not graph.is_initialized() or act_numeric_id <= 0 or act_numeric_id > 0xFFFFFFFF or seed_hi < 0 or seed_hi > 0xFFFFFFFF or seed_lo < 0 or seed_lo > 0xFFFFFFFF:
+	if catalog == null or not catalog.is_initialized() or act_numeric_id <= 0 or act_numeric_id > 0xFFFFFFFF or seed_hi < 0 or seed_hi > 0xFFFFFFFF or seed_lo < 0 or seed_lo > 0xFFFFFFFF:
 		status.fail(SimStatus.Code.INVALID_RUN_STATE, SimStatus.Operation.RUN_STATE_CREATE, act_numeric_id, 0); return result
+	var graph: RunNodeGraph = RunMapGenerator.generate(catalog, act_numeric_id, seed_hi, seed_lo, status)
+	if not status.is_ok(): return RunState.new()
 	if initial_pieces.is_empty() or initial_pieces.size() > RunLimits.GAMEPLAY_ROSTER_CAP:
 		status.fail(SimStatus.Code.RUN_LIMIT_EXCEEDED, SimStatus.Operation.RUN_STATE_CREATE, initial_pieces.size(), RunLimits.GAMEPLAY_ROSTER_CAP); return result
 	var sorted: Array[RunPieceInit] = []
@@ -75,6 +77,7 @@ static func restore_v1(catalog: ContentCatalog, content_fingerprint: PackedByteA
 	if not status.is_ok() or not result._validate_structure(status): return RunState.new()
 	if result._content_fingerprint != catalog.fingerprint_bytes():
 		status.fail(SimStatus.Code.CONTENT_FINGERPRINT_MISMATCH, SimStatus.Operation.RUN_SNAPSHOT_RESTORE); return RunState.new()
+	if not RunMapGenerator.validate_exact(catalog, result._act_numeric_id, result._seed_hi, result._seed_lo, result._graph, status): return RunState.new()
 	for piece: RunPieceInstance in result._roster:
 		if not _catalog_allows_piece(catalog, piece.piece_numeric_id(), piece.level()):
 			status.fail(SimStatus.Code.INVALID_RUN_PIECE_INSTANCE, SimStatus.Operation.RUN_SNAPSHOT_RESTORE, piece.piece_numeric_id(), piece.level()); return RunState.new()
@@ -144,6 +147,7 @@ func validate(catalog: ContentCatalog, status: SimStatus) -> bool:
 	for piece: RunPieceInstance in _roster:
 		if not _catalog_allows_piece(catalog, piece.piece_numeric_id(), piece.level()):
 			status.fail(SimStatus.Code.INVALID_RUN_PIECE_INSTANCE, SimStatus.Operation.RUN_STATE_VALIDATE, piece.piece_numeric_id(), piece.level()); return false
+	if not RunMapGenerator.validate_exact(catalog, _act_numeric_id, _seed_hi, _seed_lo, _graph, status): return false
 	return true
 
 func is_initialized() -> bool: return _initialized

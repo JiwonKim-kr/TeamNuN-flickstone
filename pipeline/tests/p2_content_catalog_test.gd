@@ -1,8 +1,8 @@
 extends SceneTree
 
-const RUNTIME_FINGERPRINT: String = "89340a848cea8b0ec2b688243a16945bb6e071d6f28e9948e6cefe04e0d011f3"
-const VALID_A_FINGERPRINT: String = "5dc9a82a0bbef912a2a52f21b268f606d2083cbb12726db3fea1f464fd027188"
-const VALID_B_FINGERPRINT: String = "c46593e4cb9bdb62178a1c71552a9de318a1d31aa098939d5c829f8628ea30f1"
+const RUNTIME_FINGERPRINT: String = "ed6dd1319f158a539ffe4bc89bce965ea1061586b1e462a7e211bb8f0f561e3e"
+const VALID_A_FINGERPRINT: String = "83e404a9cc4337b921ef18a91adffe298bc43abf2ea59d8aac01749d3a5a36fb"
+const VALID_B_FINGERPRINT: String = "9339f7f2939fc23c4c05a5e2013efc7180a0c3582269004604ed3ec68a2d4eaf"
 const FIXTURE_ROOT: String = "res://pipeline/tests/fixtures/p2_content_catalog"
 const DATA_DB_SCRIPT: Script = preload("res://src/core/autoload/data_db.gd")
 
@@ -90,8 +90,9 @@ func _test_default_catalog() -> void:
 		and catalog.piece_count() == 3
 		and catalog.ability_count() == 1
 		and catalog.status_count() == 1 and catalog.synergy_count() == 2
-		and catalog.map_count() == 1 and catalog.enemy_count() == 3
-		and catalog.registry_entry_count() == 13
+		and catalog.map_count() == 1 and catalog.enemy_count() == 5
+		and catalog.act_count() == 1 and catalog.encounter_count() == 4
+		and catalog.registry_entry_count() == 20
 		and catalog.fingerprint_hex() == RUNTIME_FINGERPRINT
 	)
 

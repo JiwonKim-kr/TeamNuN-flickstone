@@ -11,6 +11,10 @@ enum DocumentKind {
 	SYNERGIES = 5,
 	MAPS = 6,
 	ENEMIES = 7,
+	ACTS = 8,
+	ENCOUNTERS = 9,
+	RELICS = 10,
+	CONSUMABLES = 11,
 }
 
 enum Namespace {
@@ -23,6 +27,10 @@ enum Namespace {
 	ENEMY = 6,
 	MAP = 7,
 	TAG = 8,
+	ACT = 9,
+	ENCOUNTER = 10,
+	RELIC = 11,
+	CONSUMABLE = 12,
 }
 
 enum EntryState {
@@ -39,8 +47,12 @@ const STATUSES_FILE: String = "statuses.json"
 const SYNERGIES_FILE: String = "synergies.json"
 const MAPS_FILE: String = "maps.json"
 const ENEMIES_FILE: String = "enemies.json"
+const ACTS_FILE: String = "acts.json"
+const ENCOUNTERS_FILE: String = "encounters.json"
+const RELICS_FILE: String = "relics.json"
+const CONSUMABLES_FILE: String = "consumables.json"
 
-const CATALOG_SCHEMA_VERSION: int = 6
+const CATALOG_SCHEMA_VERSION: int = 7
 const REGISTRY_SCHEMA_VERSION: int = 1
 const PIECES_SCHEMA_VERSION: int = 3
 const ABILITIES_SCHEMA_VERSION: int = 5
@@ -48,15 +60,19 @@ const STATUSES_SCHEMA_VERSION: int = 1
 const SYNERGIES_SCHEMA_VERSION: int = 1
 const MAPS_SCHEMA_VERSION: int = 1
 const ENEMIES_SCHEMA_VERSION: int = 2
-const FINGERPRINT_FORMAT_VERSION: int = 6
+const ACTS_SCHEMA_VERSION: int = 1
+const ENCOUNTERS_SCHEMA_VERSION: int = 1
+const RELICS_SCHEMA_VERSION: int = 1
+const CONSUMABLES_SCHEMA_VERSION: int = 1
+const FINGERPRINT_FORMAT_VERSION: int = 7
 
 
 static func is_known_namespace(value: int) -> bool:
-	return value >= Namespace.PIECE and value <= Namespace.TAG
+	return value >= Namespace.PIECE and value <= Namespace.CONSUMABLE
 
 
 static func is_known_document_kind(value: int) -> bool:
-	return value >= DocumentKind.ID_REGISTRY and value <= DocumentKind.ENEMIES
+	return value >= DocumentKind.ID_REGISTRY and value <= DocumentKind.CONSUMABLES
 
 
 static func valid_string_id(value: String) -> bool:
@@ -76,11 +92,15 @@ static func valid_string_id(value: String) -> bool:
 static func expected_json_files() -> PackedStringArray:
 	return PackedStringArray([
 		ABILITIES_FILE,
+		ACTS_FILE,
 		CATALOG_FILE,
+		CONSUMABLES_FILE,
+		ENCOUNTERS_FILE,
 		ENEMIES_FILE,
 		REGISTRY_FILE,
 		MAPS_FILE,
 		PIECES_FILE,
+		RELICS_FILE,
 		STATUSES_FILE,
 		SYNERGIES_FILE,
 	])
@@ -95,6 +115,10 @@ static func file_for_document_kind(kind_id: int) -> String:
 		DocumentKind.SYNERGIES: return SYNERGIES_FILE
 		DocumentKind.MAPS: return MAPS_FILE
 		DocumentKind.ENEMIES: return ENEMIES_FILE
+		DocumentKind.ACTS: return ACTS_FILE
+		DocumentKind.ENCOUNTERS: return ENCOUNTERS_FILE
+		DocumentKind.RELICS: return RELICS_FILE
+		DocumentKind.CONSUMABLES: return CONSUMABLES_FILE
 	return ""
 
 
@@ -107,4 +131,8 @@ static func schema_for_document_kind(kind_id: int) -> int:
 		DocumentKind.SYNERGIES: return SYNERGIES_SCHEMA_VERSION
 		DocumentKind.MAPS: return MAPS_SCHEMA_VERSION
 		DocumentKind.ENEMIES: return ENEMIES_SCHEMA_VERSION
+		DocumentKind.ACTS: return ACTS_SCHEMA_VERSION
+		DocumentKind.ENCOUNTERS: return ENCOUNTERS_SCHEMA_VERSION
+		DocumentKind.RELICS: return RELICS_SCHEMA_VERSION
+		DocumentKind.CONSUMABLES: return CONSUMABLES_SCHEMA_VERSION
 	return 0

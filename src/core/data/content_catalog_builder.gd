@@ -29,6 +29,11 @@ const MAP_KEYS: PackedStringArray = ["numeric_id", "id", "boundary_type_id", "bo
 const MAP_ZONE_KEYS: PackedStringArray = ["local_id", "flags", "friction_multiplier_raw", "acceleration_x_raw", "acceleration_y_raw", "vertices"]
 const ENEMY_KEYS: PackedStringArray = ["numeric_id", "id", "base_piece_ref", "ai_grade_id", "override"]
 const ENEMY_OVERRIDE_KEYS: PackedStringArray = ["max_hp", "attack", "speed_stat", "mass_raw", "radius_raw", "friction_multiplier_raw", "critical_basis_points", "ability_refs"]
+const ACT_KEYS: PackedStringArray = ["numeric_id", "id", "is_development", "floors"]
+const ACT_FLOOR_KEYS: PackedStringArray = ["floor_index", "slots"]
+const ACT_SLOT_KEYS: PackedStringArray = ["slot_index", "options"]
+const ACT_OPTION_KEYS: PackedStringArray = ["node_type_id", "weight", "content_refs"]
+const ENCOUNTER_KEYS: PackedStringArray = ["numeric_id", "id", "node_type_id", "map_ref", "enemy_refs", "reward_profile_numeric_id"]
 
 
 static func _registry_less(left: ContentRegistryEntry, right: ContentRegistryEntry) -> bool:
@@ -47,7 +52,13 @@ static func _ability_less(left: AbilityDefinition, right: AbilityDefinition) -> 
 
 static func _map_less(left: MapDefinition, right: MapDefinition) -> bool: return left.numeric_id() < right.numeric_id()
 static func _enemy_less(left: EnemyDefinition, right: EnemyDefinition) -> bool: return left.numeric_id() < right.numeric_id()
+static func _act_less(left: ActDefinition, right: ActDefinition) -> bool: return left.numeric_id() < right.numeric_id()
+static func _encounter_less(left: EncounterDefinition, right: EncounterDefinition) -> bool: return left.numeric_id() < right.numeric_id()
 static func _map_zone_less(left: MapZoneDefinition, right: MapZoneDefinition) -> bool: return left.local_id() < right.local_id()
+static func _act_content_ref_less(left: ActContentRef, right: ActContentRef) -> bool: return left.numeric_id() < right.numeric_id()
+static func _act_option_less(left: ActNodeOptionDefinition, right: ActNodeOptionDefinition) -> bool: return left.node_type_id() < right.node_type_id()
+static func _act_slot_less(left: ActNodeSlotDefinition, right: ActNodeSlotDefinition) -> bool: return left.slot_index() < right.slot_index()
+static func _act_floor_less(left: ActFloorDefinition, right: ActFloorDefinition) -> bool: return left.floor_index() < right.floor_index()
 
 
 static func _ref_less(left: ContentIdRef, right: ContentIdRef) -> bool:
@@ -174,7 +185,7 @@ static func _validate_catalog_document(catalog: Dictionary, source_documents: Ar
 		return false
 	var documents: Array = _array_field(catalog, "documents", status, 0, 0, ContentStatus.FieldId.DOCUMENTS)
 	if not status.is_ok(): return false
-	if documents.size() != 7 or documents.size() > ContentLimits.DOCUMENT_MAX_COUNT or source_documents.size() != 7:
+	if documents.size() != ContentIds.DocumentKind.CONSUMABLES or documents.size() > ContentLimits.DOCUMENT_MAX_COUNT or source_documents.size() != ContentIds.DocumentKind.CONSUMABLES:
 		status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.DOCUMENT_VALIDATE, 0, 0, ContentStatus.FieldId.DOCUMENTS)
 		return false
 	var seen: Dictionary = {}
@@ -197,7 +208,7 @@ static func _validate_catalog_document(catalog: Dictionary, source_documents: Ar
 			status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE, kind_id)
 			return false
 		seen[kind_id] = true
-	for kind_id: int in range(ContentIds.DocumentKind.ID_REGISTRY, ContentIds.DocumentKind.ENEMIES + 1):
+	for kind_id: int in range(ContentIds.DocumentKind.ID_REGISTRY, ContentIds.DocumentKind.CONSUMABLES + 1):
 		if not seen.has(kind_id):
 			status.fail(ContentStatus.Code.MISSING_KEY, ContentStatus.Operation.DOCUMENT_VALIDATE, kind_id)
 			return false
@@ -230,7 +241,7 @@ static func _parse_registry(
 		return false
 	var namespaces: Array = _array_field(root, "namespaces", status, KIND, 0, ContentStatus.FieldId.NAMESPACES)
 	if not status.is_ok(): return false
-	if namespaces.size() != ContentIds.Namespace.TAG:
+	if namespaces.size() != ContentIds.Namespace.CONSUMABLE:
 		status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, 0, ContentStatus.FieldId.NAMESPACES)
 		return false
 	var seen_namespaces: Dictionary = {}
@@ -250,7 +261,7 @@ static func _parse_registry(
 		if raw_entries.size() > ContentLimits.REGISTRY_MAX_ENTRIES_PER_NAMESPACE:
 			status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.ID_REGISTER, KIND, 0, ContentStatus.FieldId.ENTRIES)
 			return false
-		if namespace_id == ContentIds.Namespace.PROJECTILE and not raw_entries.is_empty():
+		if (namespace_id == ContentIds.Namespace.PROJECTILE or namespace_id == ContentIds.Namespace.RELIC or namespace_id == ContentIds.Namespace.CONSUMABLE) and not raw_entries.is_empty():
 			status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.ID_REGISTER, KIND, 0, ContentStatus.FieldId.ENTRIES)
 			return false
 		for raw_entry: Variant in raw_entries:
@@ -273,7 +284,7 @@ static func _parse_registry(
 			entries_out.append(entry)
 			by_numeric[numeric_key] = entry
 			by_string[string_key] = entry
-	for namespace_id: int in range(ContentIds.Namespace.PIECE, ContentIds.Namespace.TAG + 1):
+	for namespace_id: int in range(ContentIds.Namespace.PIECE, ContentIds.Namespace.CONSUMABLE + 1):
 		if not seen_namespaces.has(namespace_id):
 			status.fail(ContentStatus.Code.MISSING_KEY, ContentStatus.Operation.ID_REGISTER, KIND, 0, ContentStatus.FieldId.NAMESPACE_ID)
 			return false
@@ -848,6 +859,157 @@ static func _parse_maps(root: Dictionary, registry_by_numeric: Dictionary, regis
 	return true
 
 
+static func _parse_empty_run_document(root: Dictionary, kind: int, expected_schema: int, status: ContentStatus) -> bool:
+	if not _require_exact_keys(root, RECORD_DOCUMENT_KEYS, status, kind): return false
+	if _int_field(root, "schema_version", status, kind, 0, ContentStatus.FieldId.SCHEMA_VERSION) != expected_schema:
+		status.fail(ContentStatus.Code.UNSUPPORTED_SCHEMA, ContentStatus.Operation.DOCUMENT_VALIDATE, kind, 0, ContentStatus.FieldId.SCHEMA_VERSION); return false
+	var records: Array = _array_field(root, "records", status, kind, 0, ContentStatus.FieldId.RECORDS)
+	if not status.is_ok(): return false
+	if not records.is_empty():
+		status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE, kind, 0, ContentStatus.FieldId.RECORDS); return false
+	return true
+
+
+static func _parse_encounters(root: Dictionary, registry_by_numeric: Dictionary, registry_by_string: Dictionary, map_by_numeric: Dictionary, enemy_by_numeric: Dictionary, output: Array[EncounterDefinition], by_numeric: Dictionary, status: ContentStatus) -> bool:
+	const KIND: int = ContentIds.DocumentKind.ENCOUNTERS
+	if not _require_exact_keys(root, RECORD_DOCUMENT_KEYS, status, KIND): return false
+	if _int_field(root, "schema_version", status, KIND, 0, ContentStatus.FieldId.SCHEMA_VERSION) != ContentIds.ENCOUNTERS_SCHEMA_VERSION:
+		status.fail(ContentStatus.Code.UNSUPPORTED_SCHEMA, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, 0, ContentStatus.FieldId.SCHEMA_VERSION); return false
+	var records: Array = _array_field(root, "records", status, KIND, 0, ContentStatus.FieldId.RECORDS)
+	if records.size() > ContentLimits.RECORD_MAX_COUNT:
+		status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.ENCOUNTER_VALIDATE, KIND, 0, ContentStatus.FieldId.RECORDS); return false
+	var string_ids: Dictionary = {}
+	for raw: Variant in records:
+		if typeof(raw) != TYPE_DICTIONARY:
+			status.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.ENCOUNTER_VALIDATE, KIND); return false
+		var record: Dictionary = raw as Dictionary
+		if not _require_exact_keys(record, ENCOUNTER_KEYS, status, KIND): return false
+		var numeric_id: int = _int_field(record, "numeric_id", status, KIND, 0, ContentStatus.FieldId.NUMERIC_ID)
+		var string_id: String = _string_field(record, "id", status, KIND, numeric_id, ContentStatus.FieldId.ID)
+		var entry: ContentRegistryEntry = _active_registry_pair(ContentIds.Namespace.ENCOUNTER, numeric_id, string_id, registry_by_numeric, registry_by_string, status, KIND, ContentStatus.FieldId.ID)
+		var node_type_id: int = _int_field(record, "node_type_id", status, KIND, numeric_id, ContentStatus.FieldId.NODE_TYPE_ID)
+		var map_ref: ContentIdRef = _parse_ref_for_namespace(record["map_ref"], ContentIds.Namespace.MAP, KIND, numeric_id, ContentStatus.FieldId.MAP_REF, registry_by_numeric, registry_by_string, map_by_numeric, status)
+		var raw_enemy_refs: Array = _array_field(record, "enemy_refs", status, KIND, numeric_id, ContentStatus.FieldId.ENEMY_REFS)
+		if not status.is_ok(): return false
+		if raw_enemy_refs.size() < ContentLimits.ENCOUNTER_ENEMY_MIN_COUNT or raw_enemy_refs.size() > ContentLimits.ENCOUNTER_ENEMY_MAX_COUNT:
+			status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.ENCOUNTER_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.ENEMY_REFS); return false
+		var enemy_refs: Array[ContentIdRef] = []
+		for raw_ref: Variant in raw_enemy_refs:
+			enemy_refs.append(_parse_ref_for_namespace(raw_ref, ContentIds.Namespace.ENEMY, KIND, numeric_id, ContentStatus.FieldId.ENEMY_REFS, registry_by_numeric, registry_by_string, enemy_by_numeric, status))
+			if not status.is_ok(): return false
+		if map_ref.is_initialized() and (map_by_numeric[map_ref.numeric_id()] as MapDefinition).deploy_count() != enemy_refs.size():
+			status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.ENCOUNTER_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.ENEMY_REFS); return false
+		if by_numeric.has(numeric_id) or string_ids.has(string_id):
+			status.fail(ContentStatus.Code.DUPLICATE_ID, ContentStatus.Operation.ENCOUNTER_VALIDATE, KIND, numeric_id); return false
+		var id_ref: ContentIdRef = ContentIdRef.create(entry.numeric_id(), entry.string_id(), status)
+		var definition: EncounterDefinition = EncounterDefinition.create(id_ref, node_type_id, map_ref, enemy_refs, _int_field(record, "reward_profile_numeric_id", status, KIND, numeric_id, ContentStatus.FieldId.REWARD_PROFILE_NUMERIC_ID), status)
+		if not status.is_ok(): return false
+		output.append(definition); by_numeric[numeric_id] = definition; string_ids[string_id] = true
+	output.sort_custom(_encounter_less)
+	return true
+
+
+static func _parse_acts(root: Dictionary, registry_by_numeric: Dictionary, registry_by_string: Dictionary, encounter_by_numeric: Dictionary, output: Array[ActDefinition], by_numeric: Dictionary, status: ContentStatus) -> bool:
+	const KIND: int = ContentIds.DocumentKind.ACTS
+	if not _require_exact_keys(root, RECORD_DOCUMENT_KEYS, status, KIND): return false
+	if _int_field(root, "schema_version", status, KIND, 0, ContentStatus.FieldId.SCHEMA_VERSION) != ContentIds.ACTS_SCHEMA_VERSION:
+		status.fail(ContentStatus.Code.UNSUPPORTED_SCHEMA, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, 0, ContentStatus.FieldId.SCHEMA_VERSION); return false
+	var records: Array = _array_field(root, "records", status, KIND, 0, ContentStatus.FieldId.RECORDS)
+	if records.size() > ContentLimits.ACT_MAX_COUNT:
+		status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.ACT_VALIDATE, KIND, 0, ContentStatus.FieldId.RECORDS); return false
+	var string_ids: Dictionary = {}
+	for raw: Variant in records:
+		if typeof(raw) != TYPE_DICTIONARY:
+			status.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.ACT_VALIDATE, KIND); return false
+		var record: Dictionary = raw as Dictionary
+		if not _require_exact_keys(record, ACT_KEYS, status, KIND): return false
+		var numeric_id: int = _int_field(record, "numeric_id", status, KIND, 0, ContentStatus.FieldId.NUMERIC_ID)
+		var string_id: String = _string_field(record, "id", status, KIND, numeric_id, ContentStatus.FieldId.ID)
+		var entry: ContentRegistryEntry = _active_registry_pair(ContentIds.Namespace.ACT, numeric_id, string_id, registry_by_numeric, registry_by_string, status, KIND, ContentStatus.FieldId.ID)
+		var is_development: bool = _bool_field(record, "is_development", status, KIND, numeric_id, ContentStatus.FieldId.IS_DEVELOPMENT)
+		var raw_floors: Array = _array_field(record, "floors", status, KIND, numeric_id, ContentStatus.FieldId.FLOORS)
+		if not status.is_ok(): return false
+		if raw_floors.size() < ContentLimits.ACT_FLOOR_MIN_COUNT or raw_floors.size() > ContentLimits.ACT_FLOOR_MAX_COUNT:
+			status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.ACT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.FLOORS); return false
+		var floors: Array[ActFloorDefinition] = []
+		var local_numeric_to_string: Dictionary = {}
+		var local_string_to_numeric: Dictionary = {}
+		for raw_floor: Variant in raw_floors:
+			if typeof(raw_floor) != TYPE_DICTIONARY:
+				status.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.ACT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.FLOORS); return false
+			var floor_value: Dictionary = raw_floor as Dictionary
+			if not _require_exact_keys(floor_value, ACT_FLOOR_KEYS, status, KIND, numeric_id, ContentStatus.FieldId.FLOORS): return false
+			var floor_index: int = _int_field(floor_value, "floor_index", status, KIND, numeric_id, ContentStatus.FieldId.FLOOR_INDEX)
+			var raw_slots: Array = _array_field(floor_value, "slots", status, KIND, numeric_id, ContentStatus.FieldId.SLOTS)
+			if raw_slots.is_empty() or raw_slots.size() > ContentLimits.ACT_SLOT_MAX_COUNT:
+				status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.ACT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.SLOTS); return false
+			var slots: Array[ActNodeSlotDefinition] = []
+			for raw_slot: Variant in raw_slots:
+				if typeof(raw_slot) != TYPE_DICTIONARY:
+					status.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.ACT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.SLOTS); return false
+				var slot_value: Dictionary = raw_slot as Dictionary
+				if not _require_exact_keys(slot_value, ACT_SLOT_KEYS, status, KIND, numeric_id, ContentStatus.FieldId.SLOTS): return false
+				var slot_index: int = _int_field(slot_value, "slot_index", status, KIND, numeric_id, ContentStatus.FieldId.SLOT_INDEX)
+				var raw_options: Array = _array_field(slot_value, "options", status, KIND, numeric_id, ContentStatus.FieldId.OPTIONS)
+				if raw_options.is_empty() or raw_options.size() > ContentLimits.ACT_OPTION_MAX_COUNT:
+					status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.ACT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.OPTIONS); return false
+				var options: Array[ActNodeOptionDefinition] = []
+				for raw_option: Variant in raw_options:
+					if typeof(raw_option) != TYPE_DICTIONARY:
+						status.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.ACT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.OPTIONS); return false
+					var option_value: Dictionary = raw_option as Dictionary
+					if not _require_exact_keys(option_value, ACT_OPTION_KEYS, status, KIND, numeric_id, ContentStatus.FieldId.OPTIONS): return false
+					var node_type_id: int = _int_field(option_value, "node_type_id", status, KIND, numeric_id, ContentStatus.FieldId.NODE_TYPE_ID)
+					var weight: int = _int_field(option_value, "weight", status, KIND, numeric_id, ContentStatus.FieldId.WEIGHT)
+					var raw_content_refs: Array = _array_field(option_value, "content_refs", status, KIND, numeric_id, ContentStatus.FieldId.CONTENT_REFS)
+					if raw_content_refs.size() > ContentLimits.ACT_CONTENT_REFS_MAX_COUNT:
+						status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.ACT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.CONTENT_REFS); return false
+					var content_refs: Array[ActContentRef] = []
+					for raw_ref: Variant in raw_content_refs:
+						if typeof(raw_ref) != TYPE_DICTIONARY:
+							status.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.ACT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.CONTENT_REFS); return false
+						var ref_value: Dictionary = raw_ref as Dictionary
+						if not _require_exact_keys(ref_value, REF_KEYS, status, KIND, numeric_id, ContentStatus.FieldId.CONTENT_REFS): return false
+						var ref_numeric: int = _int_field(ref_value, "numeric_id", status, KIND, numeric_id, ContentStatus.FieldId.CONTENT_REFS)
+						var ref_string: String = _string_field(ref_value, "id", status, KIND, numeric_id, ContentStatus.FieldId.CONTENT_REFS)
+						var ref: ActContentRef = ActContentRef.create(ref_numeric, ref_string, status)
+						if not status.is_ok(): return false
+						if node_type_id == RunNodeType.Value.NORMAL_BATTLE or node_type_id == RunNodeType.Value.ELITE_BATTLE or node_type_id == RunNodeType.Value.BOSS:
+							if not encounter_by_numeric.has(ref_numeric):
+								status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.REFERENCE_RESOLVE, KIND, numeric_id, ContentStatus.FieldId.CONTENT_REFS); return false
+							var encounter: EncounterDefinition = encounter_by_numeric[ref_numeric]
+							if encounter.string_id() != ref_string or encounter.node_type_id() != node_type_id:
+								status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.REFERENCE_RESOLVE, KIND, numeric_id, ContentStatus.FieldId.CONTENT_REFS); return false
+						elif node_type_id == RunNodeType.Value.SHOP or node_type_id == RunNodeType.Value.EVENT:
+							var numeric_key: String = "%d:%d" % [node_type_id, ref_numeric]
+							var string_key: String = "%d:%s" % [node_type_id, ref_string]
+							if (local_numeric_to_string.has(numeric_key) and local_numeric_to_string[numeric_key] != ref_string) or (local_string_to_numeric.has(string_key) and local_string_to_numeric[string_key] != ref_numeric):
+								status.fail(ContentStatus.Code.INVALID_ID, ContentStatus.Operation.ACT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.CONTENT_REFS); return false
+							local_numeric_to_string[numeric_key] = ref_string; local_string_to_numeric[string_key] = ref_numeric
+						content_refs.append(ref)
+					content_refs.sort_custom(_act_content_ref_less)
+					var option: ActNodeOptionDefinition = ActNodeOptionDefinition.create(node_type_id, weight, content_refs, status)
+					if not status.is_ok(): return false
+					options.append(option)
+				options.sort_custom(_act_option_less)
+				var slot: ActNodeSlotDefinition = ActNodeSlotDefinition.create(slot_index, options, status)
+				if not status.is_ok(): return false
+				slots.append(slot)
+			slots.sort_custom(_act_slot_less)
+			var floor: ActFloorDefinition = ActFloorDefinition.create(floor_index, slots, status)
+			if not status.is_ok(): return false
+			floors.append(floor)
+		floors.sort_custom(_act_floor_less)
+		if by_numeric.has(numeric_id) or string_ids.has(string_id):
+			status.fail(ContentStatus.Code.DUPLICATE_ID, ContentStatus.Operation.ACT_VALIDATE, KIND, numeric_id); return false
+		var id_ref: ContentIdRef = ContentIdRef.create(entry.numeric_id(), entry.string_id(), status)
+		var definition: ActDefinition = ActDefinition.create(id_ref, is_development, floors, status)
+		if not status.is_ok(): return false
+		output.append(definition); by_numeric[numeric_id] = definition; string_ids[string_id] = true
+	output.sort_custom(_act_less)
+	return true
+
+
 static func _validate_active_registry_coverage(
 		entries: Array[ContentRegistryEntry],
 		piece_by_numeric: Dictionary,
@@ -856,6 +1018,8 @@ static func _validate_active_registry_coverage(
 		synergy_by_numeric: Dictionary,
 		map_by_numeric: Dictionary,
 		enemy_by_numeric: Dictionary,
+		act_by_numeric: Dictionary,
+		encounter_by_numeric: Dictionary,
 		status: ContentStatus
 ) -> bool:
 	for entry: ContentRegistryEntry in entries:
@@ -876,6 +1040,10 @@ static func _validate_active_registry_coverage(
 			if not map_by_numeric.has(entry.numeric_id()): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.CATALOG_BUILD, ContentIds.DocumentKind.MAPS, entry.numeric_id()); return false
 		elif entry.namespace_id() == ContentIds.Namespace.ENEMY:
 			if not enemy_by_numeric.has(entry.numeric_id()): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.CATALOG_BUILD, ContentIds.DocumentKind.ENEMIES, entry.numeric_id()); return false
+		elif entry.namespace_id() == ContentIds.Namespace.ACT:
+			if not act_by_numeric.has(entry.numeric_id()): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.CATALOG_BUILD, ContentIds.DocumentKind.ACTS, entry.numeric_id()); return false
+		elif entry.namespace_id() == ContentIds.Namespace.ENCOUNTER:
+			if not encounter_by_numeric.has(entry.numeric_id()): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.CATALOG_BUILD, ContentIds.DocumentKind.ENCOUNTERS, entry.numeric_id()); return false
 		elif entry.namespace_id() == ContentIds.Namespace.TAG:
 			pass
 		else:
@@ -918,6 +1086,10 @@ static func build(
 	var synergies_root: Dictionary = _root_for_kind(source_documents, ContentIds.DocumentKind.SYNERGIES, status)
 	var maps_root: Dictionary = _root_for_kind(source_documents, ContentIds.DocumentKind.MAPS, status)
 	var enemies_root: Dictionary = _root_for_kind(source_documents, ContentIds.DocumentKind.ENEMIES, status)
+	var acts_root: Dictionary = _root_for_kind(source_documents, ContentIds.DocumentKind.ACTS, status)
+	var encounters_root: Dictionary = _root_for_kind(source_documents, ContentIds.DocumentKind.ENCOUNTERS, status)
+	var relics_root: Dictionary = _root_for_kind(source_documents, ContentIds.DocumentKind.RELICS, status)
+	var consumables_root: Dictionary = _root_for_kind(source_documents, ContentIds.DocumentKind.CONSUMABLES, status)
 	if not status.is_ok(): return ContentCatalog.new()
 
 	var registry_entries: Array[ContentRegistryEntry] = []
@@ -953,13 +1125,19 @@ static func build(
 		catalog_max_radius_raw = maxi(catalog_max_radius_raw, radius_raw)
 	var maps: Array[MapDefinition] = []; var map_by_numeric: Dictionary = {}
 	if not _parse_maps(maps_root, registry_by_numeric, registry_by_string, catalog_max_radius_raw, maps, map_by_numeric, status): return ContentCatalog.new()
-	if not _validate_active_registry_coverage(registry_entries, piece_by_numeric, ability_by_numeric, status_by_numeric, synergy_by_numeric, map_by_numeric, enemy_by_numeric, status): return ContentCatalog.new()
+	var encounters: Array[EncounterDefinition] = []; var encounter_by_numeric: Dictionary = {}
+	if not _parse_encounters(encounters_root, registry_by_numeric, registry_by_string, map_by_numeric, enemy_by_numeric, encounters, encounter_by_numeric, status): return ContentCatalog.new()
+	var acts: Array[ActDefinition] = []; var act_by_numeric: Dictionary = {}
+	if not _parse_acts(acts_root, registry_by_numeric, registry_by_string, encounter_by_numeric, acts, act_by_numeric, status): return ContentCatalog.new()
+	if not _parse_empty_run_document(relics_root, ContentIds.DocumentKind.RELICS, ContentIds.RELICS_SCHEMA_VERSION, status): return ContentCatalog.new()
+	if not _parse_empty_run_document(consumables_root, ContentIds.DocumentKind.CONSUMABLES, ContentIds.CONSUMABLES_SCHEMA_VERSION, status): return ContentCatalog.new()
+	if not _validate_active_registry_coverage(registry_entries, piece_by_numeric, ability_by_numeric, status_by_numeric, synergy_by_numeric, map_by_numeric, enemy_by_numeric, act_by_numeric, encounter_by_numeric, status): return ContentCatalog.new()
 
-	var compatibility_bytes: PackedByteArray = ContentCanonicalEncoder.encode(registry_entries, pieces, abilities, statuses, synergies, maps, enemies, status)
+	var compatibility_bytes: PackedByteArray = ContentCanonicalEncoder.encode(registry_entries, pieces, abilities, statuses, synergies, maps, enemies, acts, encounters, status)
 	if not status.is_ok(): return ContentCatalog.new()
 	var sim_status := SimStatus.new()
 	var fingerprint: PackedByteArray = SimStateHash.sha256(compatibility_bytes, sim_status)
 	if not sim_status.is_ok() or fingerprint.size() != 32:
 		status.fail(ContentStatus.Code.FINGERPRINT_ERROR, ContentStatus.Operation.SHA256)
 		return ContentCatalog.new()
-	return ContentCatalog.create(ContentIds.CATALOG_SCHEMA_VERSION, registry_entries, pieces, abilities, statuses, synergies, maps, enemies, compatibility_bytes, fingerprint, status)
+	return ContentCatalog.create(ContentIds.CATALOG_SCHEMA_VERSION, registry_entries, pieces, abilities, statuses, synergies, maps, enemies, acts, encounters, compatibility_bytes, fingerprint, status)

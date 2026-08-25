@@ -21,6 +21,20 @@
       "base_piece_ref": {"numeric_id": 3, "id": "graybox_striker"},
       "ai_grade_id": 1,
       "override": {}
+    },
+    {
+      "numeric_id": 4,
+      "id": "graybox_elite_baduk_stone",
+      "base_piece_ref": {"numeric_id": 1, "id": "baduk_stone"},
+      "ai_grade_id": 2,
+      "override": {}
+    },
+    {
+      "numeric_id": 5,
+      "id": "graybox_boss_graybox_striker",
+      "base_piece_ref": {"numeric_id": 3, "id": "graybox_striker"},
+      "ai_grade_id": 3,
+      "override": {}
     }
   ]
 }

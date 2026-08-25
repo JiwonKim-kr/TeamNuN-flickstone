@@ -44,6 +44,8 @@ static func encode(
 		synergies: Array[SynergyDefinition],
 		maps: Array[MapDefinition],
 		enemies: Array[EnemyDefinition],
+		acts: Array[ActDefinition],
+		encounters: Array[EncounterDefinition],
 		status: ContentStatus
 ) -> PackedByteArray:
 	if not status.is_ok(): return PackedByteArray()
@@ -52,8 +54,8 @@ static func encode(
 	writer.u16(ContentIds.FINGERPRINT_FORMAT_VERSION)
 	writer.u16(ContentIds.CATALOG_SCHEMA_VERSION)
 	writer.u16(ContentIds.REGISTRY_SCHEMA_VERSION)
-	writer.u16(ContentIds.Namespace.TAG)
-	for namespace_id: int in range(ContentIds.Namespace.PIECE, ContentIds.Namespace.TAG + 1):
+	writer.u16(ContentIds.Namespace.CONSUMABLE)
+	for namespace_id: int in range(ContentIds.Namespace.PIECE, ContentIds.Namespace.CONSUMABLE + 1):
 		writer.u16(namespace_id)
 		var count: int = 0
 		for entry: ContentRegistryEntry in registry_entries:
@@ -65,7 +67,7 @@ static func encode(
 			writer.string_utf8(entry.string_id())
 			writer.u8(entry.state_id())
 
-	writer.u16(6)
+	writer.u16(10)
 	writer.u16(ContentIds.DocumentKind.PIECES)
 	writer.u16(ContentIds.PIECES_SCHEMA_VERSION)
 	writer.u32(pieces.size())
@@ -211,5 +213,36 @@ static func encode(
 			for index: int in range(override_definition.ability_ref_count()):
 				var ability_ref: ContentIdRef = override_definition.ability_ref_at(index, enemy_status); writer.u32(ability_ref.numeric_id()); writer.string_utf8(ability_ref.string_id())
 			if not enemy_status.is_ok(): status.fail(ContentStatus.Code.FINGERPRINT_ERROR, ContentStatus.Operation.CANONICAL_ENCODE); return PackedByteArray()
+
+	writer.u16(ContentIds.DocumentKind.ACTS); writer.u16(ContentIds.ACTS_SCHEMA_VERSION); writer.u32(acts.size())
+	for definition: ActDefinition in acts:
+		writer.u32(definition.numeric_id()); writer.string_utf8(definition.string_id()); writer.u8(1 if definition.is_development() else 0); writer.u16(definition.floor_count())
+		var act_status := ContentStatus.new()
+		for floor_index: int in range(definition.floor_count()):
+			var floor: ActFloorDefinition = definition.floor_at(floor_index, act_status)
+			writer.u16(floor.floor_index()); writer.u16(floor.slot_count())
+			for slot_index: int in range(floor.slot_count()):
+				var slot: ActNodeSlotDefinition = floor.slot_at(slot_index, act_status)
+				writer.u16(slot.slot_index()); writer.u16(slot.option_count())
+				for option_index: int in range(slot.option_count()):
+					var option: ActNodeOptionDefinition = slot.option_at(option_index, act_status)
+					writer.u16(option.node_type_id()); writer.u32(option.weight()); writer.u16(option.content_ref_count())
+					for ref_index: int in range(option.content_ref_count()):
+						var ref: ActContentRef = option.content_ref_at(ref_index, act_status)
+						writer.u32(ref.numeric_id()); writer.string_utf8(ref.string_id())
+		if not act_status.is_ok(): status.fail(ContentStatus.Code.FINGERPRINT_ERROR, ContentStatus.Operation.CANONICAL_ENCODE, ContentIds.DocumentKind.ACTS, definition.numeric_id()); return PackedByteArray()
+
+	writer.u16(ContentIds.DocumentKind.ENCOUNTERS); writer.u16(ContentIds.ENCOUNTERS_SCHEMA_VERSION); writer.u32(encounters.size())
+	for definition: EncounterDefinition in encounters:
+		writer.u32(definition.numeric_id()); writer.string_utf8(definition.string_id()); writer.u16(definition.node_type_id())
+		var map_ref: ContentIdRef = definition.map_ref(); writer.u32(map_ref.numeric_id()); writer.string_utf8(map_ref.string_id())
+		writer.u16(definition.enemy_ref_count()); var encounter_status := ContentStatus.new()
+		for ref_index: int in range(definition.enemy_ref_count()):
+			var enemy_ref: ContentIdRef = definition.enemy_ref_at(ref_index, encounter_status); writer.u32(enemy_ref.numeric_id()); writer.string_utf8(enemy_ref.string_id())
+		writer.u32(definition.reward_profile_numeric_id())
+		if not encounter_status.is_ok(): status.fail(ContentStatus.Code.FINGERPRINT_ERROR, ContentStatus.Operation.CANONICAL_ENCODE, ContentIds.DocumentKind.ENCOUNTERS, definition.numeric_id()); return PackedByteArray()
+
+	writer.u16(ContentIds.DocumentKind.RELICS); writer.u16(ContentIds.RELICS_SCHEMA_VERSION); writer.u32(0)
+	writer.u16(ContentIds.DocumentKind.CONSUMABLES); writer.u16(ContentIds.CONSUMABLES_SCHEMA_VERSION); writer.u32(0)
 	if not status.is_ok(): return PackedByteArray()
 	return writer.data

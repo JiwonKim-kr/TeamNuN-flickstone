@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT / "pipeline" / "scripts"))
 from content_catalog import ContentError, load_catalog  # noqa: E402
 
 RUNTIME = ROOT / "src" / "core" / "data"
-EXPECTED_FINGERPRINT = "89340a848cea8b0ec2b688243a16945bb6e071d6f28e9948e6cefe04e0d011f3"
+EXPECTED_FINGERPRINT = "ed6dd1319f158a539ffe4bc89bce965ea1061586b1e462a7e211bb8f0f561e3e"
 
 
 def main() -> int:
@@ -20,10 +20,10 @@ def main() -> int:
     raw_enemies = json.loads((RUNTIME / "enemies.json").read_text(encoding="utf-8"))
     enemy_document = next(item for item in raw_catalog["documents"] if item["kind_id"] == 7)
 
-    assert raw_catalog["schema_version"] == 6
+    assert raw_catalog["schema_version"] == 7
     assert enemy_document == {"kind_id": 7, "file_name": "enemies.json", "schema_version": 2}
     assert raw_enemies["schema_version"] == 2
-    assert [enemy.ai_grade_id for enemy in catalog.enemies] == [1, 1, 1]
+    assert [enemy.ai_grade_id for enemy in catalog.enemies] == [1, 1, 1, 2, 3]
     assert all(set(record) == {"numeric_id", "id", "base_piece_ref", "ai_grade_id", "override"} for record in raw_enemies["records"])
     assert catalog.fingerprint.hex() == EXPECTED_FINGERPRINT
 
@@ -32,8 +32,8 @@ def main() -> int:
     assert all(limit % 256 == 0 for limit in angle_limits.values())
     assert all(limit % 8 == 0 for limit in power_limits.values())
 
-    print("[PASS] P3-PY-SCHEMA catalog v6 and enemies v2 exact records")
-    print("[PASS] P3-PY-GRADES runtime enemies use append-only COMMON grade")
+    print("[PASS] P3-PY-SCHEMA catalog v7 and enemies v2 exact records")
+    print("[PASS] P3-PY-GRADES runtime enemies preserve COMMON and append ELITE/BOSS grades")
     print("[PASS] P3-PY-FINGERPRINT independent canonical SHA-256")
     print("[PASS] P3-PY-ERROR-QUANTA approved grade limits align to quanta")
     print("P3_AI_SHOT_SELECTION_REFERENCE_RESULT: PASS")

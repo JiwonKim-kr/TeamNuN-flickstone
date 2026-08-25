@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P4 런 루프 전체 방향 승인 · P4-1 상세 명세 대기**. P4-W 제출용 Web 프리뷰는 공개 배포·브라우저 검수 완료 |
+| 현재 단계 | **P4-1 RunState/snapshot과 P4-2 Act/Encounter map generation 구현 완료 · 다음은 P4-3 상세 명세**. P4-W 제출용 Web 프리뷰는 공개 배포·브라우저 검수 완료 |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -134,6 +134,8 @@
 - [x] Godot 4.6.3 release Web export와 640×1,024 브라우저 첫 화면 렌더링 확인
 - [x] GitHub Pages 첫 공개 배포와 공개 URL 직접 진입 확인 — [Flickstone Web](https://jiwonkim-kr.github.io/TeamNuN-flickstone/), 새로고침·한글 HUD·드래그 발사·턴 진행 브라우저 smoke 통과
 - [x] P4 런 루프 P4-R01~17 승인 — D-12 전투 후 전원 복원, 5층 개발 Act, P4-1~6 분해, 일반 검증 4런 확정 (`docs/specs/p4_run_loop.md`)
+- [x] P4-1 RunState·RunSnapshot v1 승인·구현·데모 검증 완료 (`docs/specs/p4_run_state_snapshot.md`)
+- [x] P4-2 catalog v7·Act/Encounter typed data·결정론적 7-node map generation·snapshot exact 이관 완료 (`docs/specs/p4_act_encounter_map_generation.md`)
 
 ### 3.1 P1-2 현재 작업 기록
 
@@ -276,7 +278,17 @@
 - 독립 Python/Godot 전체 KAT는 339 bytes, SHA-256 `e2120285dd7abfe00d085413b4a4f4244591f7e98c03fa3e1626d58e8996dd64`다. Godot narrow 17개 grouped check, 1,000회 create/copy/codec/restore, 24개 initial input permutation이 통과했다.
 - P0 quick SHA/snapshot, P1 BattleSnapshot, P2 content fingerprint, P3 AI 대표 narrow와 Godot 4.6.3 quick `verify --demo` 기본 게이트·대표 러너 8종이 통과했다. P4-1은 headless core 단계라 실제 4런·UI·스크린샷 검수를 요구하지 않는다.
 
-### 3.12 다음 작업 실행 명령
+### 3.12 P4-2 Act·Encounter·노드맵 구현 기록
+
+- document kind 8~11과 namespace 9~12, catalog/fingerprint v7을 append했다. 현재 runtime fingerprint는 `ed6dd1319f158a539ffe4bc89bce965ea1061586b1e462a7e211bb8f0f561e3e`다.
+- immutable Act/Encounter 계층과 strict JSON/canonical encoder/DataDB lookup을 구현했다. relic/consumable은 P4-5 전까지 빈 schema·namespace로 유지한다.
+- `development_act_1`은 5층 폭 `1/2/2/1/1`, encounter 4개, ELITE/BOSS enemy 2개를 사용한다. 같은 catalog·act·seed는 exact node/type/content/edge를 생성한다.
+- `RunState.create`의 임의 graph 입력을 제거하고 restore/validate가 graph를 재생성해 exact 비교한다. 이관된 RunSnapshot v1 KAT는 331 bytes, SHA-256 `73ea51d49acb0fc2b1f2b1d696241dcf724937653e42d1249d63d66f9ff34797`다.
+- 독립 Python negative/KAT, Godot P4-2 8개 grouped check·graph 1,000회, P4-1 snapshot 17개 grouped check·1,000회·입력 순열 24개와 P2/P3 대표 회귀가 통과했다.
+- 데모 quick은 terminal snapshot restore exact와 seed-0 gameplay golden을 검증한다. catalog-only fingerprint 변경에 따른 16×2 terminal hash 재생성은 정식 release profile에서 수행한다.
+- Godot 4.6.3 `verify --demo`는 기본 게이트와 대표 러너 8종이 통과했고 lore 미초기화 게이트만 정상 SKIP이다.
+
+### 3.13 다음 작업 실행 명령
 
 Windows PowerShell에서 먼저 `$env:PYTHONUTF8='1'`을 설정한다.
 
@@ -314,6 +326,9 @@ python pipeline/tests/run_p3_ai_shot_selection.py --godot pipeline/artifacts/god
 
 # P4-1 RunState·RunSnapshot narrow
 python pipeline/tests/run_p4_run_state_snapshot.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
+
+# P4-2 Act·Encounter·결정론적 노드맵 narrow
+python pipeline/tests/run_p4_act_encounter_map_generation.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
 
 # P1-5 결정론 회귀
 python pipeline/tests/run_p1_batch_sim_graybox.py --mode narrow --jobs 4 --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe

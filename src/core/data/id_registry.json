@@ -34,7 +34,9 @@
       "entries": [
         {"numeric_id": 1, "id": "enemy_baduk_stone", "state_id": 1},
         {"numeric_id": 2, "id": "enemy_bottle_cap", "state_id": 1},
-        {"numeric_id": 3, "id": "enemy_graybox_striker", "state_id": 1}
+        {"numeric_id": 3, "id": "enemy_graybox_striker", "state_id": 1},
+        {"numeric_id": 4, "id": "graybox_elite_baduk_stone", "state_id": 1},
+        {"numeric_id": 5, "id": "graybox_boss_graybox_striker", "state_id": 1}
       ]
     },
     {
@@ -49,6 +51,23 @@
         {"numeric_id": 1, "id": "destruction", "state_id": 1},
         {"numeric_id": 2, "id": "steel", "state_id": 1}
       ]
-    }
+    },
+    {
+      "namespace_id": 9,
+      "entries": [
+        {"numeric_id": 1, "id": "development_act_1", "state_id": 1}
+      ]
+    },
+    {
+      "namespace_id": 10,
+      "entries": [
+        {"numeric_id": 1, "id": "development_normal_mixed", "state_id": 1},
+        {"numeric_id": 2, "id": "development_normal_pair", "state_id": 1},
+        {"numeric_id": 3, "id": "development_elite_pair", "state_id": 1},
+        {"numeric_id": 4, "id": "development_boss_pair", "state_id": 1}
+      ]
+    },
+    {"namespace_id": 11, "entries": []},
+    {"namespace_id": 12, "entries": []}
   ]
 }

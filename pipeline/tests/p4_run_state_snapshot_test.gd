@@ -1,8 +1,8 @@
 extends SceneTree
 
 const DATA_DB_SCRIPT: Script = preload("res://src/core/autoload/data_db.gd")
-const EXPECTED_HEX: String = "464c49434b52554e00010089340a848cea8b0ec2b688243a16945bb6e071d6f28e9948e6cefe04e0d011f3110000001d00000001000100000000000000000003000300000000000a000500070000000100000005000700000001000000010000000100e90300000200020000000300000002000000020000000300ea0300000200040000000500000003000000020001000400eb0300000200040000000500000004000000030000000100ec03000001000600000005000000030001000200ed030000010006000000060000000400000005000000000001000700000007000000050000000600ef0300000000000000000000000006000000010000000100000001000000020000000100000001000000030000000100000001000000040000000200000001000000050000000200000001000000060000000200000001000000000000000000010000000000000000000000"
-const EXPECTED_SHA256: String = "e2120285dd7abfe00d085413b4a4f4244591f7e98c03fa3e1626d58e8996dd64"
+const EXPECTED_HEX: String = "464c49434b52554e000100ed6dd1319f158a539ffe4bc89bce965ea1061586b1e462a7e211bb8f0f561e3e110000001d00000001000100000000000000000003000300000000000a00050007000000010000000500070000000100000001000000010001000000020002000000030000000200000002000000030001000000010004000000030000000200010004000100000001000500000004000000030000000100010000000100060000000500000003000100020003000000010006000000060000000400000005000000000001000700000007000000050000000600040000000000000000000000000006000000010000000100000001000000020000000100000001000000030000000100000001000000040000000200000001000000050000000200000001000000060000000200000001000000000000000000010000000000000000000000"
+const EXPECTED_SHA256: String = "73ea51d49acb0fc2b1f2b1d696241dcf724937653e42d1249d63d66f9ff34797"
 
 var failures: int = 0
 
@@ -29,7 +29,7 @@ func fixture_initial(order: Array[int], status: SimStatus) -> Array[RunPieceInit
 	return result
 
 func fixture_state(catalog: ContentCatalog, order: Array[int], status: SimStatus) -> RunState:
-	return RunState.create(catalog, 1, fixture_graph(status), 17, 29, fixture_initial(order, status), status)
+	return RunState.create(catalog, 1, 17, 29, fixture_initial(order, status), status)
 
 func write_u16(bytes: PackedByteArray, offset: int, value: int) -> void:
 	bytes[offset] = value & 0xFF; bytes[offset + 1] = (value >> 8) & 0xFF
@@ -61,13 +61,13 @@ func test_value_contracts(catalog: ContentCatalog) -> void:
 	var future_status := SimStatus.new(); var entries: Array[RunChoiceEntry] = [RunChoiceEntry.create(1, RunChoiceKind.Value.GAIN_GOLD, 0, 0, 10, 0, true, future_status)]
 	var future: RunPendingChoice = RunPendingChoice.create(RunPendingKind.Value.REWARD, 7, 1, entries, future_status)
 	check("P4-1-PENDING-TYPED-SLOTS", none_status.is_ok() and none.kind_id() == RunPendingKind.Value.NONE and bad_none_status.code() == SimStatus.Code.INVALID_RUN_CHOICE and future_status.is_ok() and future.entry_count() == 1)
-	var invalid_status := SimStatus.new(); RunState.create(catalog, 1, fixture_graph(invalid_status), 0, 0, fixture_initial([1, 1, 3, 4, 5, 6], invalid_status), invalid_status)
+	var invalid_status := SimStatus.new(); RunState.create(catalog, 1, 0, 0, fixture_initial([1, 1, 3, 4, 5, 6], invalid_status), invalid_status)
 	check("P4-1-DUPLICATE-INITIAL-KEY-REJECT", invalid_status.code() == SimStatus.Code.INVALID_RUN_PIECE_INSTANCE)
-	var missing_status := SimStatus.new(); var missing: Array[RunPieceInit] = fixture_initial([1, 2, 3, 4, 5, 6], missing_status); missing[0] = RunPieceInit.create(1, 999, 1, [], missing_status); var missing_state: RunState = RunState.create(catalog, 1, fixture_graph(missing_status), 0, 0, missing, missing_status)
-	var level_status := SimStatus.new(); var bad_level: Array[RunPieceInit] = fixture_initial([1, 2, 3, 4, 5, 6], level_status); bad_level[0] = RunPieceInit.create(1, 1, 2, [], level_status); var level_state: RunState = RunState.create(catalog, 1, fixture_graph(level_status), 0, 0, bad_level, level_status)
+	var missing_status := SimStatus.new(); var missing: Array[RunPieceInit] = fixture_initial([1, 2, 3, 4, 5, 6], missing_status); missing[0] = RunPieceInit.create(1, 999, 1, [], missing_status); var missing_state: RunState = RunState.create(catalog, 1, 0, 0, missing, missing_status)
+	var level_status := SimStatus.new(); var bad_level: Array[RunPieceInit] = fixture_initial([1, 2, 3, 4, 5, 6], level_status); bad_level[0] = RunPieceInit.create(1, 1, 2, [], level_status); var level_state: RunState = RunState.create(catalog, 1, 0, 0, bad_level, level_status)
 	var count_status := SimStatus.new(); var too_many: Array[RunPieceInit] = []
 	for key: int in range(1, 12): too_many.append(RunPieceInit.create(key, 1, 1, [], count_status))
-	var count_state: RunState = RunState.create(catalog, 1, fixture_graph(count_status), 0, 0, too_many, count_status)
+	var count_state: RunState = RunState.create(catalog, 1, 0, 0, too_many, count_status)
 	check("P4-1-PIECE-CATALOG-LEVEL-ROSTER-LIMIT", missing_status.code() == SimStatus.Code.INVALID_RUN_PIECE_INSTANCE and not missing_state.is_initialized() and level_status.code() == SimStatus.Code.INVALID_RUN_PIECE_INSTANCE and not level_state.is_initialized() and count_status.code() == SimStatus.Code.RUN_LIMIT_EXCEEDED and not count_state.is_initialized())
 
 func test_graph_rejections() -> void:
@@ -102,7 +102,7 @@ func test_snapshot_rejections(catalog: ContentCatalog, bytes: PackedByteArray) -
 	var zero_capacity: PackedByteArray = bytes.duplicate(); write_u16(zero_capacity, 71, 0)
 	var zero_next_id: PackedByteArray = bytes.duplicate(); write_u32(zero_next_id, 75, 0)
 	var bad_node_type: PackedByteArray = bytes.duplicate(); write_u16(bad_node_type, 97, 99)
-	var duplicate_roster_id: PackedByteArray = bytes.duplicate(); write_u32(duplicate_roster_id, 261, 1)
+	var duplicate_roster_id: PackedByteArray = bytes.duplicate(); write_u32(duplicate_roster_id, 253, 1)
 	var all_cuts_rejected: bool = true
 	for length: int in range(bytes.size()):
 		if not rejected(bytes.slice(0, length)): all_cuts_rejected = false; break
@@ -110,12 +110,12 @@ func test_snapshot_rejections(catalog: ContentCatalog, bytes: PackedByteArray) -
 	var mismatch: PackedByteArray = bytes.duplicate(); mismatch[11] ^= 0xFF
 	var mismatch_status := SimStatus.new(); var decoded: RunSnapshot = RunSnapshot.decode(mismatch, mismatch_status); var restored: RunState = decoded.restore_state(catalog, mismatch_status)
 	check("P4-1-FINGERPRINT-MISMATCH", mismatch_status.code() == SimStatus.Code.CONTENT_FINGERPRINT_MISMATCH and not restored.is_initialized() and decoded.encode(SimStatus.new()) == mismatch)
-	var missing_piece: PackedByteArray = bytes.duplicate(); write_u32(missing_piece, 253, 999)
+	var missing_piece: PackedByteArray = bytes.duplicate(); write_u32(missing_piece, 245, 999)
 	var missing_status := SimStatus.new(); var missing_snapshot: RunSnapshot = RunSnapshot.decode(missing_piece, missing_status); var missing_state: RunState = missing_snapshot.restore_state(catalog, missing_status)
-	var bad_level: PackedByteArray = bytes.duplicate(); write_u16(bad_level, 257, 2)
+	var bad_level: PackedByteArray = bytes.duplicate(); write_u16(bad_level, 249, 2)
 	var level_status := SimStatus.new(); var level_snapshot: RunSnapshot = RunSnapshot.decode(bad_level, level_status); var level_state: RunState = level_snapshot.restore_state(catalog, level_status)
 	check("P4-1-RESTORE-CATALOG-PIECE-LEVEL", missing_status.code() == SimStatus.Code.INVALID_RUN_PIECE_INSTANCE and not missing_state.is_initialized() and level_status.code() == SimStatus.Code.INVALID_RUN_PIECE_INSTANCE and not level_state.is_initialized())
-	var future: PackedByteArray = bytes.slice(0, 327)
+	var future: PackedByteArray = bytes.slice(0, 319)
 	append_u16(future, RunPendingKind.Value.REWARD); append_u32(future, 7); append_u32(future, 1); append_u16(future, 1)
 	append_u16(future, 1); append_u16(future, RunChoiceKind.Value.GAIN_GOLD); append_u32(future, 0); append_u32(future, 0); append_i64(future, 10); append_u32(future, 0); future.append(1)
 	var future_status := SimStatus.new(); var future_snapshot: RunSnapshot = RunSnapshot.decode(future, future_status); var future_state: RunState = future_snapshot.restore_state(catalog, future_status)
@@ -146,7 +146,7 @@ func test_determinism(catalog: ContentCatalog, expected: PackedByteArray) -> voi
 func _init() -> void:
 	var db: Node = DATA_DB_SCRIPT.new(); root.add_child(db)
 	var content_status := ContentStatus.new(); var loaded: bool = bool(db.call("reload_catalog", "res://src/core/data", content_status)); var catalog: ContentCatalog = db.call("catalog_copy", content_status) as ContentCatalog
-	check("P4-1-RUNTIME-CATALOG-LOAD", loaded and content_status.is_ok() and catalog.fingerprint_hex() == "89340a848cea8b0ec2b688243a16945bb6e071d6f28e9948e6cefe04e0d011f3")
+	check("P4-1-RUNTIME-CATALOG-LOAD", loaded and content_status.is_ok() and catalog.fingerprint_hex() == "ed6dd1319f158a539ffe4bc89bce965ea1061586b1e462a7e211bb8f0f561e3e")
 	if loaded and content_status.is_ok():
 		test_value_contracts(catalog); test_graph_rejections(); var bytes: PackedByteArray = test_snapshot(catalog); test_snapshot_rejections(catalog, bytes); test_determinism(catalog, bytes)
 	print("P4_RUN_STATE_SNAPSHOT_RESULT: %s" % ("PASS" if failures == 0 else "FAIL"))

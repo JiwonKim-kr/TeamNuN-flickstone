@@ -327,7 +327,7 @@ pending_choice: RunPendingChoice
 
 ### 신규 상태
 
-`RunState.create(catalog, act_numeric_id, graph, seed_hi, seed_lo, initial_pieces, status)`는 다음 값을 만든다.
+P4-2 이관 뒤 `RunState.create(catalog, act_numeric_id, seed_hi, seed_lo, initial_pieces, status)`는 catalog의 Act profile로 graph를 내부 생성하고 다음 값을 만든다.
 
 - catalog fingerprint 사본
 - phase `MAP_CHOICE`
@@ -391,7 +391,7 @@ RunPendingChoice.none()
 RunPendingChoice.create(kind_id, source_node_id, generation_ordinal, entries, status)
 RunConsumableStack.create(consumable_numeric_id, count, status)
 
-RunState.create(catalog, act_numeric_id, graph, seed_hi, seed_lo,
+RunState.create(catalog, act_numeric_id, seed_hi, seed_lo,
                 initial_pieces, status) -> RunState
 RunState.copy(status) -> RunState
 RunState.is_initialized() -> bool
@@ -689,3 +689,7 @@ docs/specs/p4_run_loop.md
 - P0 quick snapshot/SHA, P1 BattleSnapshot, P2 content fingerprint, P3 AI 대표 narrow가 통과했다.
 - Godot 4.6.3 승인 quick 환경의 `verify --demo`가 기본 게이트와 대표 러너 8종 모두 통과했다. canon 미초기화에 따른 lore 기계 검사는 정책대로 SKIP이다.
 - `project.godot`, `DataDB`, runtime JSON, scene, UI, asset, manifest는 변경하지 않았다. 실제 4런·스크린샷 검수는 P4-1 범위가 아니다.
+
+### P4-2 이관 기록
+
+2026-08-25 P4-2 승인 구현에서 provisional graph 주입 seam을 제거했다. `RunState.create`는 catalog·act·seed로 graph를 생성하고, restore/validate는 저장 graph와 재생성 graph를 exact 비교한다. catalog v7 fingerprint와 개발 Act graph를 반영한 `RunSnapshot` v1 KAT는 331 bytes, SHA-256 `73ea51d49acb0fc2b1f2b1d696241dcf724937653e42d1249d63d66f9ff34797`이며 snapshot schema와 run scalar/roster 계약은 바뀌지 않았다.

@@ -32,10 +32,11 @@ func _init() -> void:
 	var cs := ContentStatus.new(); var loaded: bool = db.call("reload_catalog", RUNTIME_ROOT, cs)
 	var catalog: ContentCatalog = db.call("catalog_copy", cs)
 	check("P3-RUNTIME-LOAD", loaded and cs.is_ok())
-	var grades_ok := loaded and cs.is_ok() and catalog.enemy_count() == 3
+	var grades_ok := loaded and cs.is_ok() and catalog.enemy_count() == 5
 	if grades_ok:
+		var expected_grades: Array[int] = [AiGrade.Value.COMMON, AiGrade.Value.COMMON, AiGrade.Value.COMMON, AiGrade.Value.ELITE, AiGrade.Value.BOSS]
 		for enemy_index: int in range(catalog.enemy_count()):
-			grades_ok = grades_ok and catalog.enemy_at(enemy_index, cs).ai_grade_id() == AiGrade.Value.COMMON
+			grades_ok = grades_ok and catalog.enemy_at(enemy_index, cs).ai_grade_id() == expected_grades[enemy_index]
 	check("P3-RUNTIME-ENEMY-GRADES", grades_ok and cs.is_ok())
 	if loaded and cs.is_ok():
 		var status := SimStatus.new(); var state := aim_state(catalog, status)
