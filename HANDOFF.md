@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P4-1~3 구현·자동 검증 완료 · 다음은 P4-4 영입·골드·휴식·합성·덱 관리 상세 명세**. P4-W 제출용 Web 프리뷰는 공개 배포·브라우저 검수 완료 |
+| 현재 단계 | **P4-1~3 구현·자동 검증 완료 · 다음 런 작업은 P4-4 상세 명세**. 병행 트랙은 P5 아트 디렉션·첫 컨셉 배치 승인 대기이며, P4-W Web 프리뷰는 공개 배포·브라우저 검수 완료 |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -39,7 +39,7 @@
 | 승인 지점 | play spec 승인 / art lock / review — **생략 불가** |
 | 에셋 정책 | P0·P1은 매니페스트에 등록한 플레이스홀더만 사용 |
 | 아트·사운드 시작 | 전투 감각 승인 완료. `art lock`, `art gen`, SE는 별도 요청·승인 절차로 시작 |
-| CI | 데모 push/PR은 Godot 4.6.3 `verify --demo`(대표 8종); 수동 `release`는 전체 25종 + 1,000회 + Windows 결정론 |
+| CI | 데모 push/PR은 Godot 4.6.3 `verify --demo`(대표 9종); 수동 `release`는 전체 25종 + 1,000회 + Windows 결정론 |
 
 ## 3. 현재 저장소 상태
 
@@ -136,6 +136,10 @@
 - [x] P4 런 루프 P4-R01~17 승인 — D-12 전투 후 전원 복원, 5층 개발 Act, P4-1~6 분해, 일반 검증 4런 확정 (`docs/specs/p4_run_loop.md`)
 - [x] P4-1 RunState·RunSnapshot v1 승인·구현·데모 검증 완료 (`docs/specs/p4_run_state_snapshot.md`)
 - [x] P4-2 catalog v7·Act/Encounter typed data·결정론적 7-node map generation·snapshot exact 이관 완료 (`docs/specs/p4_act_encounter_map_generation.md`)
+- [x] P4-3 편성·불변 battle request/outcome·라이프·D-12 복원·BattleSnapshot v8 구현 및 데모 검증 완료 (`docs/specs/p4_formation_battle_outcome_life.md`)
+- [x] P5 아트 디렉션과 첫 컨셉 배치 승인 초안 작성 (`docs/specs/p5_art_direction.md`)
+- [x] 아트 파이프라인 준비 검증 — env/dry-run·nearest/alpha·임시 reskin·Godot 4.6.3 재임포트·play_test 전체 통과, Scenario 라이브 생성만 키 부재로 SKIP
+- [ ] P5-ART01~10 사람 승인 뒤 첫 `art concept` 후보 생성·검수
 
 ### 3.1 P1-2 현재 작업 기록
 
@@ -338,6 +342,9 @@ python pipeline/tests/run_p4_run_state_snapshot.py --godot pipeline/artifacts/go
 # P4-2 Act·Encounter·결정론적 노드맵 narrow
 python pipeline/tests/run_p4_act_encounter_map_generation.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
 
+# P4-3 편성·전투 결과·라이프 narrow
+python pipeline/tests/run_p4_formation_battle_outcome_life.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
+
 # P1-5 결정론 회귀
 python pipeline/tests/run_p1_batch_sim_graybox.py --mode narrow --jobs 4 --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
 python pipeline/tests/run_p1_batch_sim_graybox.py --mode batch --jobs 4 --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
@@ -388,7 +395,7 @@ python pipeline/scripts/verify.py --full --godot pipeline/artifacts/godot-4.6.3/
 - [x] Godot 4.6.3 headless 실행 확인
 - [x] Python 설치 확인
 - [x] Node/npm 설치 확인
-- [ ] ffmpeg/ffprobe 설치
+- [x] ffmpeg/ffprobe 설치
 - [ ] Scenario 계정과 API 키 준비 — 아트 단계에서만 필요
 - [ ] ElevenLabs API 키 준비 — 사운드 단계에서만 필요
 - [ ] API 키는 `.env`로 관리하고 저장소에 커밋하지 않기
