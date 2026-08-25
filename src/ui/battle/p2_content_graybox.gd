@@ -42,6 +42,7 @@ var _prediction_source_state: BattleState = null
 var _prediction_cache: Dictionary = {}
 var _aim_power_step: int = 0
 var _enemy_action_delay: EnemyActionDelay = ENEMY_ACTION_DELAY.new()
+var _ai_review_grade_id: int = AiGrade.Value.COMMON
 
 
 func _ready() -> void:
@@ -49,7 +50,7 @@ func _ready() -> void:
 	_input.prediction_requested.connect(_on_prediction_requested)
 	_input.launch_requested.connect(_on_launch_requested)
 	_input.aim_cancelled.connect(_clear_aim)
-	_help_label.text = "기물 중심에서 멀리 당길수록 강하게 발사 · 1/2/3: 기물 순환 · R: 재시작 · Esc: 취소"
+	_help_label.text = "기물 중심에서 멀리 당길수록 강하게 발사 · 1/2/3: 기물 순환 · AI등급 F1/F2/F3 또는 7/8/9 · R: 재시작 · Esc: 취소"
 	_load_content()
 	if _content_error.is_ok():
 		_build_map_view()
@@ -110,6 +111,15 @@ func _unhandled_input(event: InputEvent) -> void:
 				return
 			KEY_1, KEY_2, KEY_3:
 				_cycle_player_slot(int(event.keycode - KEY_1))
+				return
+			KEY_F1, KEY_7:
+				select_ai_review_grade(AiGrade.Value.COMMON)
+				return
+			KEY_F2, KEY_8:
+				select_ai_review_grade(AiGrade.Value.ELITE)
+				return
+			KEY_F3, KEY_9:
+				select_ai_review_grade(AiGrade.Value.BOSS)
 				return
 	if not event is InputEventMouse or not _content_error.is_ok() or not _error.is_ok():
 		return
@@ -172,9 +182,9 @@ func _advance_noninteractive_phases() -> void:
 			if not _enemy_action_delay.is_ready(_state.current_actor_body_id(), Time.get_ticks_msec()):
 				return
 			_enemy_action_delay.consume()
-			var enemy_slot: int = _state.current_actor_body_id() - _map_definition.deploy_count() - 1
-			var grade_id: int = _enemy_definitions[enemy_slot % _enemy_definitions.size()].ai_grade_id()
-			var command: LaunchCommand = AiShotSelector.command_for(_state, grade_id, _error)
+			var command: LaunchCommand = AiShotSelector.command_for(
+				_state, _ai_review_grade_id, _error
+			)
 			if _error.is_ok():
 				LaunchVelocitySolver.commit(_state, command, _error)
 				_resolve_content_transition()
@@ -473,6 +483,22 @@ func _preview_text(status: SimStatus) -> String:
 	return "▶".join(ids)
 
 
+func ai_review_grade_id() -> int:
+	return _ai_review_grade_id
+
+
+func ai_review_grade_name() -> String:
+	return String(AiGrade.Value.keys()[_ai_review_grade_id])
+
+
+func select_ai_review_grade(grade_id: int) -> bool:
+	if not AiGrade.is_known(grade_id):
+		return false
+	_ai_review_grade_id = grade_id
+	_restart()
+	return true
+
+
 func _sync_view() -> void:
 	if not _content_error.is_ok():
 		_status_label.text = "P2-6 콘텐츠 로드 오류 · code %d / op %d / doc %d / record %d" % [_content_error.code(), _content_error.operation(), _content_error.document_kind_id(), _content_error.record_numeric_id()]
@@ -508,7 +534,7 @@ func _sync_view() -> void:
 			(_piece_nodes[body_id] as Node2D).queue_free()
 			_piece_nodes.erase(body_id)
 	var phase_name: String = BattleState.Phase.keys()[_state.phase()]
-	_status_label.text = "P2-6 콘텐츠 회색상자 · 턴 %d · %s · actor #%d · 생존 %d/6 · fp %s" % [_turns, phase_name, _state.current_actor_body_id(), world.body_count(), _catalog.fingerprint_hex().left(8)]
+	_status_label.text = "P3 AI 검수 %s · 턴 %d · %s · actor #%d · 생존 %d/6 · fp %s" % [ai_review_grade_name(), _turns, phase_name, _state.current_actor_body_id(), world.body_count(), _catalog.fingerprint_hex().left(8)]
 	if _input.is_dragging():
 		_status_label.text += " · POWER %d/%d" % [_aim_power_step, LaunchLimits.POWER_STEPS]
 	if _state.phase() == BattleState.Phase.RESOLVE:

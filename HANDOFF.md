@@ -1,6 +1,6 @@
 # HANDOFF — Flickstone 프로젝트 인수 문서
 
-> 최종 갱신: 2026-08-24
+> 최종 갱신: 2026-08-25
 > 규칙은 `CLAUDE.md`, 명령 범위는 `docs/command-catalog.md`, 게임 설계는 `docs/design/game_design.md`를 정본으로 삼는다.
 
 ## 1. 프로젝트 한 줄 요약
@@ -123,7 +123,7 @@
 - [x] P3-H01~06 하이브리드 대체안 승인 및 직접/1회 벽 반사 후보·정수 휴리스틱·등급 오차 구현
 - [x] enemies v2·catalog/fingerprint v6 이관, runtime 적 3종 COMMON 배정, 독립 Python 기준 검증 통과
 - [x] Godot 활성 P2/P3 narrow와 quick `verify --full`, P2-6 terminal 32행 골든 재생성
-- [x] 현재 runtime COMMON 적 AI의 조준·행동 사람 플레이 검수 — 사용자 확인 완료
+- [x] 같은 시드·배치의 COMMON/ELITE/BOSS 검수 모드 구현 및 사람 플레이 검수 — 전체 체감 양호, ELITE/BOSS의 뚜렷한 난도 상승 사용자 승인으로 P3 완료
 - [x] 사용자 재승인에 따라 `vmax <= 20`에서 현재 위치 즉시 정지 후 TURN_END로 전환하는 권위 RESOLVE 컷오프 구현
 - [x] P1 컷오프 경계 narrow 19개와 Godot import·main scene smoke·manifest 통과
 - [x] 권위 종단값 변경에 따른 P1 narrow 16과 P2 terminal 16×2 골든 이관 — 승인 참조 `P1-vmax20-cutoff-2026-08-24`, P3 AI narrow 통과
@@ -264,7 +264,8 @@
 - 최초 승인안의 후보별 P2 전체 행동 복제는 단일 후보가 약 12,203ms여서 500ms 상한과 양립하지 않았다. 사용자가 승인한 P3-H01~06에 따라 직접 조준과 외곽 벽 1회 bank 후보를 정수 기하 휴리스틱으로 평가하고, 실제 피해·승패는 기존 P0~P2 권위 시뮬레이션이 계속 판정한다.
 - COMMON/ELITE/BOSS는 같은 원시 후보·평가식을 사용하고 `AI_SHOT_ERROR=3` 파생 RNG의 각도/파워 오차만 달라진다. 안전 가드는 위험한 오차를 세 번 축소한 뒤 최상 안전 후보로 복귀한다.
 - `enemies.json` v2의 필수 `ai_grade_id`, catalog/fingerprint v6을 도입했다. 현재 runtime 적 3종은 COMMON이며 fingerprint는 `89340a848cea8b0ec2b688243a16945bb6e071d6f28e9948e6cefe04e0d011f3`이다.
-- 독립 Python schema/fingerprint/등급 계약, Godot P3 narrow, P2-6 1,000회·16×2 terminal/snapshot 골든 이관, Godot 4.6.3 quick `verify --full`이 통과했다. 로컬 headless 선택은 약 302~336ms였다. 남은 P3 완료 조건은 COMMON/ELITE/BOSS 행동에 대한 사람 플레이 검수다.
+- 독립 Python schema/fingerprint/등급 계약, Godot P3 narrow, P2-6 1,000회·16×2 terminal/snapshot 골든 이관, Godot 4.6.3 quick `verify --full`이 통과했다. 로컬 headless 선택은 최초 약 302~336ms, 최종 검수 모드 narrow에서 132ms로 500ms 상한 이내였다.
+- 회색상자에 `F1/F2/F3` 또는 `7/8/9`로 COMMON/ELITE/BOSS를 같은 시드·배치에서 바꾸는 검수 모드를 추가했다. 사용자가 세 등급을 비교해 전체 체감이 괜찮고 ELITE/BOSS가 꽤 어렵다고 승인했으며, 이로써 P3 완료 조건을 충족했다.
 
 ### 3.11 다음 작업 실행 명령
 
