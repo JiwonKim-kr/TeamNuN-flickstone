@@ -153,10 +153,13 @@
 - [x] Flickstone 제출용 커스텀 학습 제외 결정 — 미학습 모델 `model_J3axGWbQRqMhjkoCrLsKBPdb`는 이력으로만 보존하고 요금제 업그레이드·학습 재시도를 선행 조건에서 제거. 범용 아트 파이프라인 계약은 변경하지 않음
 - [x] 승인 참조 8장 + P5 고정 모델/프롬프트/출력 규칙으로 무학습 바둑돌·대표 기물 6종 생성 원본, 64×64 RGBA 검수본, 선택 보드 1배 합성 생성 (`assets/art/concepts/p5_no_training_samples/`, `art lock` 명령 미사용)
 - [ ] 샘플 승인 후 P5 범위에서 64×64·1배 런타임 에셋 생성, 보드/기물 연결, 실제 게임 화면 검수. manifest 쓰기는 `manifest.py`만 사용
-- [ ] 대표 7종 사람 검수 — 특히 원시인 유인원 인상, 탱탱볼 마법 구슬 오인, 전체 크기·대비 확인
+- [x] 대표 샘플 중 바둑돌·병뚜껑·원시인·AI·체스 나이트·불 원소 6종 사용자 검수 통과
+- [ ] 탱탱볼 최종 검수 — 기존 소용돌이 후보는 마법 구슬 오인으로 제외·보존, 고무 성형선과 청록/노랑 인쇄 띠를 강조한 `bouncy_ball_refined_00` 대체 후보 생성·64px/보드 합성 probe 완료
 - [x] P5-DZ encounter 기반 턴 시작 데미지 존 명세 승인·구현 — 존당 15, 접선 포함 원 접촉, zone ID 순 중첩, 환경 피해 우선, runtime KILL 콘텐츠 제거 (`docs/specs/p5_turn_start_damage_zones.md`)
 - [x] P5-DZ 독립 기하 KAT·Godot 9개 그룹, P2-6 quick 22개 그룹·1,000회 결정성·seed-0 두 프리셋 종결 회귀 통과
 - [x] P5-DZ Godot 4.6.3 `verify --demo` 통합 게이트 완료 — 기본 게이트 4 PASS·lore 1 정책 SKIP·대표 러너 9종 PASS
+- [x] P5-DZ 경고 격자 아트 사용자 선택·런타임 연결 — 64×64 RGBA 반복 타일, polygon mask, 38% alpha, 2px 주황 경계. 다른 생성 후보는 보존
+- [ ] 2026-08-25 위험 존 아트 연결 후 `verify --demo`: 기본 게이트 4 PASS·lore 정책 SKIP, 11개 러너 중 10 PASS. 변경 범위의 art/P5-DZ/P2-content/play 테스트는 통과했으나 `run_p4_run_ui_save_completion.py`가 quick route 계산 중 600초 timeout으로 1 FAIL
 - [ ] P5-DZ 사람 플레이 검수 — 중앙 존 가독성, 자기 턴 시작 −15 인지, 중첩/죽음 흐름 체감 확인
 - [ ] 정식 release 전에 P5-DZ 기준 P2-6 terminal 16×2 exact 골든 전체 재생성·승인. 현재 데모 quick은 두 프리셋 seed-0 gameplay 기준만 이관
 

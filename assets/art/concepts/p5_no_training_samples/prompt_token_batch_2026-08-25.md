@@ -33,3 +33,16 @@ Constraints: genuinely transparent background; preserve alpha; exactly one token
 | 탱탱볼 | translucent bouncy-ball token with a bold internal spiral that reads as rubber rather than a magic orb | hot magenta, violet and restrained pink-white highlights | glossy semi-translucent rubber, thick toy-like surface, simple internal swirl | keep a clear dark outer rim; no magical runes; no gemstone facets; no flame |
 | 체스 나이트 | chess-knight token with a bold ivory horse-head relief mounted inside a dark circular base | warm ivory, graphite and muted gray | carved ivory or pale bone-like chess material on a dark stone-metal medallion | horse relief must stay entirely inside the circle; recognizable chess knight silhouette at 64x64; no chessboard; no crown |
 | 불 원소 | fire-elemental token showing a contained swirling flame vortex sealed inside a dark circular stone-metal medallion | deep red, ember orange, bright yellow core and charcoal | charred cracked stone, dark metal rim, bright contained pixel flame | all flames must remain inside the circular footprint; no flame protrusion; no face; no creature body; preserve a strong dark rim |
+
+# 탱탱볼 정제 후보
+
+기존 자홍 소용돌이 탱탱볼의 마법 구슬 오인 가능성에 대한 사용자 피드백을 반영했다. 기존 탱탱볼·병뚜껑·바둑돌·선택 보드를 참조하고 다음 조건으로 내장 imagegen을 사용했다.
+
+- 평범한 대량생산 장난감 고무 탱탱볼로 즉시 읽힐 것
+- 자홍색 반투명 고무, 넓은 청록/노랑 비대칭 인쇄 띠
+- 성형선, 작은 사출점, 미세한 생활 흠집
+- 좌상단 광원, 짧은 접지 그림자, 원형 물리 실루엣
+- 외부 받침·림·금속 베젤·오라·발광·수정·포털·마법 문양 금지
+- 실제 RGBA 투명 배경, 문자·로고·진영색 금지
+
+생성 원본은 `bouncy_ball_refined_00.png`, 64px 검수본은 `bouncy_ball_refined_00_64.png`다.

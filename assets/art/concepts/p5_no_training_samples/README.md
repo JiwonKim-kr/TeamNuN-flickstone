@@ -55,3 +55,13 @@
 - `all_tokens_test_00_board_preview.png`는 선택 보드에 1배 크기로 올린 합성 검수본이며 보드 원본에는 기물이 포함되지 않는다.
 - 생성 프롬프트 집합은 `prompt_token_batch_2026-08-25.md`에 보존한다.
 - 사람 승인 전에는 `assets/art/sprites/`, scene, manifest를 변경하지 않는다.
+
+## 2026-08-25 사람 검수와 탱탱볼 정제
+
+- 바둑돌·병뚜껑·원시인·AI·체스 나이트·불 원소 6종은 사용자 검수를 통과했다.
+- 기존 `bouncy_ball_test_00`은 자홍 소용돌이와 금속 림 때문에 마법 구슬로 오인될 가능성이 있어 런타임 후보에서 제외하되 비교용으로 보존한다.
+- 대체 후보 `bouncy_ball_refined_00.png`는 실제 장난감 고무공의 성형선·사출점·잔기스와 청록/노랑 인쇄 띠를 강조하고, 외부 림·오라·마법 문양을 제거했다.
+- `bouncy_ball_refined_00_64.png`는 1,254px 원본을 중심 1,000px 크롭 → 60×60 nearest → 2px 투명 패딩으로 정규화했으며 RGBA·alpha probe를 통과했다.
+- `all_tokens_refined_bouncy_ball_board_preview.png`는 기존 여섯 승인 후보와 새 탱탱볼을 선택 보드에 1배로 합성한 사람 검수본이다.
+
+새 탱탱볼은 아직 사람 최종 승인 전이므로 runtime sprite나 manifest에 연결하지 않는다.

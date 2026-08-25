@@ -226,7 +226,8 @@ decode는 count `<=64`, zone ID 0 금지·유일·엄격 오름차순, damage `>
 - `play build`에서는 `PLACEHOLDER_turn_start_damage.png`를 만들고 `manifest.py`로 등록한다.
 - 렌더는 폴리곤을 마스크로 사용하고 월드 좌표 기준 UV로 타일을 반복한다.
 - 접촉 판정은 texture alpha나 렌더 크기를 읽지 않고 core polygon만 사용한다.
-- 실제 아트 생성·교체는 스타일 선택과 `art lock` 뒤 별도 `art gen`·`art reskin` 승인으로 진행한다.
+- 2026-08-25 사용자 선택에 따라 경고 격자 후보를 `assets/art/zones/turn_start_damage.png`로 승격했다. 64×64 RGBA 반복 타일, polygon mask, 38% alpha, 2px 주황 경계를 사용한다.
+- Flickstone 제출용 P5 예외에 따라 커스텀 학습·범용 `art lock` 없이 승인 참조와 생성 규칙을 사용했다. 다른 위험 지역 컨셉은 삭제하지 않고 비교·향후 사용 후보로 보존한다.
 
 ## P3 AI 영향
 

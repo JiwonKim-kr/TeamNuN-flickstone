@@ -6,7 +6,7 @@ signal run_battle_finished(outcome: RunBattleOutcome)
 
 const PLAYER_TEXTURE := preload("res://assets/art/sprites/p1_graybox/PLACEHOLDER_player_piece.png")
 const ENEMY_TEXTURE := preload("res://assets/art/sprites/p1_graybox/PLACEHOLDER_enemy_piece.png")
-const DAMAGE_ZONE_TEXTURE := preload("res://assets/art/zones/PLACEHOLDER_turn_start_damage.png")
+const DAMAGE_ZONE_TEXTURE := preload("res://assets/art/zones/turn_start_damage.png")
 const CONTENT_DRIVER: Script = preload("res://src/ui/battle/p2_content_battle_driver.gd")
 const PREDICTION_QUEUE: Script = preload("res://src/ui/battle/trajectory_prediction_queue.gd")
 const ENEMY_ACTION_DELAY: Script = preload("res://src/ui/battle/enemy_action_delay.gd")
@@ -422,10 +422,10 @@ func _build_map_view() -> void:
 		fill.name = "DamageZone%d" % damage_zone.local_id()
 		fill.polygon = points; fill.uv = uv; fill.texture = DAMAGE_ZONE_TEXTURE
 		fill.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
-		fill.color = Color(1.0, 1.0, 1.0, 0.72)
+		fill.color = Color(1.0, 1.0, 1.0, 0.38)
 		_map_visuals.add_child(fill)
 		var outline := Line2D.new()
-		outline.width = 5.0; outline.default_color = Color(1.0, 0.28, 0.2, 0.95); outline.points = points; outline.add_point(points[0])
+		outline.width = 2.0; outline.default_color = Color(1.0, 0.416, 0.125, 0.9); outline.points = points; outline.add_point(points[0])
 		_map_visuals.add_child(outline)
 		var label := Label.new()
 		label.text = "턴 시작 -%d" % damage_zone.turn_start_damage()
