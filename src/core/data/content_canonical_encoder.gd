@@ -149,7 +149,7 @@ static func encode(
 				writer.u16(payload.owner_role_id()); writer.u16(payload.anchor_mode_id()); writer.vec2(payload.anchor_offset()); writer.i64(payload.attach_distance_raw()); writer.u16(payload.inertia_basis_points()); writer.u32(payload.duration_turns())
 			elif effect.kind_id() == AbilityEffectDefinition.Kind.SPAWN_ZONE:
 				writer.u8(4); var payload: ZoneSpawnPayloadDefinition = effect.zone_payload()
-				writer.u32(payload.flags()); writer.i64(payload.friction_multiplier_raw()); writer.vec2(payload.acceleration()); writer.vec2(payload.offset()); writer.u32(payload.vertex_count())
+				writer.u32(payload.flags()); writer.i64(payload.friction_multiplier_raw()); writer.vec2(payload.acceleration()); writer.i64(payload.turn_start_damage()); writer.vec2(payload.offset()); writer.u32(payload.vertex_count())
 				var payload_status := ContentStatus.new()
 				for vertex_index: int in range(payload.vertex_count()): writer.vec2(payload.vertex_at(vertex_index, payload_status))
 				writer.u32(payload.duration_turns())
@@ -240,6 +240,11 @@ static func encode(
 		for ref_index: int in range(definition.enemy_ref_count()):
 			var enemy_ref: ContentIdRef = definition.enemy_ref_at(ref_index, encounter_status); writer.u32(enemy_ref.numeric_id()); writer.string_utf8(enemy_ref.string_id())
 		writer.u32(definition.reward_profile_numeric_id())
+		writer.u32(definition.damage_zone_count())
+		for zone_index: int in range(definition.damage_zone_count()):
+			var zone: EncounterDamageZoneDefinition = definition.damage_zone_at(zone_index, encounter_status)
+			writer.u32(zone.local_id()); writer.i64(zone.turn_start_damage()); writer.u32(zone.duration_turns()); writer.u32(zone.vertex_count())
+			for vertex_index: int in range(zone.vertex_count()): writer.vec2(zone.vertex_at(vertex_index, encounter_status))
 		if not encounter_status.is_ok(): status.fail(ContentStatus.Code.FINGERPRINT_ERROR, ContentStatus.Operation.CANONICAL_ENCODE, ContentIds.DocumentKind.ENCOUNTERS, definition.numeric_id()); return PackedByteArray()
 
 	writer.u16(ContentIds.DocumentKind.RELICS); writer.u16(ContentIds.RELICS_SCHEMA_VERSION); writer.u32(0)

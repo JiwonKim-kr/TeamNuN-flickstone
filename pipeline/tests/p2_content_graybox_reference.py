@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "pipeline" / "scripts"))
 from content_catalog import ContentError, load_catalog  # noqa: E402
 
 RUNTIME = ROOT / "src" / "core" / "data"
-EXPECTED_FINGERPRINT = "ed6dd1319f158a539ffe4bc89bce965ea1061586b1e462a7e211bb8f0f561e3e"
+EXPECTED_FINGERPRINT = "16df0d24ed90733b2f5f8b3761fd37830154e550c74fc00adba3a9445fa07167"
 
 
 def mutate(file_name: str, callback) -> tuple[bool, str]:
@@ -94,7 +94,7 @@ def main() -> int:
     ok, _ = mutate("enemies.json", lambda value: value["records"][0]["override"].update({"unknown": 1}))
     assert not ok
     ok, _ = mutate("maps.json", lambda value: value["records"][0]["player_slots"][0].update({"x_raw": 320 * 65536, "y_raw": 512 * 65536}))
-    assert not ok
+    assert ok
 
     radius = 32 * 65536
     ok, _ = mutate("maps.json", lambda value: value["records"][0]["player_slots"][0].update({"x_raw": radius + 1, "y_raw": 700 * 65536}))
@@ -115,7 +115,7 @@ def main() -> int:
 
     print("[PASS] P2-6-PY-RUNTIME exact package IDs, records, and level-one boundary")
     print("[PASS] P2-6-PY-CANONICAL reordered registry/records preserve fingerprint")
-    print("[PASS] P2-6-PY-NEGATIVE-BOUNDARY references, overrides, KILL slots, and max-radius edge")
+    print("[PASS] P2-6-PY-NEGATIVE-BOUNDARY references, overrides, neutral map slots, and max-radius edge")
     print("P2_CONTENT_GRAYBOX_REFERENCE_RESULT: PASS")
     return 0
 

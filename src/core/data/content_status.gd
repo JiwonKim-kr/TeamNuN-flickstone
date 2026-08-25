@@ -148,6 +148,8 @@ enum FieldId {
 	MAP_REF = 100,
 	ENEMY_REFS = 101,
 	REWARD_PROFILE_NUMERIC_ID = 102,
+	DAMAGE_ZONES = 103,
+	TURN_START_DAMAGE = 104,
 }
 
 var _code: int = Code.OK

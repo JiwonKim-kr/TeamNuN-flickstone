@@ -52,19 +52,19 @@ const ENCOUNTERS_FILE: String = "encounters.json"
 const RELICS_FILE: String = "relics.json"
 const CONSUMABLES_FILE: String = "consumables.json"
 
-const CATALOG_SCHEMA_VERSION: int = 7
+const CATALOG_SCHEMA_VERSION: int = 8
 const REGISTRY_SCHEMA_VERSION: int = 1
 const PIECES_SCHEMA_VERSION: int = 3
-const ABILITIES_SCHEMA_VERSION: int = 5
+const ABILITIES_SCHEMA_VERSION: int = 6
 const STATUSES_SCHEMA_VERSION: int = 1
 const SYNERGIES_SCHEMA_VERSION: int = 1
 const MAPS_SCHEMA_VERSION: int = 1
 const ENEMIES_SCHEMA_VERSION: int = 2
 const ACTS_SCHEMA_VERSION: int = 1
-const ENCOUNTERS_SCHEMA_VERSION: int = 1
+const ENCOUNTERS_SCHEMA_VERSION: int = 2
 const RELICS_SCHEMA_VERSION: int = 1
 const CONSUMABLES_SCHEMA_VERSION: int = 1
-const FINGERPRINT_FORMAT_VERSION: int = 7
+const FINGERPRINT_FORMAT_VERSION: int = 8
 
 
 static func is_known_namespace(value: int) -> bool:

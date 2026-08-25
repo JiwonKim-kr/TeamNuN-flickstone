@@ -169,6 +169,10 @@ func contains_point_strict(point: FixVec2, status: SimStatus) -> bool:
 	)
 
 
+func overlaps_circle(center: FixVec2, radius_raw: int, status: SimStatus) -> bool:
+	return _polygon.overlaps_circle(center, radius_raw, status)
+
+
 func first_strict_entry_t_raw(
 		start: FixVec2, finish: FixVec2, status: SimStatus
 ) -> int:

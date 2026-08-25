@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flickstone.local/schemas/p5-abilities-v6.schema.json",
+  "$defs": {
+    "point": {"type": "object", "additionalProperties": false, "required": ["x_raw", "y_raw"], "properties": {"x_raw": {"type": "integer", "minimum": -536870912, "maximum": 536870912}, "y_raw": {"type": "integer", "minimum": -536870912, "maximum": 536870912}}},
+    "selector": {"type": "object", "additionalProperties": false, "required": ["kind_id", "relation_id", "limit"], "properties": {"kind_id": {"type": "integer", "minimum": 1, "maximum": 8}, "relation_id": {"const": 0}, "limit": {"type": "integer", "minimum": 0, "maximum": 256}}},
+    "zone": {"type": "object", "additionalProperties": false, "required": ["flags", "friction_multiplier_raw", "acceleration_x_raw", "acceleration_y_raw", "turn_start_damage", "offset_x_raw", "offset_y_raw", "vertices", "duration_turns"], "properties": {"flags": {"enum": [0, 1]}, "friction_multiplier_raw": {"type": "integer", "minimum": 0}, "acceleration_x_raw": {"type": "integer", "minimum": -536870912, "maximum": 536870912}, "acceleration_y_raw": {"type": "integer", "minimum": -536870912, "maximum": 536870912}, "turn_start_damage": {"type": "integer", "minimum": 0}, "offset_x_raw": {"type": "integer", "minimum": -536870912, "maximum": 536870912}, "offset_y_raw": {"type": "integer", "minimum": -536870912, "maximum": 536870912}, "vertices": {"type": "array", "minItems": 3, "maxItems": 64, "items": {"$ref": "#/$defs/point"}}, "duration_turns": {"type": "integer", "minimum": 0, "maximum": 1024}}}
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "records"],
+  "properties": {"schema_version": {"const": 6}, "records": {"type": "array", "maxItems": 4096, "items": {"type": "object", "additionalProperties": false, "required": ["numeric_id", "id", "trigger_id", "conditions", "effects"], "properties": {"numeric_id": {"type": "integer", "minimum": 1, "maximum": 4294967295}, "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"}, "trigger_id": {"type": "integer", "minimum": 1, "maximum": 13}, "conditions": {"type": "array", "maxItems": 16}, "effects": {"type": "array", "maxItems": 32}}}}}
+}

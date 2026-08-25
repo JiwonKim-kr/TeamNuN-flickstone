@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P4-1~3 구현·자동 검증 완료 · 다음 런 작업은 P4-4 상세 명세**. 병행 P5 트랙은 A/B/C 스타일 보드 생성·probe 완료 후 사람 방향 선택 대기이며, P4-W Web 프리뷰는 공개 배포·브라우저 검수 완료 |
+| 현재 단계 | **P4-1~3 구현·자동 검증 완료 · 다음 런 작업은 P4-4 상세 명세**. P5-DZ 턴 시작 데미지 존은 승인·구현·통합 데모 검증 완료 후 사람 플레이 검수를 기다리며, 아트 트랙은 보드/기물/데미지 존 overlay 분리 방향과 A/B/C 스타일 선택을 기다린다. P4-W Web 프리뷰는 공개 배포·브라우저 검수 완료 |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -142,6 +142,11 @@
 - [x] Scenario 인증과 최신 제3자 생성 API 라이브 검증 — FLUX.2 `numOutputs` 요청, `job.result.images` 다운로드 확인
 - [x] P5 A/B/C 스타일 보드 3장 생성·640×1,024 PNG probe·시각 사전 점검 완료 (`assets/art/concepts/p5_styleboards/`). 엔진 포함 art 파이프라인과 Godot 4.6.3 `verify --demo`도 통과
 - [ ] P5 A/B/C 중 사람 방향 선택. 이후 선택안 대표 클로즈업 6~9장은 별도 승인 범위로 진행
+- [x] P5-DZ encounter 기반 턴 시작 데미지 존 명세 승인·구현 — 존당 15, 접선 포함 원 접촉, zone ID 순 중첩, 환경 피해 우선, runtime KILL 콘텐츠 제거 (`docs/specs/p5_turn_start_damage_zones.md`)
+- [x] P5-DZ 독립 기하 KAT·Godot 9개 그룹, P2-6 quick 22개 그룹·1,000회 결정성·seed-0 두 프리셋 종결 회귀 통과
+- [x] P5-DZ Godot 4.6.3 `verify --demo` 통합 게이트 완료 — 기본 게이트 4 PASS·lore 1 정책 SKIP·대표 러너 9종 PASS
+- [ ] P5-DZ 사람 플레이 검수 — 중앙 존 가독성, 자기 턴 시작 −15 인지, 중첩/죽음 흐름 체감 확인
+- [ ] 정식 release 전에 P5-DZ 기준 P2-6 terminal 16×2 exact 골든 전체 재생성·승인. 현재 데모 quick은 두 프리셋 seed-0 gameplay 기준만 이관
 
 ### 3.1 P1-2 현재 작업 기록
 
@@ -286,7 +291,7 @@
 
 ### 3.12 P4-2 Act·Encounter·노드맵 구현 기록
 
-- document kind 8~11과 namespace 9~12, catalog/fingerprint v7을 append했다. 현재 runtime fingerprint는 `ed6dd1319f158a539ffe4bc89bce965ea1061586b1e462a7e211bb8f0f561e3e`다.
+- document kind 8~11과 namespace 9~12, catalog/fingerprint v7을 append했다. P4-2 당시 runtime fingerprint는 `ed6dd1319f158a539ffe4bc89bce965ea1061586b1e462a7e211bb8f0f561e3e`이며 현재 값은 아래 P5-DZ 기록을 따른다.
 - immutable Act/Encounter 계층과 strict JSON/canonical encoder/DataDB lookup을 구현했다. relic/consumable은 P4-5 전까지 빈 schema·namespace로 유지한다.
 - `development_act_1`은 5층 폭 `1/2/2/1/1`, encounter 4개, ELITE/BOSS enemy 2개를 사용한다. 같은 catalog·act·seed는 exact node/type/content/edge를 생성한다.
 - `RunState.create`의 임의 graph 입력을 제거하고 restore/validate가 graph를 재생성해 exact 비교한다. 이관된 RunSnapshot v1 KAT는 331 bytes, SHA-256 `73ea51d49acb0fc2b1f2b1d696241dcf724937653e42d1249d63d66f9ff34797`다.
@@ -302,7 +307,17 @@
 - 독립 Python seed KAT·1,000회, Godot 15개 grouped check와 대표 P1~P4 회귀가 통과했다. Godot 4.6.3 `verify --demo`는 대표 러너 9종을 통과했으며 P0 quick 20회·순열 3종이 실제 적용됐다.
 - `verify --full`과 16-seed 전체 route는 데모 일정 합의에 따라 P4-6 단계 종료로 이연했다.
 
-### 3.14 다음 작업 실행 명령
+### 3.14 P5-DZ 턴 시작 데미지 존 구현 기록
+
+- 맵은 경계·슬롯만 소유하고 네 development encounter가 같은 중앙 사각형 데미지 존을 각각 소유한다. KILL 엔진과 기존 회귀는 유지하되 현재 runtime map의 KILL 존은 제거했다.
+- 기물 원이 폴리곤 내부·경계·접선에 닿으면 자기 `TURN_START`에 존당 정확히 15 피해를 받는다. 여러 존은 zone ID 오름차순으로 개별 적용하며, 생존자만 `ON_TURN_START` 뒤 AIM으로 이동한다.
+- 환경 피해 사망은 일반 파괴·`ON_DEATH_SELF`를 유지하지만 공격자, `ON_HIT_DEAL`, `ON_KILL`, kill tally를 만들지 않는다. `SPAWN_ZONE`도 같은 피해값·수명·rollback 경계를 재사용한다.
+- abilities v6·encounters v2·catalog/fingerprint v8과 `BattleSnapshot` v9로 이관했다. 현재 runtime fingerprint는 `16df0d24ed90733b2f5f8b3761fd37830154e550c74fc00adba3a9445fa07167`이며, 331-byte `RunSnapshot` v1 KAT는 SHA-256 `8c8671cd39afe6defc986644d56122315cd6191d03793416620d2fbf95f87c04`다.
+- 회색상자는 별도 64×64 반복 overlay와 `턴 시작 -15` 표기를 사용한다. 맵 보드 이미지에는 위험 구역이나 기물을 굽지 않으며 실제 아트 교체는 `art lock` 이후 별도 진행한다.
+- 독립 기하 기준값과 Godot P5-DZ 9개 그룹, P2-6 quick 22개 그룹·1,000회 결정성·seed-0 두 종결 전투가 통과했다. 정식 release의 16×2 exact terminal 골든 갱신과 사람 플레이 검수는 남아 있다.
+- Godot 4.6.3 `verify --demo`는 import·main scene smoke·naming·manifest를 통과했고 lore 미초기화만 정책대로 SKIP, 대표 러너 9종이 모두 통과했다.
+
+### 3.15 다음 작업 실행 명령
 
 Windows PowerShell에서 먼저 `$env:PYTHONUTF8='1'`을 설정한다.
 

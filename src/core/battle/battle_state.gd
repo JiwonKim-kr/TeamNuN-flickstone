@@ -49,6 +49,7 @@ var _dynamic_spawn_transition_count: int = 0
 var _dynamic_transform_body_ids: Array[int] = []
 var _zone_spawns: Array[ZoneSpawnState] = []
 var _zone_spawn_transition_count: int = 0
+var _damage_zones: Array[DamageZoneState] = []
 var _kill_tallies: Array[BattleKillTally] = []
 
 
@@ -398,6 +399,14 @@ func _validate(status: SimStatus) -> bool:
 		if _find_participant(_current_actor_body_id) < 0:
 			status.fail(SimStatus.Code.NOT_FOUND, SimStatus.Operation.BATTLE_STATE_READ, _current_actor_body_id, 0)
 			return false
+	var previous_damage_zone_id: int = 0
+	for damage_zone: DamageZoneState in _damage_zones:
+		var zone_status := SimStatus.new()
+		if damage_zone != null: _world.zone_by_id(damage_zone.zone_id(), zone_status)
+		if damage_zone == null or not damage_zone.is_initialized() or damage_zone.zone_id() <= previous_damage_zone_id or not zone_status.is_ok():
+			status.fail(SimStatus.Code.INVALID_DAMAGE_ZONE_STATE, SimStatus.Operation.BATTLE_DAMAGE_ZONE_UPDATE, 0 if damage_zone == null else damage_zone.zone_id(), previous_damage_zone_id)
+			return false
+		previous_damage_zone_id = damage_zone.zone_id()
 	return true
 
 
@@ -563,6 +572,12 @@ func _effective_participants(status: SimStatus) -> Array[BattleParticipant]:
 static func _copy_zone_spawns(source: Array[ZoneSpawnState]) -> Array[ZoneSpawnState]:
 	var result: Array[ZoneSpawnState] = []
 	for item: ZoneSpawnState in source: result.append(item.copy())
+	return result
+
+
+static func _copy_damage_zones(source: Array[DamageZoneState]) -> Array[DamageZoneState]:
+	var result: Array[DamageZoneState] = []
+	for item: DamageZoneState in source: result.append(item.copy())
 	return result
 
 
@@ -888,7 +903,7 @@ func _process_destroy_event(event: SimEvent, status: SimStatus) -> void:
 	_emit_trigger(BattleTriggerId.Value.ON_DEATH_SELF, event.sequence(), victim_id, 0, 0, event.cause_id(), event.position(), event.vector(), 0, 0, status)
 	var killer_id: int = 0
 	var killer_faction: int = BattleParticipant.Faction.INVALID
-	var credit_index: int = _find_motion_credit(victim_id)
+	var credit_index: int = -1 if event.cause_id() == SimEvent.CauseId.TURN_START_DAMAGE_ZONE else _find_motion_credit(victim_id)
 	if credit_index >= 0:
 		killer_id = _motion_credits[credit_index].root_body_id()
 		killer_faction = _motion_credits[credit_index].root_faction()
@@ -1025,6 +1040,9 @@ func _apply_barrier(status: SimStatus) -> bool:
 				break
 			_zone_spawns.append(ZoneSpawnState.create(planned_zone_id, request.zone_duration_turns, request.zone_applied_turn_index, status))
 			_zone_spawns.sort_custom(func(a: ZoneSpawnState, b: ZoneSpawnState) -> bool: return a.zone_id() < b.zone_id())
+			if status.is_ok() and request.zone_turn_start_damage > 0:
+				_damage_zones.append(DamageZoneState.create(planned_zone_id, request.zone_turn_start_damage, status))
+				_damage_zones.sort_custom(func(a: DamageZoneState, b: DamageZoneState) -> bool: return a.zone_id() < b.zone_id())
 		else:
 			_world.remove_body(request.body_id, status)
 			if status.is_ok():
@@ -1104,9 +1122,9 @@ func queue_dynamic_spawn(request: DynamicSpawnRequest, status: SimStatus) -> boo
 	return queued
 
 
-func queue_zone_spawn(zone_template: SimZone, duration_turns: int, cause_body_id: int, event_type_id: int, ordinal: int, status: SimStatus) -> bool:
+func queue_zone_spawn(zone_template: SimZone, duration_turns: int, cause_body_id: int, event_type_id: int, ordinal: int, status: SimStatus, turn_start_damage: int = 0) -> bool:
 	if (
-		not status.is_ok() or zone_template == null or zone_template.id() != 0
+		not status.is_ok() or zone_template == null or zone_template.id() != 0 or turn_start_damage < 0
 		or duration_turns < 0 or duration_turns > ContentLimits.ZONE_DURATION_MAX_TURNS
 		or _zone_spawn_transition_count >= BattleLimits.ZONE_SPAWN_MAX_PER_TRANSITION
 		or _zone_spawns.size() + _zone_spawn_transition_count >= BattleLimits.ZONE_SPAWN_MAX_PER_BATTLE
@@ -1116,7 +1134,7 @@ func queue_zone_spawn(zone_template: SimZone, duration_turns: int, cause_body_id
 		return false
 	var queued: bool = _queue_request(BattleMutationRequest.Kind.ZONE_SPAWN, 0, null, null, null, cause_body_id, event_type_id, ordinal, status)
 	if queued:
-		_pending[-1].zone_template = zone_template.copy(); _pending[-1].zone_duration_turns = duration_turns; _pending[-1].zone_applied_turn_index = _turn_index
+		_pending[-1].zone_template = zone_template.copy(); _pending[-1].zone_duration_turns = duration_turns; _pending[-1].zone_applied_turn_index = _turn_index; _pending[-1].zone_turn_start_damage = turn_start_damage
 		_zone_spawn_transition_count += 1
 	return queued
 
@@ -1173,6 +1191,29 @@ func complete_turn_start(status: SimStatus) -> bool:
 		status.fail(SimStatus.Code.NOT_FOUND, SimStatus.Operation.BATTLE_TURN_START_COMPLETE, _current_actor_body_id, 0)
 		_assign_from(backup)
 		return false
+	var combatant_index: int = _find_combatant(_current_actor_body_id)
+	var actor_body: SimBody = SimBody.new()
+	if not _damage_zones.is_empty(): actor_body = _world.body_by_id(_current_actor_body_id, status)
+	if not _damage_zones.is_empty() and (combatant_index < 0 or not status.is_ok()):
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_DAMAGE_ZONE_STATE, SimStatus.Operation.BATTLE_DAMAGE_ZONE_UPDATE, _current_actor_body_id, combatant_index)
+		_assign_from(backup)
+		return false
+	for damage_zone: DamageZoneState in _damage_zones:
+		var zone: SimZone = _world.zone_by_id(damage_zone.zone_id(), status)
+		if not status.is_ok(): break
+		if not zone.overlaps_circle(actor_body.position(), actor_body.radius_raw(), status): continue
+		var combatant: BattleCombatant = _combatants[combatant_index]
+		var next_hp: int = 0 if damage_zone.turn_start_damage() >= combatant.current_hp() else combatant.current_hp() - damage_zone.turn_start_damage()
+		_combatants[combatant_index] = combatant.with_current_hp(next_hp, status)
+		if next_hp == 0 and status.is_ok():
+			_world.destroy_body_by_damage_zone(_current_actor_body_id, damage_zone.zone_id(), status)
+			_consume_world_events(status)
+			break
+	if not status.is_ok(): _assign_from(backup); return false
+	if _find_participant(_current_actor_body_id) < 0:
+		if not _finish_trigger_transition(status): _assign_from(backup); return false
+		_phase = Phase.TURN_END
+		return true
 	_emit_trigger(BattleTriggerId.Value.ON_TURN_START, 0, _current_actor_body_id, 0, 0, SimEvent.CauseId.NONE, FixVec2.zero(), FixVec2.zero(), 0, 0, status)
 	if not _finish_trigger_transition(status): _assign_from(backup); return false
 	_phase = Phase.AIM
@@ -1396,6 +1437,7 @@ func copy(status: SimStatus) -> BattleState:
 	result._expire_states = _copy_expire_states(_expire_states); result._piece_origins = _copy_piece_origins(_piece_origins); result._runtime_spawn_count = _runtime_spawn_count
 	result._dynamic_spawn_transition_count = _dynamic_spawn_transition_count; result._dynamic_transform_body_ids = _dynamic_transform_body_ids.duplicate()
 	result._zone_spawns = _copy_zone_spawns(_zone_spawns); result._zone_spawn_transition_count = _zone_spawn_transition_count
+	result._damage_zones = _copy_damage_zones(_damage_zones)
 	result._kill_tallies = _copy_kill_tallies(_kill_tallies)
 	return result
 
@@ -1418,6 +1460,7 @@ func _rollback_snapshot() -> BattleState:
 	result._turn_index = _turn_index; result._content_catalog = _content_catalog; result._piece_identities = _piece_identities.duplicate(); result._synergy_tally = _synergy_tally; result._statuses = _statuses.copy(); result._modifier_resolver = _modifier_resolver; result._base_body_stats = _base_body_stats.duplicate()
 	result._expire_states = _expire_states.duplicate(); result._piece_origins = _piece_origins.duplicate(); result._runtime_spawn_count = _runtime_spawn_count; result._dynamic_spawn_transition_count = _dynamic_spawn_transition_count; result._dynamic_transform_body_ids = _dynamic_transform_body_ids.duplicate()
 	result._zone_spawns = _zone_spawns.duplicate(); result._zone_spawn_transition_count = _zone_spawn_transition_count
+	result._damage_zones = _damage_zones.duplicate()
 	result._kill_tallies = _kill_tallies.duplicate()
 	return result
 
@@ -1439,6 +1482,7 @@ func _assign_from(other: BattleState) -> void:
 	_turn_index = other._turn_index; _content_catalog = other._content_catalog; _piece_identities = other._piece_identities; _synergy_tally = other._synergy_tally; _statuses = other._statuses; _modifier_resolver = other._modifier_resolver; _base_body_stats = other._base_body_stats
 	_expire_states = other._expire_states; _piece_origins = other._piece_origins; _runtime_spawn_count = other._runtime_spawn_count; _dynamic_spawn_transition_count = other._dynamic_spawn_transition_count; _dynamic_transform_body_ids = other._dynamic_transform_body_ids
 	_zone_spawns = other._zone_spawns; _zone_spawn_transition_count = other._zone_spawn_transition_count
+	_damage_zones = other._damage_zones
 	_kill_tallies = other._kill_tallies
 
 
@@ -1531,7 +1575,7 @@ func _effect_spawn_zone(owner_body_id: int, target_body_id: int, effect: Ability
 			return false
 		vertices.append(vertex)
 	var zone: SimZone = SimZone.create_unassigned(vertices, payload.friction_multiplier_raw(), payload.acceleration(), status, payload.flags())
-	return status.is_ok() and queue_zone_spawn(zone, payload.duration_turns(), owner_body_id, effect.kind_id(), ordinal, status)
+	return status.is_ok() and queue_zone_spawn(zone, payload.duration_turns(), owner_body_id, effect.kind_id(), ordinal, status, payload.turn_start_damage())
 
 
 func _replace_bindings_for_piece(body_id: int, piece: PieceDefinition, status: SimStatus) -> void:
@@ -1645,6 +1689,10 @@ func _expire_zone_turn_end(status: SimStatus) -> void:
 		elif zone_state.remaining_turns() <= 1:
 			_world.remove_zone(zone_state.zone_id(), status)
 			if not status.is_ok(): return
+			var damage_survivors: Array[DamageZoneState] = []
+			for damage_zone: DamageZoneState in _damage_zones:
+				if damage_zone.zone_id() != zone_state.zone_id(): damage_survivors.append(damage_zone.copy())
+			_damage_zones = damage_survivors
 		else:
 			survivors.append(zone_state.with_remaining(zone_state.remaining_turns() - 1, status))
 			if not status.is_ok(): return
@@ -1807,6 +1855,24 @@ func zone_spawn_count() -> int: return _zone_spawns.size()
 func zone_spawn_at(index: int, status: SimStatus) -> ZoneSpawnState:
 	if index < 0 or index >= _zone_spawns.size(): status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.BATTLE_ZONE_SPAWN, index, _zone_spawns.size()); return ZoneSpawnState.new()
 	return _zone_spawns[index].copy()
+func damage_zone_count() -> int: return _damage_zones.size()
+func damage_zone_at(index: int, status: SimStatus) -> DamageZoneState:
+	if index < 0 or index >= _damage_zones.size(): status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.BATTLE_DAMAGE_ZONE_UPDATE, index, _damage_zones.size()); return DamageZoneState.new()
+	return _damage_zones[index].copy()
+
+func register_initial_damage_zone(zone_id: int, turn_start_damage: int, duration_turns: int, status: SimStatus) -> bool:
+	if not _require_phase(Phase.BATTLE_START, SimStatus.Operation.BATTLE_DAMAGE_ZONE_UPDATE, status): return false
+	var lookup := SimStatus.new(); _world.zone_by_id(zone_id, lookup)
+	var duplicate: bool = false
+	for damage_zone: DamageZoneState in _damage_zones:
+		if damage_zone.zone_id() == zone_id: duplicate = true; break
+	if not lookup.is_ok() or duplicate or _damage_zones.size() >= BattleLimits.ZONE_TOTAL_MAX:
+		status.fail(SimStatus.Code.INVALID_DAMAGE_ZONE_STATE, SimStatus.Operation.BATTLE_DAMAGE_ZONE_UPDATE, zone_id, turn_start_damage); return false
+	_damage_zones.append(DamageZoneState.create(zone_id, turn_start_damage, status))
+	_damage_zones.sort_custom(func(a: DamageZoneState, b: DamageZoneState) -> bool: return a.zone_id() < b.zone_id())
+	_zone_spawns.append(ZoneSpawnState.create(zone_id, duration_turns, _turn_index, status))
+	_zone_spawns.sort_custom(func(a: ZoneSpawnState, b: ZoneSpawnState) -> bool: return a.zone_id() < b.zone_id())
+	return status.is_ok()
 func link_collection_copy(status: SimStatus) -> AttachLinkCollection: return AttachLinkCollection.from_world(_world, status)
 
 func _effect_restore_content(fingerprint: PackedByteArray, bindings: Array[AbilityBinding], next_sequence: int, status: SimStatus) -> bool:
@@ -1862,6 +1928,18 @@ func _zone_restore_snapshot(zone_spawns: Array[ZoneSpawnState], status: SimStatu
 			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.CONTENT_SNAPSHOT_VALIDATE, 0 if zone_state == null else zone_state.zone_id(), previous); return false
 		_zone_spawns.append(zone_state.copy()); previous = zone_state.zone_id()
 	return status.is_ok()
+
+func _damage_zone_restore_snapshot(damage_zones: Array[DamageZoneState], status: SimStatus) -> bool:
+	if damage_zones.size() > BattleLimits.ZONE_TOTAL_MAX:
+		status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_DAMAGE_ZONE_UPDATE, damage_zones.size(), BattleLimits.ZONE_TOTAL_MAX); return false
+	var previous: int = 0; _damage_zones.clear()
+	for damage_zone: DamageZoneState in damage_zones:
+		var lookup := SimStatus.new()
+		if damage_zone != null: _world.zone_by_id(damage_zone.zone_id(), lookup)
+		if damage_zone == null or not damage_zone.is_initialized() or damage_zone.zone_id() <= previous or not lookup.is_ok():
+			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_DAMAGE_ZONE_UPDATE, 0 if damage_zone == null else damage_zone.zone_id(), previous); return false
+		_damage_zones.append(damage_zone.copy()); previous = damage_zone.zone_id()
+	return true
 
 func _kill_tally_restore_snapshot(tallies: Array[BattleKillTally], status: SimStatus) -> bool:
 	if tallies.size() > _piece_origins.size():

@@ -45,7 +45,7 @@ static func build_state(request: RunBattleRequest, catalog: ContentCatalog, stat
 		if not content_status.is_ok(): _fail(status, entry.enemy_numeric_id(), index); return BattleState.new()
 		deployment.append(BattleDeploymentEntry.create_enemy(index, enemy_ref, status))
 	if not status.is_ok(): return BattleState.new()
-	var state: BattleState = BattleSetupBuilder.build(catalog, request.map_numeric_id(), deployment, request.battle_seed_hi(), request.battle_seed_lo(), status)
+	var state: BattleState = BattleSetupBuilder.build(catalog, request.map_numeric_id(), deployment, request.battle_seed_hi(), request.battle_seed_lo(), status, request.encounter_numeric_id())
 	if not status.is_ok(): return BattleState.new()
 	for index: int in range(request.player_count()):
 		var player: RunBattlePlayerEntry = request.player_at(index, status)

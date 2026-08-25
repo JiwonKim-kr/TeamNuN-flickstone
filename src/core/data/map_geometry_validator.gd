@@ -2,27 +2,6 @@ class_name MapGeometryValidator
 extends RefCounted
 
 
-static func _wide_dot(left: FixVec2, right: FixVec2, status: SimStatus) -> int:
-	var x: int = FixMath.multiply_int(left.x_raw(), right.x_raw(), status)
-	var y: int = FixMath.multiply_int(left.y_raw(), right.y_raw(), status)
-	return FixMath.add_raw(x, y, status)
-
-
-static func _distance_to_edge(point: FixVec2, start: FixVec2, finish: FixVec2, status: SimStatus) -> int:
-	var edge: FixVec2 = finish.sub(start, status)
-	var from_start: FixVec2 = point.sub(start, status)
-	var length_squared: int = _wide_dot(edge, edge, status)
-	var projection: int = _wide_dot(from_start, edge, status)
-	if not status.is_ok(): return 0
-	var closest: FixVec2
-	if projection <= 0: closest = start
-	elif projection >= length_squared: closest = finish
-	else:
-		var t_raw: int = SimPolygon.unit_ratio_raw(projection, length_squared, status)
-		closest = start.add(edge.scaled(t_raw, status), status)
-	return point.sub(closest, status).length_raw(status)
-
-
 static func validate(definition: MapDefinition, catalog_max_radius_raw: int, status: SimStatus) -> bool:
 	if not status.is_ok(): return false
 	if definition == null or not definition.is_initialized() or not SimLimits.is_radius_valid(catalog_max_radius_raw):
@@ -46,7 +25,7 @@ static func validate(definition: MapDefinition, catalog_max_radius_raw: int, sta
 		if boundary.classify_point(point, status) != SimPolygon.PointClass.INSIDE:
 			status.fail(SimStatus.Code.INVALID_MAP_SLOT, SimStatus.Operation.MAP_GEOMETRY_VALIDATE, slot_index, 0); return false
 		for edge_index: int in range(boundary.vertex_count()):
-			var distance: int = _distance_to_edge(point, boundary.vertex(edge_index, status), boundary.vertex((edge_index + 1) % boundary.vertex_count(), status), status)
+			var distance: int = SimPolygon.distance_to_segment_raw(point, boundary.vertex(edge_index, status), boundary.vertex((edge_index + 1) % boundary.vertex_count(), status), status)
 			if not status.is_ok() or distance <= catalog_max_radius_raw:
 				if status.is_ok(): status.fail(SimStatus.Code.INVALID_MAP_SLOT, SimStatus.Operation.MAP_GEOMETRY_VALIDATE, slot_index, edge_index)
 				return false

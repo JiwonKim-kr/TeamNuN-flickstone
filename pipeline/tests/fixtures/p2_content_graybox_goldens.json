@@ -1,23 +1,23 @@
 {
   "schema_version": 1,
-  "fingerprint": "ed6dd1319f158a539ffe4bc89bce965ea1061586b1e462a7e211bb8f0f561e3e",
-  "approval_ref": "P1-vmax20-cutoff-2026-08-24",
+  "fingerprint": "16df0d24ed90733b2f5f8b3761fd37830154e550c74fc00adba3a9445fa07167",
+  "approval_ref": "docs/specs/p5_turn_start_damage_zones.md (quick seed-0 migration; 16x2 release refresh pending)",
   "rows": [
     {
-      "damage_destroyed": 1,
-      "enemy_alive": 2,
-      "enemy_damage": 129,
+      "damage_destroyed": 5,
+      "enemy_alive": 1,
+      "enemy_damage": 306,
       "forced_settle_count": 0,
       "kill_boundary_destroyed": 0,
-      "kill_zone_destroyed": 3,
+      "kill_zone_destroyed": 0,
       "player_alive": 0,
-      "player_damage": 118,
+      "player_damage": 235,
       "preset": "default",
       "result": 2,
       "seed_index": 0,
-      "terminal_hash": "a135320639f2878f1683eb079a076aa6b16714da67ca0df1f6b612be34e8cd51",
-      "ticks": 4138,
-      "turns": 15
+      "terminal_hash": "17f6ce6492dade221dd29d2d1ca27c4f211bf65563f2795f14c62c8f797668cc",
+      "ticks": 8145,
+      "turns": 29
     },
     {
       "damage_destroyed": 1,
@@ -260,20 +260,20 @@
       "turns": 15
     },
     {
-      "damage_destroyed": 0,
-      "enemy_alive": 1,
-      "enemy_damage": 31,
+      "damage_destroyed": 3,
+      "enemy_alive": 0,
+      "enemy_damage": 237,
       "forced_settle_count": 0,
       "kill_boundary_destroyed": 0,
-      "kill_zone_destroyed": 5,
-      "player_alive": 0,
-      "player_damage": 11,
+      "kill_zone_destroyed": 0,
+      "player_alive": 3,
+      "player_damage": 287,
       "preset": "stacked",
-      "result": 2,
+      "result": 1,
       "seed_index": 0,
-      "terminal_hash": "68d54cb862fab16b6d1a7555cb18dd1306a776129ef4f5d13a59d08f6a859fd4",
-      "ticks": 1060,
-      "turns": 7
+      "terminal_hash": "63f113fd3b6004b350a372dd8ca2dbcc2fbbd84527a6e6acbdfcc9f299e63239",
+      "ticks": 7103,
+      "turns": 24
     },
     {
       "damage_destroyed": 0,

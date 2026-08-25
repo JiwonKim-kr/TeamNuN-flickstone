@@ -2,7 +2,7 @@ extends SceneTree
 
 const DATA_DB_SCRIPT: Script = preload("res://src/core/autoload/data_db.gd")
 const FIXTURE: String = "res://pipeline/tests/fixtures/p2_maps_enemies"
-const EXPECTED_FINGERPRINT: String = "4af6db444e62d5494c2dfc72fe7d92eec34f1273760ad69c5b74a67d94efd874"
+const EXPECTED_FINGERPRINT: String = "0b89c48b21975171daf2861b7ede067b38af25fed15bda0d7ae8b6007b845931"
 
 var failures: int = 0
 
@@ -61,7 +61,7 @@ func test_catalog(catalog: ContentCatalog) -> void:
 	var map_definition: MapDefinition = catalog.map_by_numeric_id(1, status)
 	var enemy: EnemyDefinition = catalog.enemy_by_numeric_id(1, status)
 	var level: PieceLevelDefinition = enemy.resolved_level(catalog, status)
-	check("P2-5-CATALOG-V7-MAP-ENEMY", status.is_ok() and catalog.catalog_schema_version() == 7 and catalog.map_count() == 1 and catalog.enemy_count() == 1 and catalog.fingerprint_hex() == EXPECTED_FINGERPRINT)
+	check("P2-5-CATALOG-V8-MAP-ENEMY", status.is_ok() and catalog.catalog_schema_version() == 8 and catalog.map_count() == 1 and catalog.enemy_count() == 1 and catalog.fingerprint_hex() == EXPECTED_FINGERPRINT)
 	check("P2-5-MAP-ZONE-LOCAL-ID-SORT", status.is_ok() and map_definition.zone_count() == 2 and map_definition.zone_at(0, status).local_id() == 2 and map_definition.zone_at(1, status).local_id() == 10)
 	check("P2-5-ENEMY-OVERRIDE-RESOLVE", status.is_ok() and level.max_hp() == 120 and level.attack() == 24 and level.radius_raw() == 40 * FixMath.SCALE and level.ability_ref_count() == 0)
 
@@ -104,7 +104,7 @@ func test_zone_lifecycle(catalog: ContentCatalog, state: BattleState) -> void:
 	var decoded: BattleSnapshot = BattleSnapshot.decode(bytes, status); var restored: BattleState = decoded.restore_state_with_catalog(catalog, status)
 	var bytes_again: PackedByteArray = BattleSnapshot.capture(restored, status).encode(status)
 	var encoded_version: int = bytes[9] | (bytes[10] << 8)
-	check("P2-5-SNAPSHOT-V8-ZONE-ROUNDTRIP", status.is_ok() and encoded_version == 8 and bytes == bytes_again and restored.zone_spawn_count() == 3)
+	check("P2-5-SNAPSHOT-V9-ZONE-ROUNDTRIP", status.is_ok() and encoded_version == 9 and bytes == bytes_again and restored.zone_spawn_count() == 3)
 	set_turn_index(restored, 1, status); resolve(restored, trigger(BattleTriggerId.Value.ON_TURN_END, BattleState.Phase.TURN_END, status), status)
 	var same_turn_remaining: int = restored.zone_spawn_at(0, status).remaining_turns()
 	set_turn_index(restored, 2, status); resolve(restored, trigger(BattleTriggerId.Value.ON_TURN_END, BattleState.Phase.TURN_END, status), status)
@@ -125,11 +125,11 @@ func test_legacy_v6(catalog: ContentCatalog) -> void:
 	var status := SimStatus.new(); var state: BattleState = BattleSetupBuilder.build(catalog, 1, deployment(false, status), 53, 71, status)
 	var bytes: PackedByteArray = BattleSnapshot.capture(state, status).encode(status)
 	var sim_bytes: PackedByteArray = SimSnapshot.capture(state.world_copy(status), status).encode(status)
-	var sim_length_offset: int = bytes.size() - sim_bytes.size() - 4; var kill_count_offset: int = sim_length_offset - 4; var zone_count_offset: int = kill_count_offset - 4
+	var sim_length_offset: int = bytes.size() - sim_bytes.size() - 4; var damage_count_offset: int = sim_length_offset - 4; var kill_count_offset: int = damage_count_offset - 4; var zone_count_offset: int = kill_count_offset - 4
 	var legacy: PackedByteArray = bytes.slice(0, zone_count_offset); legacy.append_array(bytes.slice(sim_length_offset, bytes.size())); legacy[9] = 6; legacy[10] = 0
 	var decoded: BattleSnapshot = BattleSnapshot.decode(legacy, status); var restored: BattleState = decoded.restore_state_with_catalog(catalog, status)
 	var recaptured: PackedByteArray = BattleSnapshot.capture(restored, status).encode(status)
-	check("P2-5-LEGACY-V6-DECODE-RECAPTURE-V8", status.is_ok() and restored.zone_spawn_count() == 0 and restored.world_copy(status).zone_count() == 2 and restored.kill_tally_count() == 0 and (recaptured[9] | (recaptured[10] << 8)) == 8)
+	check("P2-5-LEGACY-V6-DECODE-RECAPTURE-V9", status.is_ok() and restored.zone_spawn_count() == 0 and restored.world_copy(status).zone_count() == 2 and restored.kill_tally_count() == 0 and restored.damage_zone_count() == 0 and (recaptured[9] | (recaptured[10] << 8)) == 9)
 
 
 func test_zone_limit_rollback(catalog: ContentCatalog) -> void:
@@ -144,14 +144,14 @@ func test_snapshot_rejections(catalog: ContentCatalog) -> void:
 	var status := SimStatus.new(); var state: BattleState = BattleSetupBuilder.build(catalog, 1, deployment(false, status), 89, 97, status)
 	resolve(state, trigger(BattleTriggerId.Value.ON_BATTLE_START, BattleState.Phase.BATTLE_START, status), status)
 	var bytes: PackedByteArray = BattleSnapshot.capture(state, status).encode(status); var sim_bytes: PackedByteArray = SimSnapshot.capture(state.world_copy(status), status).encode(status)
-	var sim_length_offset: int = bytes.size() - sim_bytes.size() - 4; var kill_count_offset: int = sim_length_offset - 4 - state.kill_tally_count() * 8; var count: int = state.zone_spawn_count(); var zone_count_offset: int = kill_count_offset - 4 - count * 12; var first_record: int = zone_count_offset + 4
+	var sim_length_offset: int = bytes.size() - sim_bytes.size() - 4; var damage_count_offset: int = sim_length_offset - 4 - state.damage_zone_count() * 12; var kill_count_offset: int = damage_count_offset - 4 - state.kill_tally_count() * 8; var count: int = state.zone_spawn_count(); var zone_count_offset: int = kill_count_offset - 4 - count * 12; var first_record: int = zone_count_offset + 4
 	var bad_count: PackedByteArray = bytes.duplicate(); write_u32(bad_count, zone_count_offset, BattleLimits.ZONE_SPAWN_MAX_PER_BATTLE + 1)
 	var duplicate_id: PackedByteArray = bytes.duplicate(); write_u32(duplicate_id, first_record + 12, state.zone_spawn_at(0, status).zone_id())
 	var missing_id: PackedByteArray = bytes.duplicate(); write_u32(missing_id, first_record + 24, 999)
 	var bad_remaining: PackedByteArray = bytes.duplicate(); write_u32(bad_remaining, first_record + 4, ContentLimits.ZONE_DURATION_MAX_TURNS + 1)
 	var future_turn: PackedByteArray = bytes.duplicate(); write_u32(future_turn, first_record + 8, state.turn_index() + 1)
 	var trailing: PackedByteArray = bytes.duplicate(); trailing.append(0)
-	check("P2-5-SNAPSHOT-V8-MALFORMED-REJECT", status.is_ok() and snapshot_rejected(bad_count) and snapshot_rejected(duplicate_id) and snapshot_rejected(missing_id) and snapshot_rejected(bad_remaining) and snapshot_rejected(future_turn) and snapshot_rejected(trailing))
+	check("P2-5-SNAPSHOT-V9-MALFORMED-REJECT", status.is_ok() and snapshot_rejected(bad_count) and snapshot_rejected(duplicate_id) and snapshot_rejected(missing_id) and snapshot_rejected(bad_remaining) and snapshot_rejected(future_turn) and snapshot_rejected(trailing))
 
 
 func test_dynamic_kill_zone(catalog: ContentCatalog) -> void:

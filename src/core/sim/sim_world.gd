@@ -995,6 +995,26 @@ func destroy_body(
 	return true
 
 
+func destroy_body_by_damage_zone(body_id: int, zone_id: int, status: SimStatus) -> bool:
+	if not _require_initialized(status, SimStatus.Operation.WORLD_DESTROY_BODY): return false
+	if body_id == 0 or zone_id == 0 or not UInt32Math.is_u32(body_id) or not UInt32Math.is_u32(zone_id):
+		status.fail(SimStatus.Code.INVALID_ARGUMENT, SimStatus.Operation.WORLD_DESTROY_BODY, body_id, zone_id)
+		return false
+	var index: int = _find_body_index(body_id)
+	if index < 0 or _find_zone_index(zone_id) < 0:
+		status.fail(SimStatus.Code.NOT_FOUND, SimStatus.Operation.WORLD_DESTROY_BODY, body_id, zone_id)
+		return false
+	var body: SimBody = _bodies[index]
+	if not body.destructible():
+		status.fail(SimStatus.Code.INVALID_SIM_STATE, SimStatus.Operation.WORLD_DESTROY_BODY, body_id, zone_id)
+		return false
+	_append_event(SimEvent.TypeId.BODY_DESTROYED, 0, body.id(), 0, zone_id, SimEvent.CauseId.TURN_START_DAMAGE_ZONE, body.position(), body.velocity(), 0, 0, 0, status)
+	if not status.is_ok(): return false
+	_bodies.remove_at(index)
+	_remove_links_for_body(body_id)
+	return true
+
+
 func remove_zone(zone_id: int, status: SimStatus) -> void:
 	if not _require_initialized(status, SimStatus.Operation.WORLD_REMOVE_ZONE):
 		return
@@ -1969,6 +1989,15 @@ func zone_at(index: int, status: SimStatus) -> SimZone:
 			index,
 			_zones.size()
 		)
+		return SimZone.new()
+	return _zones[index].copy()
+
+
+func zone_by_id(zone_id: int, status: SimStatus) -> SimZone:
+	if not _require_initialized(status, SimStatus.Operation.BATTLE_DAMAGE_ZONE_UPDATE): return SimZone.new()
+	var index: int = _find_zone_index(zone_id)
+	if index < 0:
+		status.fail(SimStatus.Code.NOT_FOUND, SimStatus.Operation.BATTLE_DAMAGE_ZONE_UPDATE, zone_id, 0)
 		return SimZone.new()
 	return _zones[index].copy()
 

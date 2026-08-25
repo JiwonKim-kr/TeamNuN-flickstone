@@ -14,7 +14,7 @@ const EFFECT_KEYS: PackedStringArray = ["kind_id", "selector", "value_a", "value
 const SPAWN_KEYS: PackedStringArray = ["piece_ref", "offset_x_raw", "offset_y_raw", "speed_raw", "direction_mode_id"]
 const TRANSFORM_KEYS: PackedStringArray = ["piece_ref"]
 const ATTACH_KEYS: PackedStringArray = ["owner_role_id", "anchor_mode_id", "anchor_offset_x_raw", "anchor_offset_y_raw", "attach_distance_raw", "inertia_basis_points", "duration_turns"]
-const ZONE_PAYLOAD_KEYS: PackedStringArray = ["flags", "friction_multiplier_raw", "acceleration_x_raw", "acceleration_y_raw", "offset_x_raw", "offset_y_raw", "vertices", "duration_turns"]
+const ZONE_PAYLOAD_KEYS: PackedStringArray = ["flags", "friction_multiplier_raw", "acceleration_x_raw", "acceleration_y_raw", "turn_start_damage", "offset_x_raw", "offset_y_raw", "vertices", "duration_turns"]
 const SELECTOR_KEYS: PackedStringArray = ["kind_id", "relation_id", "limit"]
 const PIECE_KEYS: PackedStringArray = ["numeric_id", "id", "flags", "spawnable", "spawn_faction_mode_id", "expire_kind_id", "expire_value", "attach_anchor_mode_id", "attach_anchor_offset_x_raw", "attach_anchor_offset_y_raw", "tag_refs", "levels"]
 const FLAG_KEYS: PackedStringArray = ["has_turn", "destructible", "transformable", "counts_for_victory", "is_token"]
@@ -33,7 +33,8 @@ const ACT_KEYS: PackedStringArray = ["numeric_id", "id", "is_development", "floo
 const ACT_FLOOR_KEYS: PackedStringArray = ["floor_index", "slots"]
 const ACT_SLOT_KEYS: PackedStringArray = ["slot_index", "options"]
 const ACT_OPTION_KEYS: PackedStringArray = ["node_type_id", "weight", "content_refs"]
-const ENCOUNTER_KEYS: PackedStringArray = ["numeric_id", "id", "node_type_id", "map_ref", "enemy_refs", "reward_profile_numeric_id"]
+const ENCOUNTER_KEYS: PackedStringArray = ["numeric_id", "id", "node_type_id", "map_ref", "enemy_refs", "reward_profile_numeric_id", "damage_zones"]
+const ENCOUNTER_DAMAGE_ZONE_KEYS: PackedStringArray = ["local_id", "turn_start_damage", "duration_turns", "vertices"]
 
 
 static func _registry_less(left: ContentRegistryEntry, right: ContentRegistryEntry) -> bool:
@@ -55,6 +56,7 @@ static func _enemy_less(left: EnemyDefinition, right: EnemyDefinition) -> bool: 
 static func _act_less(left: ActDefinition, right: ActDefinition) -> bool: return left.numeric_id() < right.numeric_id()
 static func _encounter_less(left: EncounterDefinition, right: EncounterDefinition) -> bool: return left.numeric_id() < right.numeric_id()
 static func _map_zone_less(left: MapZoneDefinition, right: MapZoneDefinition) -> bool: return left.local_id() < right.local_id()
+static func _encounter_damage_zone_less(left: EncounterDamageZoneDefinition, right: EncounterDamageZoneDefinition) -> bool: return left.local_id() < right.local_id()
 static func _act_content_ref_less(left: ActContentRef, right: ActContentRef) -> bool: return left.numeric_id() < right.numeric_id()
 static func _act_option_less(left: ActNodeOptionDefinition, right: ActNodeOptionDefinition) -> bool: return left.node_type_id() < right.node_type_id()
 static func _act_slot_less(left: ActNodeSlotDefinition, right: ActNodeSlotDefinition) -> bool: return left.slot_index() < right.slot_index()
@@ -439,6 +441,7 @@ static func _parse_abilities(
 					_int_field(payload_value, "flags", status, KIND, numeric_id, ContentStatus.FieldId.FLAGS),
 					_int_field(payload_value, "friction_multiplier_raw", status, KIND, numeric_id, ContentStatus.FieldId.FRICTION_MULTIPLIER_RAW),
 					FixVec2.from_raw(_int_field(payload_value, "acceleration_x_raw", status, KIND, numeric_id, ContentStatus.FieldId.ACCELERATION_X_RAW), _int_field(payload_value, "acceleration_y_raw", status, KIND, numeric_id, ContentStatus.FieldId.ACCELERATION_Y_RAW)),
+					_int_field(payload_value, "turn_start_damage", status, KIND, numeric_id, ContentStatus.FieldId.TURN_START_DAMAGE),
 					FixVec2.from_raw(_int_field(payload_value, "offset_x_raw", status, KIND, numeric_id, ContentStatus.FieldId.OFFSET_X_RAW), _int_field(payload_value, "offset_y_raw", status, KIND, numeric_id, ContentStatus.FieldId.OFFSET_Y_RAW)),
 					vertices, _int_field(payload_value, "duration_turns", status, KIND, numeric_id, ContentStatus.FieldId.DURATION_TURNS), status)
 			var effect: AbilityEffectDefinition = AbilityEffectDefinition.create(
@@ -899,10 +902,33 @@ static func _parse_encounters(root: Dictionary, registry_by_numeric: Dictionary,
 			if not status.is_ok(): return false
 		if map_ref.is_initialized() and (map_by_numeric[map_ref.numeric_id()] as MapDefinition).deploy_count() != enemy_refs.size():
 			status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.ENCOUNTER_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.ENEMY_REFS); return false
+		var raw_damage_zones: Array = _array_field(record, "damage_zones", status, KIND, numeric_id, ContentStatus.FieldId.DAMAGE_ZONES)
+		if raw_damage_zones.size() > ContentLimits.ENCOUNTER_DAMAGE_ZONE_MAX_COUNT:
+			status.fail(ContentStatus.Code.CATALOG_LIMIT, ContentStatus.Operation.ENCOUNTER_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.DAMAGE_ZONES); return false
+		var damage_zones: Array[EncounterDamageZoneDefinition] = []
+		var zone_ids: Dictionary = {}
+		var boundary: SimPolygon = SimPolygon.new()
+		if map_ref.is_initialized(): boundary = SimPolygon.create((map_by_numeric[map_ref.numeric_id()] as MapDefinition).boundary_vertices_copy(), true, SimStatus.new())
+		for raw_zone: Variant in raw_damage_zones:
+			if typeof(raw_zone) != TYPE_DICTIONARY:
+				status.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.ENCOUNTER_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.DAMAGE_ZONES); return false
+			var zone_value: Dictionary = raw_zone as Dictionary
+			if not _require_exact_keys(zone_value, ENCOUNTER_DAMAGE_ZONE_KEYS, status, KIND, numeric_id, ContentStatus.FieldId.DAMAGE_ZONES): return false
+			var local_id: int = _int_field(zone_value, "local_id", status, KIND, numeric_id, ContentStatus.FieldId.LOCAL_ID)
+			if zone_ids.has(local_id): status.fail(ContentStatus.Code.DUPLICATE_ID, ContentStatus.Operation.ENCOUNTER_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.LOCAL_ID); return false
+			var vertices: Array[FixVec2] = _parse_vertices(_array_field(zone_value, "vertices", status, KIND, numeric_id, ContentStatus.FieldId.VERTICES), KIND, numeric_id, ContentStatus.FieldId.VERTICES, status)
+			var damage_zone: EncounterDamageZoneDefinition = EncounterDamageZoneDefinition.create(local_id, _int_field(zone_value, "turn_start_damage", status, KIND, numeric_id, ContentStatus.FieldId.TURN_START_DAMAGE), _int_field(zone_value, "duration_turns", status, KIND, numeric_id, ContentStatus.FieldId.DURATION_TURNS), vertices, status)
+			if not status.is_ok(): return false
+			var sim_status := SimStatus.new()
+			for vertex: FixVec2 in vertices:
+				if boundary.classify_point(vertex, sim_status) == SimPolygon.PointClass.OUTSIDE:
+					status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.ENCOUNTER_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.VERTICES); return false
+			damage_zones.append(damage_zone); zone_ids[local_id] = true
+		damage_zones.sort_custom(_encounter_damage_zone_less)
 		if by_numeric.has(numeric_id) or string_ids.has(string_id):
 			status.fail(ContentStatus.Code.DUPLICATE_ID, ContentStatus.Operation.ENCOUNTER_VALIDATE, KIND, numeric_id); return false
 		var id_ref: ContentIdRef = ContentIdRef.create(entry.numeric_id(), entry.string_id(), status)
-		var definition: EncounterDefinition = EncounterDefinition.create(id_ref, node_type_id, map_ref, enemy_refs, _int_field(record, "reward_profile_numeric_id", status, KIND, numeric_id, ContentStatus.FieldId.REWARD_PROFILE_NUMERIC_ID), status)
+		var definition: EncounterDefinition = EncounterDefinition.create(id_ref, node_type_id, map_ref, enemy_refs, _int_field(record, "reward_profile_numeric_id", status, KIND, numeric_id, ContentStatus.FieldId.REWARD_PROFILE_NUMERIC_ID), damage_zones, status)
 		if not status.is_ok(): return false
 		output.append(definition); by_numeric[numeric_id] = definition; string_ids[string_id] = true
 	output.sort_custom(_encounter_less)

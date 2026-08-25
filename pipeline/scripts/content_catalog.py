@@ -49,13 +49,13 @@ EXPECTED_FILES = {
 DOCUMENTS = {
     1: ("id_registry.json", 1),
     2: ("pieces.json", 3),
-    3: ("abilities.json", 5),
+    3: ("abilities.json", 6),
     4: ("statuses.json", 1),
     5: ("synergies.json", 1),
     6: ("maps.json", 1),
     7: ("enemies.json", 2),
     8: ("acts.json", 1),
-    9: ("encounters.json", 1),
+    9: ("encounters.json", 2),
     10: ("relics.json", 1),
     11: ("consumables.json", 1),
 }
@@ -315,6 +315,7 @@ class ZonePayload:
     friction_multiplier_raw: int
     acceleration_x_raw: int
     acceleration_y_raw: int
+    turn_start_damage: int
     offset_x_raw: int
     offset_y_raw: int
     vertices: tuple[tuple[int, int], ...]
@@ -494,6 +495,15 @@ class EncounterDefinition:
     map_ref: Ref
     enemy_refs: tuple[Ref, ...]
     reward_profile_numeric_id: int
+    damage_zones: tuple["EncounterDamageZoneDefinition", ...]
+
+
+@dataclass(frozen=True)
+class EncounterDamageZoneDefinition:
+    local_id: int
+    turn_start_damage: int
+    duration_turns: int
+    vertices: tuple[tuple[int, int], ...]
 
 
 @dataclass(frozen=True)
@@ -545,8 +555,8 @@ def canonical_bytes(
 ) -> bytes:
     writer = Writer()
     writer.data += b"FLICKCAT"
-    writer.u16(7)
-    writer.u16(7)
+    writer.u16(8)
+    writer.u16(8)
     writer.u16(1)
     writer.u16(12)
     for namespace_id in range(1, 13):
@@ -595,7 +605,7 @@ def canonical_bytes(
                 writer.u32(ref.numeric_id)
                 writer.string(ref.string_id)
     writer.u16(3)
-    writer.u16(5)
+    writer.u16(6)
     writer.u32(len(abilities))
     for ability in abilities:
         writer.u32(ability.numeric_id)
@@ -640,6 +650,7 @@ def canonical_bytes(
                 writer.u32(effect.zone.flags)
                 writer.i64(effect.zone.friction_multiplier_raw)
                 writer.vec2(effect.zone.acceleration_x_raw, effect.zone.acceleration_y_raw)
+                writer.i64(effect.zone.turn_start_damage)
                 writer.vec2(effect.zone.offset_x_raw, effect.zone.offset_y_raw)
                 writer.u32(len(effect.zone.vertices))
                 for x_raw, y_raw in effect.zone.vertices:
@@ -753,7 +764,7 @@ def canonical_bytes(
                         writer.u32(ref.numeric_id)
                         writer.string(ref.string_id)
     writer.u16(9)
-    writer.u16(1)
+    writer.u16(2)
     writer.u32(len(encounters))
     for definition in encounters:
         writer.u32(definition.numeric_id)
@@ -766,6 +777,14 @@ def canonical_bytes(
             writer.u32(ref.numeric_id)
             writer.string(ref.string_id)
         writer.u32(definition.reward_profile_numeric_id)
+        writer.u32(len(definition.damage_zones))
+        for zone in definition.damage_zones:
+            writer.u32(zone.local_id)
+            writer.i64(zone.turn_start_damage)
+            writer.u32(zone.duration_turns)
+            writer.u32(len(zone.vertices))
+            for vertex in zone.vertices:
+                writer.vec2(*vertex)
     writer.u16(10)
     writer.u16(1)
     writer.u32(0)
@@ -796,7 +815,7 @@ def load_catalog(root: Path) -> Catalog:
         raise ContentError("CATALOG_LIMIT:bytes")
 
     catalog = _exact(_load_file(root, "catalog.json"), {"schema_version", "documents"}, "catalog")
-    if _integer(catalog["schema_version"], "catalog.schema_version") != 7:
+    if _integer(catalog["schema_version"], "catalog.schema_version") != 8:
         raise ContentError("UNSUPPORTED_SCHEMA:catalog")
     documents = catalog["documents"]
     if not isinstance(documents, list) or len(documents) != 11:
@@ -860,7 +879,7 @@ def load_catalog(root: Path) -> Catalog:
         return numeric
 
     abilities_doc = _exact(_load_file(root, "abilities.json"), {"schema_version", "records"}, "abilities")
-    if _integer(abilities_doc["schema_version"], "abilities.schema_version") != 5:
+    if _integer(abilities_doc["schema_version"], "abilities.schema_version") != 6:
         raise ContentError("UNSUPPORTED_SCHEMA:abilities")
     ability_records = abilities_doc["records"]
     if not isinstance(ability_records, list) or len(ability_records) > RECORD_MAX_COUNT:
@@ -984,19 +1003,22 @@ def load_catalog(root: Path) -> Catalog:
                     raise ContentError("INVALID_DOMAIN:contact_point_trigger")
                 attach = AttachPayload(owner_role_id, anchor_mode_id, offset_x_raw, offset_y_raw, attach_distance_raw, inertia_basis_points, duration_turns)
             elif effect_kind == 16:
-                payload = _exact(effect["zone"], {"flags", "friction_multiplier_raw", "acceleration_x_raw", "acceleration_y_raw", "offset_x_raw", "offset_y_raw", "vertices", "duration_turns"}, "zone")
+                payload = _exact(effect["zone"], {"flags", "friction_multiplier_raw", "acceleration_x_raw", "acceleration_y_raw", "turn_start_damage", "offset_x_raw", "offset_y_raw", "vertices", "duration_turns"}, "zone")
                 flags = _integer(payload["flags"], "zone.flags")
                 friction = _integer(payload["friction_multiplier_raw"], "zone.friction")
                 acceleration_x = _integer(payload["acceleration_x_raw"], "zone.acceleration_x")
                 acceleration_y = _integer(payload["acceleration_y_raw"], "zone.acceleration_y")
+                turn_start_damage = _integer(payload["turn_start_damage"], "zone.turn_start_damage")
                 offset_x = _integer(payload["offset_x_raw"], "zone.offset_x")
                 offset_y = _integer(payload["offset_y_raw"], "zone.offset_y")
                 duration = _integer(payload["duration_turns"], "zone.duration")
                 vertices_raw = payload["vertices"]
-                if flags not in (0, 1) or friction < 0 or not 0 <= duration <= 1024 or not isinstance(vertices_raw, list) or not 3 <= len(vertices_raw) <= 64:
+                if flags not in (0, 1) or friction < 0 or turn_start_damage < 0 or not 0 <= duration <= 1024 or not isinstance(vertices_raw, list) or not 3 <= len(vertices_raw) <= 64:
                     raise ContentError("INVALID_DOMAIN:zone")
                 if flags == 1 and (friction != FIX_SCALE or acceleration_x != 0 or acceleration_y != 0):
                     raise ContentError("INVALID_DOMAIN:kill_zone")
+                if turn_start_damage > 0 and (flags != 0 or friction != FIX_SCALE or acceleration_x != 0 or acceleration_y != 0):
+                    raise ContentError("INVALID_DOMAIN:damage_zone")
                 vertices: list[tuple[int, int]] = []
                 for raw_vertex in vertices_raw:
                     vertex = _exact(raw_vertex, {"x_raw", "y_raw"}, "zone.vertex")
@@ -1005,7 +1027,7 @@ def load_catalog(root: Path) -> Catalog:
                     if not (-POSITION_COMPONENT_LIMIT_RAW <= x_raw <= POSITION_COMPONENT_LIMIT_RAW and -POSITION_COMPONENT_LIMIT_RAW <= y_raw <= POSITION_COMPONENT_LIMIT_RAW):
                         raise ContentError("INVALID_DOMAIN:zone.vertex")
                     vertices.append((x_raw, y_raw))
-                zone = ZonePayload(flags, friction, acceleration_x, acceleration_y, offset_x, offset_y, tuple(vertices), duration)
+                zone = ZonePayload(flags, friction, acceleration_x, acceleration_y, turn_start_damage, offset_x, offset_y, tuple(vertices), duration)
             if effect_kind >= 12 and (value_a != 0 or value_b != 0 or operation_id != 0):
                 raise ContentError("INVALID_DOMAIN:dynamic_effect_values")
             effects.append(Effect(effect_kind, selector, value_a, value_b, operation_id, spawn, transform, attach, zone))
@@ -1280,7 +1302,7 @@ def load_catalog(root: Path) -> Catalog:
     maps.sort(key=lambda item: item.numeric_id)
 
     encounter_doc = _exact(_load_file(root, "encounters.json"), {"schema_version", "records"}, "encounters")
-    if _integer(encounter_doc["schema_version"], "encounters.schema_version") != 1:
+    if _integer(encounter_doc["schema_version"], "encounters.schema_version") != 2:
         raise ContentError("UNSUPPORTED_SCHEMA:encounters")
     encounter_records = encounter_doc["records"]
     if not isinstance(encounter_records, list) or len(encounter_records) > RECORD_MAX_COUNT:
@@ -1291,7 +1313,7 @@ def load_catalog(root: Path) -> Catalog:
     encounter_ids: set[int] = set()
     encounter_strings: set[str] = set()
     for raw in encounter_records:
-        item = _exact(raw, {"numeric_id", "id", "node_type_id", "map_ref", "enemy_refs", "reward_profile_numeric_id"}, "encounter")
+        item = _exact(raw, {"numeric_id", "id", "node_type_id", "map_ref", "enemy_refs", "reward_profile_numeric_id", "damage_zones"}, "encounter")
         numeric_id = _u32(item["numeric_id"], "encounter.numeric_id")
         string_id = _string_id(item["id"], "encounter.id")
         active_pair(10, numeric_id, string_id)
@@ -1317,9 +1339,26 @@ def load_catalog(root: Path) -> Catalog:
                 raise ContentError("MISSING_REFERENCE:encounter.enemy")
             enemy_refs.append(ref)
         reward_profile_numeric_id = _u32(item["reward_profile_numeric_id"], "encounter.reward_profile_numeric_id")
+        damage_zones_raw = item["damage_zones"]
+        if not isinstance(damage_zones_raw, list) or len(damage_zones_raw) > 32:
+            raise ContentError("INVALID_DOMAIN:encounter.damage_zones")
+        damage_zones: list[EncounterDamageZoneDefinition] = []
+        damage_zone_ids: set[int] = set()
+        for raw_zone in damage_zones_raw:
+            zone = _exact(raw_zone, {"local_id", "turn_start_damage", "duration_turns", "vertices"}, "encounter.damage_zone")
+            local_id = _u32(zone["local_id"], "encounter.damage_zone.local_id")
+            damage = _integer(zone["turn_start_damage"], "encounter.damage_zone.turn_start_damage")
+            duration = _integer(zone["duration_turns"], "encounter.damage_zone.duration_turns")
+            vertices = tuple(_point(vertex, "encounter.damage_zone.vertex") for vertex in zone["vertices"]) if isinstance(zone["vertices"], list) else ()
+            _validate_polygon(vertices, False, "encounter.damage_zone")
+            if local_id in damage_zone_ids or damage <= 0 or not 0 <= duration <= 1024 or any(_point_class(map_definition.boundary_vertices, vertex) == 0 for vertex in vertices):
+                raise ContentError("INVALID_DOMAIN:encounter.damage_zone")
+            damage_zone_ids.add(local_id)
+            damage_zones.append(EncounterDamageZoneDefinition(local_id, damage, duration, vertices))
+        damage_zones.sort(key=lambda zone: zone.local_id)
         if numeric_id in encounter_ids or string_id in encounter_strings:
             raise ContentError("DUPLICATE_ID:encounter")
-        encounters.append(EncounterDefinition(numeric_id, string_id, node_type_id, map_ref, tuple(enemy_refs), reward_profile_numeric_id))
+        encounters.append(EncounterDefinition(numeric_id, string_id, node_type_id, map_ref, tuple(enemy_refs), reward_profile_numeric_id, tuple(damage_zones)))
         encounter_ids.add(numeric_id)
         encounter_strings.add(string_id)
     encounters.sort(key=lambda definition: definition.numeric_id)

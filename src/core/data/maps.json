@@ -22,21 +22,7 @@
         {"x_raw": 20971520, "y_raw": 12582912},
         {"x_raw": 31457280, "y_raw": 12582912}
       ],
-      "zones": [
-        {
-          "local_id": 1,
-          "flags": 1,
-          "friction_multiplier_raw": 65536,
-          "acceleration_x_raw": 0,
-          "acceleration_y_raw": 0,
-          "vertices": [
-            {"x_raw": 14680064, "y_raw": 30408704},
-            {"x_raw": 27262976, "y_raw": 30408704},
-            {"x_raw": 27262976, "y_raw": 36700160},
-            {"x_raw": 14680064, "y_raw": 36700160}
-          ]
-        }
-      ],
+      "zones": [],
       "obstacles": []
     }
   ]

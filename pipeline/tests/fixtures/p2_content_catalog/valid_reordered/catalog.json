@@ -1,7 +1,7 @@
 {
   "documents": [
     {
-      "schema_version": 5,
+      "schema_version": 6,
       "file_name": "abilities.json",
       "kind_id": 3
     },
@@ -43,7 +43,7 @@
     {
       "file_name": "encounters.json",
       "kind_id": 9,
-      "schema_version": 1
+      "schema_version": 2
     },
     {
       "file_name": "relics.json",
@@ -56,5 +56,5 @@
       "schema_version": 1
     }
   ],
-  "schema_version": 7
+  "schema_version": 8
 }
