@@ -10,7 +10,8 @@ enum Value {
 	RECOVER_LIFE = 5,
 	MERGE_PIECES = 6,
 	EVENT_OPTION = 7,
+	TAKE_REVENGE = 8,
 }
 
 static func is_valid(value: int) -> bool:
-	return value >= Value.RECRUIT_PIECE and value <= Value.EVENT_OPTION
+	return value >= Value.RECRUIT_PIECE and value <= Value.TAKE_REVENGE

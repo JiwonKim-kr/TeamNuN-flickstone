@@ -46,6 +46,7 @@ static func encode(
 		enemies: Array[EnemyDefinition],
 		acts: Array[ActDefinition],
 		encounters: Array[EncounterDefinition],
+		reward_profiles: Array[RewardProfileDefinition],
 		status: ContentStatus
 ) -> PackedByteArray:
 	if not status.is_ok(): return PackedByteArray()
@@ -54,8 +55,8 @@ static func encode(
 	writer.u16(ContentIds.FINGERPRINT_FORMAT_VERSION)
 	writer.u16(ContentIds.CATALOG_SCHEMA_VERSION)
 	writer.u16(ContentIds.REGISTRY_SCHEMA_VERSION)
-	writer.u16(ContentIds.Namespace.CONSUMABLE)
-	for namespace_id: int in range(ContentIds.Namespace.PIECE, ContentIds.Namespace.CONSUMABLE + 1):
+	writer.u16(ContentIds.Namespace.REWARD_PROFILE)
+	for namespace_id: int in range(ContentIds.Namespace.PIECE, ContentIds.Namespace.REWARD_PROFILE + 1):
 		writer.u16(namespace_id)
 		var count: int = 0
 		for entry: ContentRegistryEntry in registry_entries:
@@ -67,7 +68,7 @@ static func encode(
 			writer.string_utf8(entry.string_id())
 			writer.u8(entry.state_id())
 
-	writer.u16(10)
+	writer.u16(11)
 	writer.u16(ContentIds.DocumentKind.PIECES)
 	writer.u16(ContentIds.PIECES_SCHEMA_VERSION)
 	writer.u32(pieces.size())
@@ -244,5 +245,13 @@ static func encode(
 
 	writer.u16(ContentIds.DocumentKind.RELICS); writer.u16(ContentIds.RELICS_SCHEMA_VERSION); writer.u32(0)
 	writer.u16(ContentIds.DocumentKind.CONSUMABLES); writer.u16(ContentIds.CONSUMABLES_SCHEMA_VERSION); writer.u32(0)
+	writer.u16(ContentIds.DocumentKind.REWARD_PROFILES); writer.u16(ContentIds.REWARD_PROFILES_SCHEMA_VERSION); writer.u32(reward_profiles.size())
+	for definition: RewardProfileDefinition in reward_profiles:
+		writer.u32(definition.numeric_id()); writer.string_utf8(definition.string_id()); writer.u32(definition.victory_gold()); writer.u16(definition.recruit_choice_count()); writer.u16(definition.recruit_pool_count())
+		var reward_status := ContentStatus.new()
+		for index: int in range(definition.recruit_pool_count()):
+			var piece_ref: ContentIdRef = definition.recruit_pool_ref_at(index, reward_status); writer.u32(piece_ref.numeric_id()); writer.string_utf8(piece_ref.string_id())
+		var revenge_ref: ContentIdRef = definition.revenge_status_ref(); writer.u32(revenge_ref.numeric_id()); writer.string_utf8(revenge_ref.string_id())
+		if not reward_status.is_ok(): status.fail(ContentStatus.Code.FINGERPRINT_ERROR, ContentStatus.Operation.CANONICAL_ENCODE, ContentIds.DocumentKind.REWARD_PROFILES, definition.numeric_id()); return PackedByteArray()
 	if not status.is_ok(): return PackedByteArray()
 	return writer.data

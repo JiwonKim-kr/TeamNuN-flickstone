@@ -10,6 +10,7 @@
 | 승인 | **2026-08-25 사용자 전체 승인** |
 | 구현 권한 | **있음. P4-RD01~18 범위 구현 가능** |
 | 검증 정책 | P4-4 구현 중 대규모 검증을 실행하지 않고 P4 전체 구현 뒤 P4-6에서 통합 수행 |
+| 구현 상태 | **구현 완료 · P4-6 누적 검증 대기** |
 
 ## 목적
 
@@ -663,3 +664,13 @@ P4-4 전용 runner·fixture 파일은 지금 만들지 않고 P4-6 통합 검증
 5. P4-RD16: node 완료와 **boss 패배 재도전 예외**
 6. P4-RD17~18: 원자성 및 P4 전체 완료 뒤 통합 검증 이연
 7. 전체 상세 명세와 구현 진입
+
+## 구현 기록
+
+2026-08-25 P4-4 구현을 완료했다.
+
+- catalog/fingerprint v8, reward profile 3종, revenge status, baduk/bottle L2·L3 데이터를 추가했다.
+- 승리 gold·결정론 영입 후보·중복 영입·roster cap skip과 패배 보복 선택을 구현했다.
+- REST 회복·동일 기물 합성, 작은 instance ID 생존, counter별 max 병합을 구현했다.
+- RunSnapshot v2와 legacy v1 복원, 다음 전투 opening status의 1회 소비·player initial body 적용을 연결했다.
+- 최소 Godot import에서 신규·변경 class 등록을 확인했다. 반복 runner, 대표 회귀, fingerprint KAT와 `verify`는 P4-RD18에 따라 P4-6 누적 검증으로 이연했다.

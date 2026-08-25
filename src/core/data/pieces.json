@@ -30,6 +30,28 @@
           "friction_multiplier_raw": 65536,
           "critical_basis_points": 0,
           "ability_refs": []
+        },
+        {
+          "level": 2,
+          "max_hp": 125,
+          "attack": 25,
+          "speed_stat": 100,
+          "mass_raw": 4194304,
+          "radius_raw": 2097152,
+          "friction_multiplier_raw": 65536,
+          "critical_basis_points": 0,
+          "ability_refs": []
+        },
+        {
+          "level": 3,
+          "max_hp": 150,
+          "attack": 30,
+          "speed_stat": 100,
+          "mass_raw": 4194304,
+          "radius_raw": 2097152,
+          "friction_multiplier_raw": 65536,
+          "critical_basis_points": 0,
+          "ability_refs": []
         }
       ]
     },
@@ -59,6 +81,28 @@
           "level": 1,
           "max_hp": 90,
           "attack": 24,
+          "speed_stat": 100,
+          "mass_raw": 3670016,
+          "radius_raw": 2097152,
+          "friction_multiplier_raw": 65536,
+          "critical_basis_points": 0,
+          "ability_refs": []
+        },
+        {
+          "level": 2,
+          "max_hp": 113,
+          "attack": 30,
+          "speed_stat": 100,
+          "mass_raw": 3670016,
+          "radius_raw": 2097152,
+          "friction_multiplier_raw": 65536,
+          "critical_basis_points": 0,
+          "ability_refs": []
+        },
+        {
+          "level": 3,
+          "max_hp": 135,
+          "attack": 36,
           "speed_stat": 100,
           "mass_raw": 3670016,
           "radius_raw": 2097152,

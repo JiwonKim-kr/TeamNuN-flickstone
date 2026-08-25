@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P4-1~3 구현·자동 검증 완료 · 다음은 P4-4 영입·골드·휴식·합성·덱 관리 상세 명세**. P4-W 제출용 Web 프리뷰는 공개 배포·브라우저 검수 완료 |
+| 현재 단계 | **P4-1~3 구현·자동 검증 완료 · P4-4 구현 완료·P4-6 누적 검증 대기 · 다음은 P4-5**. P4-W 제출용 Web 프리뷰는 공개 배포·브라우저 검수 완료 |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -296,7 +296,15 @@
 - 독립 Python seed KAT·1,000회, Godot 15개 grouped check와 대표 P1~P4 회귀가 통과했다. Godot 4.6.3 `verify --demo`는 대표 러너 9종을 통과했으며 P0 quick 20회·순열 3종이 실제 적용됐다.
 - `verify --full`과 16-seed 전체 route는 데모 일정 합의에 따라 P4-6 단계 종료로 이연했다.
 
-### 3.14 다음 작업 실행 명령
+### 3.14 P4-4 보상·휴식·합성 구현 기록
+
+- catalog/fingerprint v8과 reward profile 3종을 추가했다. 승리 gold는 normal/elite/boss 10/20/30이고, 활성 tag 기반 가중치로 baduk/bottle 중 2개 영입 후보를 비복원 추출한다.
+- 승리 영입·roster cap skip, 패배 보복, REST +1 회복·동일 기물 1회 합성을 원자 명령으로 구현했다. 합성은 작은 instance ID를 남기고 counter별 max를 보존한다.
+- baduk/bottle L2·L3 수치와 전투 1회용 +25% player outgoing-damage revenge status를 추가했다. 일반·엘리트는 다음 node로 진행하고 boss 패배는 같은 boss FORMATION으로 돌아간다.
+- RunSnapshot v2는 next-battle boon을 저장하며 legacy v1을 0 boon으로 복원한다. battle request/bridge는 opening status를 player initial body에 적용하고 begin 성공 시 run에서 한 번만 소비한다.
+- 최소 Godot import/class 등록은 통과했다. P4-4 runner·대표 회귀·fingerprint KAT·`verify`는 일정 합의에 따라 P4-6 누적 검증으로 이연했다.
+
+### 3.15 다음 작업 실행 명령
 
 Windows PowerShell에서 먼저 `$env:PYTHONUTF8='1'`을 설정한다.
 

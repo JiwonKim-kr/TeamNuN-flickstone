@@ -54,6 +54,10 @@ static func build_state(request: RunBattleRequest, catalog: ContentCatalog, stat
 		var enemy_entry: RunBattleEnemyEntry = request.enemy_at(index, status)
 		var enemy: EnemyDefinition = catalog.enemy_by_numeric_id(enemy_entry.enemy_numeric_id(), content_status)
 		if not content_status.is_ok() or _origin_piece_id(state, enemy_entry.expected_body_id(), status) != enemy.base_piece_ref().numeric_id(): _fail(status, enemy_entry.expected_body_id(), enemy_entry.enemy_numeric_id()); return BattleState.new()
+	if request.opening_status_numeric_id() != 0:
+		var player_body_ids: Array[int] = []
+		for index: int in range(request.player_count()): player_body_ids.append(request.player_at(index, status).expected_body_id())
+		if not status.is_ok() or not state.apply_run_opening_status(player_body_ids, request.opening_status_numeric_id(), status): return BattleState.new()
 	return state
 
 static func outcome_from(request: RunBattleRequest, state: BattleState, status: SimStatus) -> RunBattleOutcome:

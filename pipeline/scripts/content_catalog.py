@@ -45,6 +45,7 @@ EXPECTED_FILES = {
     "encounters.json",
     "relics.json",
     "consumables.json",
+    "reward_profiles.json",
 }
 DOCUMENTS = {
     1: ("id_registry.json", 1),
@@ -58,6 +59,7 @@ DOCUMENTS = {
     9: ("encounters.json", 1),
     10: ("relics.json", 1),
     11: ("consumables.json", 1),
+    12: ("reward_profiles.json", 1),
 }
 
 
@@ -497,6 +499,16 @@ class EncounterDefinition:
 
 
 @dataclass(frozen=True)
+class RewardProfileDefinition:
+    numeric_id: int
+    string_id: str
+    victory_gold: int
+    recruit_choice_count: int
+    recruit_pool_refs: tuple[Ref, ...]
+    revenge_status_ref: Ref
+
+
+@dataclass(frozen=True)
 class Catalog:
     entries: tuple[Entry, ...]
     pieces: tuple[Piece, ...]
@@ -507,6 +519,7 @@ class Catalog:
     enemies: tuple[EnemyDefinition, ...]
     acts: tuple[ActDefinition, ...]
     encounters: tuple[EncounterDefinition, ...]
+    reward_profiles: tuple[RewardProfileDefinition, ...]
     compatibility_bytes: bytes
     fingerprint: bytes
 
@@ -541,15 +554,16 @@ def canonical_bytes(
     entries: tuple[Entry, ...], pieces: tuple[Piece, ...], abilities: tuple[Ability, ...],
     statuses: tuple[StatusDefinition, ...] = (), synergies: tuple[SynergyDefinition, ...] = (),
     maps: tuple[MapDefinition, ...] = (), enemies: tuple[EnemyDefinition, ...] = (),
-    acts: tuple[ActDefinition, ...] = (), encounters: tuple[EncounterDefinition, ...] = ()
+    acts: tuple[ActDefinition, ...] = (), encounters: tuple[EncounterDefinition, ...] = (),
+    reward_profiles: tuple[RewardProfileDefinition, ...] = ()
 ) -> bytes:
     writer = Writer()
     writer.data += b"FLICKCAT"
-    writer.u16(7)
-    writer.u16(7)
+    writer.u16(8)
+    writer.u16(8)
     writer.u16(1)
-    writer.u16(12)
-    for namespace_id in range(1, 13):
+    writer.u16(13)
+    for namespace_id in range(1, 14):
         selected = [item for item in entries if item.namespace_id == namespace_id]
         writer.u16(namespace_id)
         writer.u32(len(selected))
@@ -558,7 +572,7 @@ def canonical_bytes(
             writer.string(entry.string_id)
             writer.u8(entry.state_id)
 
-    writer.u16(10)
+    writer.u16(11)
     writer.u16(2)
     writer.u16(3)
     writer.u32(len(pieces))
@@ -772,6 +786,20 @@ def canonical_bytes(
     writer.u16(11)
     writer.u16(1)
     writer.u32(0)
+    writer.u16(12)
+    writer.u16(1)
+    writer.u32(len(reward_profiles))
+    for definition in reward_profiles:
+        writer.u32(definition.numeric_id)
+        writer.string(definition.string_id)
+        writer.u32(definition.victory_gold)
+        writer.u16(definition.recruit_choice_count)
+        writer.u16(len(definition.recruit_pool_refs))
+        for ref in definition.recruit_pool_refs:
+            writer.u32(ref.numeric_id)
+            writer.string(ref.string_id)
+        writer.u32(definition.revenge_status_ref.numeric_id)
+        writer.string(definition.revenge_status_ref.string_id)
     return bytes(writer.data)
 
 
@@ -796,10 +824,10 @@ def load_catalog(root: Path) -> Catalog:
         raise ContentError("CATALOG_LIMIT:bytes")
 
     catalog = _exact(_load_file(root, "catalog.json"), {"schema_version", "documents"}, "catalog")
-    if _integer(catalog["schema_version"], "catalog.schema_version") != 7:
+    if _integer(catalog["schema_version"], "catalog.schema_version") != 8:
         raise ContentError("UNSUPPORTED_SCHEMA:catalog")
     documents = catalog["documents"]
-    if not isinstance(documents, list) or len(documents) != 11:
+    if not isinstance(documents, list) or len(documents) != 12:
         raise ContentError("INVALID_DOMAIN:documents")
     seen_documents: set[int] = set()
     for raw in documents:
@@ -817,7 +845,7 @@ def load_catalog(root: Path) -> Catalog:
     if _integer(registry["schema_version"], "registry.schema_version") != 1:
         raise ContentError("UNSUPPORTED_SCHEMA:registry")
     namespaces = registry["namespaces"]
-    if not isinstance(namespaces, list) or len(namespaces) != 12:
+    if not isinstance(namespaces, list) or len(namespaces) != 13:
         raise ContentError("INVALID_DOMAIN:namespaces")
     entries: list[Entry] = []
     numeric_keys: set[tuple[int, int]] = set()
@@ -827,7 +855,7 @@ def load_catalog(root: Path) -> Catalog:
         namespace = _exact(raw_namespace, {"namespace_id", "entries"}, "namespace")
         namespace_id = _integer(namespace["namespace_id"], "namespace_id")
         raw_entries = namespace["entries"]
-        if namespace_id not in range(1, 13) or namespace_id in seen_namespaces:
+        if namespace_id not in range(1, 14) or namespace_id in seen_namespaces:
             raise ContentError("DUPLICATE_ID:namespace")
         if not isinstance(raw_entries, list) or len(raw_entries) > RECORD_MAX_COUNT:
             raise ContentError("CATALOG_LIMIT:entries")
@@ -846,7 +874,7 @@ def load_catalog(root: Path) -> Catalog:
             numeric_keys.add((namespace_id, numeric_id))
             string_keys.add((namespace_id, string_id))
             entries.append(Entry(namespace_id, numeric_id, string_id, state_id))
-    if seen_namespaces != set(range(1, 13)):
+    if seen_namespaces != set(range(1, 14)):
         raise ContentError("MISSING_KEY:namespace")
     entries.sort(key=lambda item: (item.namespace_id, item.numeric_id))
     by_numeric = {(item.namespace_id, item.numeric_id): item for item in entries}
@@ -1279,6 +1307,53 @@ def load_catalog(root: Path) -> Catalog:
         map_ids.add(numeric_id); map_strings.add(string_id)
     maps.sort(key=lambda item: item.numeric_id)
 
+    reward_doc = _exact(_load_file(root, "reward_profiles.json"), {"schema_version", "records"}, "reward_profiles")
+    if _integer(reward_doc["schema_version"], "reward_profiles.schema_version") != 1:
+        raise ContentError("UNSUPPORTED_SCHEMA:reward_profiles")
+    reward_records = reward_doc["records"]
+    if not isinstance(reward_records, list) or len(reward_records) > 256:
+        raise ContentError("CATALOG_LIMIT:reward_profiles")
+    status_by_id = {definition.numeric_id: definition for definition in statuses}
+    reward_profiles: list[RewardProfileDefinition] = []
+    reward_profile_ids: set[int] = set()
+    reward_profile_strings: set[str] = set()
+    previous_reward_id = 0
+    for raw in reward_records:
+        item = _exact(raw, {"numeric_id", "id", "victory_gold", "recruit_choice_count", "recruit_pool_refs", "revenge_status_ref"}, "reward_profile")
+        numeric_id = _u32(item["numeric_id"], "reward_profile.numeric_id")
+        string_id = _string_id(item["id"], "reward_profile.id")
+        if numeric_id <= previous_reward_id:
+            raise ContentError("INVALID_DOMAIN:reward_profile.order")
+        active_pair(13, numeric_id, string_id)
+        victory_gold = _integer(item["victory_gold"], "reward_profile.victory_gold")
+        choice_count = _integer(item["recruit_choice_count"], "reward_profile.recruit_choice_count")
+        pool_raw = item["recruit_pool_refs"]
+        if not 0 <= victory_gold <= 1_000_000 or not isinstance(pool_raw, list) or not 1 <= len(pool_raw) <= 64 or not 1 <= choice_count <= min(8, len(pool_raw)):
+            raise ContentError("INVALID_DOMAIN:reward_profile")
+        pool_refs: list[Ref] = []
+        previous_piece_id = 0
+        for raw_ref in pool_raw:
+            ref_raw = _exact(raw_ref, {"numeric_id", "id"}, "reward_profile.piece_ref")
+            ref = Ref(_u32(ref_raw["numeric_id"], "reward_profile.piece_ref.numeric_id"), _string_id(ref_raw["id"], "reward_profile.piece_ref.id"))
+            active_pair(1, ref.numeric_id, ref.string_id)
+            piece = piece_by_id.get(ref.numeric_id)
+            if piece is None or piece.string_id != ref.string_id or piece.flags[4] or not piece.levels or ref.numeric_id <= previous_piece_id:
+                raise ContentError("MISSING_REFERENCE:reward_profile.piece")
+            pool_refs.append(ref)
+            previous_piece_id = ref.numeric_id
+        revenge_raw = _exact(item["revenge_status_ref"], {"numeric_id", "id"}, "reward_profile.revenge_status_ref")
+        revenge_ref = Ref(_u32(revenge_raw["numeric_id"], "reward_profile.revenge_status_ref.numeric_id"), _string_id(revenge_raw["id"], "reward_profile.revenge_status_ref.id"))
+        active_pair(3, revenge_ref.numeric_id, revenge_ref.string_id)
+        revenge_status = status_by_id.get(revenge_ref.numeric_id)
+        if revenge_status is None or revenge_status.string_id != revenge_ref.string_id or revenge_status.duration_kind_id != 2 or not revenge_status.modifiers:
+            raise ContentError("MISSING_REFERENCE:reward_profile.revenge_status")
+        if numeric_id in reward_profile_ids or string_id in reward_profile_strings:
+            raise ContentError("DUPLICATE_ID:reward_profile")
+        reward_profiles.append(RewardProfileDefinition(numeric_id, string_id, victory_gold, choice_count, tuple(pool_refs), revenge_ref))
+        reward_profile_ids.add(numeric_id)
+        reward_profile_strings.add(string_id)
+        previous_reward_id = numeric_id
+
     encounter_doc = _exact(_load_file(root, "encounters.json"), {"schema_version", "records"}, "encounters")
     if _integer(encounter_doc["schema_version"], "encounters.schema_version") != 1:
         raise ContentError("UNSUPPORTED_SCHEMA:encounters")
@@ -1317,6 +1392,8 @@ def load_catalog(root: Path) -> Catalog:
                 raise ContentError("MISSING_REFERENCE:encounter.enemy")
             enemy_refs.append(ref)
         reward_profile_numeric_id = _u32(item["reward_profile_numeric_id"], "encounter.reward_profile_numeric_id")
+        if reward_profile_numeric_id not in reward_profile_ids:
+            raise ContentError("MISSING_REFERENCE:encounter.reward_profile")
         if numeric_id in encounter_ids or string_id in encounter_strings:
             raise ContentError("DUPLICATE_ID:encounter")
         encounters.append(EncounterDefinition(numeric_id, string_id, node_type_id, map_ref, tuple(enemy_refs), reward_profile_numeric_id))
@@ -1474,6 +1551,8 @@ def load_catalog(root: Path) -> Catalog:
             raise ContentError("MISSING_REFERENCE:act_definition")
         if entry.namespace_id == 10 and entry.numeric_id not in encounter_ids:
             raise ContentError("MISSING_REFERENCE:encounter_definition")
+        if entry.namespace_id == 13 and entry.numeric_id not in reward_profile_ids:
+            raise ContentError("MISSING_REFERENCE:reward_profile_definition")
 
     entries_tuple = tuple(entries)
     pieces_tuple = tuple(pieces)
@@ -1484,8 +1563,9 @@ def load_catalog(root: Path) -> Catalog:
     enemies_tuple = tuple(enemies)
     acts_tuple = tuple(acts)
     encounters_tuple = tuple(encounters)
-    encoded = canonical_bytes(entries_tuple, pieces_tuple, abilities_tuple, statuses_tuple, synergies_tuple, maps_tuple, enemies_tuple, acts_tuple, encounters_tuple)
-    return Catalog(entries_tuple, pieces_tuple, abilities_tuple, statuses_tuple, synergies_tuple, maps_tuple, enemies_tuple, acts_tuple, encounters_tuple, encoded, hashlib.sha256(encoded).digest())
+    reward_profiles_tuple = tuple(reward_profiles)
+    encoded = canonical_bytes(entries_tuple, pieces_tuple, abilities_tuple, statuses_tuple, synergies_tuple, maps_tuple, enemies_tuple, acts_tuple, encounters_tuple, reward_profiles_tuple)
+    return Catalog(entries_tuple, pieces_tuple, abilities_tuple, statuses_tuple, synergies_tuple, maps_tuple, enemies_tuple, acts_tuple, encounters_tuple, reward_profiles_tuple, encoded, hashlib.sha256(encoded).digest())
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1501,7 +1581,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.canonical_hex:
         print(f"canonical_hex={catalog.compatibility_bytes.hex()}")
     print(f"fingerprint={catalog.fingerprint.hex()}")
-    print(f"pieces={len(catalog.pieces)} abilities={len(catalog.abilities)} statuses={len(catalog.statuses)} synergies={len(catalog.synergies)} maps={len(catalog.maps)} enemies={len(catalog.enemies)} acts={len(catalog.acts)} encounters={len(catalog.encounters)} registry_entries={len(catalog.entries)}")
+    print(f"pieces={len(catalog.pieces)} abilities={len(catalog.abilities)} statuses={len(catalog.statuses)} synergies={len(catalog.synergies)} maps={len(catalog.maps)} enemies={len(catalog.enemies)} acts={len(catalog.acts)} encounters={len(catalog.encounters)} reward_profiles={len(catalog.reward_profiles)} registry_entries={len(catalog.entries)}")
     print("CONTENT_CATALOG_RESULT: PASS")
     return 0
 

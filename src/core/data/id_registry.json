@@ -18,7 +18,8 @@
     {
       "namespace_id": 3,
       "entries": [
-        {"numeric_id": 1, "id": "graybox_haste", "state_id": 1}
+        {"numeric_id": 1, "id": "graybox_haste", "state_id": 1},
+        {"numeric_id": 2, "id": "development_revenge", "state_id": 1}
       ]
     },
     {
@@ -68,6 +69,14 @@
       ]
     },
     {"namespace_id": 11, "entries": []},
-    {"namespace_id": 12, "entries": []}
+    {"namespace_id": 12, "entries": []},
+    {
+      "namespace_id": 13,
+      "entries": [
+        {"numeric_id": 1, "id": "development_normal_reward", "state_id": 1},
+        {"numeric_id": 2, "id": "development_elite_reward", "state_id": 1},
+        {"numeric_id": 3, "id": "development_boss_reward", "state_id": 1}
+      ]
+    }
   ]
 }

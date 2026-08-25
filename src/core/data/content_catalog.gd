@@ -12,6 +12,7 @@ var _maps: Array[MapDefinition] = []
 var _enemies: Array[EnemyDefinition] = []
 var _acts: Array[ActDefinition] = []
 var _encounters: Array[EncounterDefinition] = []
+var _reward_profiles: Array[RewardProfileDefinition] = []
 var _compatibility_bytes: PackedByteArray = PackedByteArray()
 var _fingerprint: PackedByteArray = PackedByteArray()
 var _initialized: bool = false
@@ -28,6 +29,7 @@ static func create(
 		enemies: Array[EnemyDefinition],
 		acts: Array[ActDefinition],
 		encounters: Array[EncounterDefinition],
+		reward_profiles: Array[RewardProfileDefinition],
 		compatibility_bytes: PackedByteArray,
 		fingerprint: PackedByteArray,
 		status: ContentStatus
@@ -70,6 +72,9 @@ static func create(
 	for definition: EncounterDefinition in encounters:
 		if definition == null or not definition.is_initialized(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.CATALOG_BUILD); return ContentCatalog.new()
 		result._encounters.append(definition.copy())
+	for definition: RewardProfileDefinition in reward_profiles:
+		if definition == null or not definition.is_initialized(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.CATALOG_BUILD); return ContentCatalog.new()
+		result._reward_profiles.append(definition.copy())
 	result._catalog_schema_version = catalog_schema_version
 	result._compatibility_bytes = compatibility_bytes.duplicate()
 	result._fingerprint = fingerprint.duplicate()
@@ -80,7 +85,7 @@ static func create(
 func copy() -> ContentCatalog:
 	if not _initialized: return ContentCatalog.new()
 	var status := ContentStatus.new()
-	return create(_catalog_schema_version, _registry_entries, _pieces, _abilities, _statuses, _synergies, _maps, _enemies, _acts, _encounters, _compatibility_bytes, _fingerprint, status)
+	return create(_catalog_schema_version, _registry_entries, _pieces, _abilities, _statuses, _synergies, _maps, _enemies, _acts, _encounters, _reward_profiles, _compatibility_bytes, _fingerprint, status)
 
 
 func is_initialized() -> bool: return _initialized
@@ -93,6 +98,7 @@ func map_count() -> int: return _maps.size()
 func enemy_count() -> int: return _enemies.size()
 func act_count() -> int: return _acts.size()
 func encounter_count() -> int: return _encounters.size()
+func reward_profile_count() -> int: return _reward_profiles.size()
 func relic_count() -> int: return 0
 func consumable_count() -> int: return 0
 func registry_entry_count() -> int: return _registry_entries.size()
@@ -147,6 +153,10 @@ func act_at(index: int, status: ContentStatus) -> ActDefinition:
 func encounter_at(index: int, status: ContentStatus) -> EncounterDefinition:
 	if index < 0 or index >= _encounters.size(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.ENCOUNTERS); return EncounterDefinition.new()
 	return _encounters[index].copy()
+
+func reward_profile_at(index: int, status: ContentStatus) -> RewardProfileDefinition:
+	if index < 0 or index >= _reward_profiles.size(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.REWARD_PROFILES); return RewardProfileDefinition.new()
+	return _reward_profiles[index].copy()
 
 
 func registry_entry_at(index: int, status: ContentStatus) -> ContentRegistryEntry:
@@ -223,6 +233,13 @@ func encounter_by_numeric_id(id: int, status: ContentStatus) -> EncounterDefinit
 		if item.numeric_id() > id: break
 	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.ENCOUNTERS, id)
 	return EncounterDefinition.new()
+
+func reward_profile_by_numeric_id(id: int, status: ContentStatus) -> RewardProfileDefinition:
+	for item: RewardProfileDefinition in _reward_profiles:
+		if item.numeric_id() == id: return item.copy()
+		if item.numeric_id() > id: break
+	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.REWARD_PROFILES, id)
+	return RewardProfileDefinition.new()
 
 func synergy_by_tag_numeric_id(id: int, status: ContentStatus) -> SynergyDefinition:
 	for item: SynergyDefinition in _synergies:

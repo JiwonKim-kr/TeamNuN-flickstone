@@ -1470,6 +1470,29 @@ func attach_content(catalog: ContentCatalog, identities: Array[BattlePieceIdenti
 	return status.is_ok()
 
 
+func apply_run_opening_status(player_body_ids: Array[int], status_numeric_id: int, status: SimStatus) -> bool:
+	if not status.is_ok(): return false
+	if status_numeric_id == 0: return true
+	if not _initialized or not _require_phase(Phase.BATTLE_START, SimStatus.Operation.RUN_BOON_APPLY, status) or not _content_catalog.is_initialized() or player_body_ids.is_empty():
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_RUN_BOON, SimStatus.Operation.RUN_BOON_APPLY, status_numeric_id, player_body_ids.size())
+		return false
+	var content_status := ContentStatus.new(); var definition: StatusDefinition = _content_catalog.status_by_numeric_id(status_numeric_id, content_status)
+	if not content_status.is_ok() or definition.duration_kind_id() != StatusDefinition.DurationKind.BATTLE or definition.modifier_count() < 1:
+		status.fail(SimStatus.Code.INVALID_RUN_BOON, SimStatus.Operation.RUN_BOON_APPLY, status_numeric_id, 0); return false
+	var candidate: BattleState = copy(status)
+	if not status.is_ok(): return false
+	var previous_body_id: int = 0
+	for body_id: int in player_body_ids:
+		var participant_index: int = candidate._find_participant(body_id)
+		if body_id <= previous_body_id or participant_index < 0 or candidate._participants[participant_index].faction() != BattleParticipant.Faction.PLAYER:
+			status.fail(SimStatus.Code.INVALID_RUN_BOON, SimStatus.Operation.RUN_BOON_APPLY, body_id, previous_body_id); return false
+		if candidate._effect_apply_status_change(body_id, body_id, status_numeric_id, 1, status) <= 0: return false
+		previous_body_id = body_id
+	if not candidate._materialize_physical_stats(status): return false
+	_assign_from(candidate)
+	return true
+
+
 func _dynamic_begin_transition() -> void:
 	_dynamic_spawn_transition_count = 0; _dynamic_transform_body_ids.clear(); _zone_spawn_transition_count = 0
 

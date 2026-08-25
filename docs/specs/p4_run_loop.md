@@ -90,7 +90,7 @@ P4 완료는 정식 3막 밸런스 완료가 아니다. 동일한 런 코어와 
 | P4-1 | [`p4_run_state_snapshot.md`](p4_run_state_snapshot.md) · RunState·기물 인스턴스·RunSnapshot·원자 명령 | **구현·자동 검증 완료** · 생성/복사/오류 rollback/정규 bytes 결정론 |
 | P4-2 | [`p4_act_encounter_map_generation.md`](p4_act_encounter_map_generation.md) · act·encounter catalog와 분기 노드맵 | **승인·구현·자동 검증 완료** · catalog v7, generated graph exact 복원, 전 노드 도달 가능 |
 | P4-3 | [`p4_formation_battle_outcome_life.md`](p4_formation_battle_outcome_life.md) · 편성·BattleSetup 요청·전투 결과·라이프 | **승인·구현·자동 검증 완료** · 전투 승패가 정확히 한 번 런 상태에 반영됨 |
-| P4-4 | [`p4_reward_recruitment_rest_merge.md`](p4_reward_recruitment_rest_merge.md) · 영입·골드·휴식·합성·보복 보상 | **상세 명세 승인 · 구현 중** · 후보 고정, 상한·중복·레벨 3, 다음 전투 boon, 선택 rollback |
+| P4-4 | [`p4_reward_recruitment_rest_merge.md`](p4_reward_recruitment_rest_merge.md) · 영입·골드·휴식·합성·보복 보상 | **구현 완료 · P4-6 누적 검증 대기** · 후보 고정, 상한·중복·레벨 3, 다음 전투 boon, 선택 rollback |
 | P4-5 | 유물·소모품·상점·이벤트 공통 프레임 | 최소 승인 콘텐츠로 여섯 노드 유형을 모두 완료 가능 |
 | P4-6 | 축약 Act 1 UI·저장/이어하기·배치 런 | 처음부터 보스까지 자동/사람 완주 |
 
@@ -399,7 +399,7 @@ docs/design/game_design.md
 13. 영입·상한·중복·합성이 원자 적용되고 합성 결과 level·instance ID가 승인 계약을 지킨다.
 14. 휴식·상점·이벤트·유물·소모품의 최소 graybox 경로가 각자 한 번 이상 성공·실패 경계를 검증한다.
 15. 모든 invalid phase/choice/outcome/content/save 실패에서 호출 전 RunSnapshot bytes가 유지된다.
-16. RunSnapshot v1 encode/decode/restore가 exact bytes, 손상·trailing·fingerprint mismatch를 검증한다.
+16. RunSnapshot v2 encode/decode/restore와 legacy v1 복원이 exact bytes, 손상·trailing·fingerprint mismatch를 검증한다.
 17. 전투 전과 node commit 후 저장에서 앱 재시작 뒤 같은 화면·후보·경로로 이어진다.
 18. quick 4런이 강제 debug 조작 없이 terminal에 도달하고 실패 시 seed·route·snapshot repro를 남긴다.
 19. milestone route가 개발 Act의 여섯 node 유형과 승리/패배/life 0/act clear를 모두 덮는다.

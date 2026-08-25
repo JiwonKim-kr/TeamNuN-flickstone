@@ -15,6 +15,7 @@ enum DocumentKind {
 	ENCOUNTERS = 9,
 	RELICS = 10,
 	CONSUMABLES = 11,
+	REWARD_PROFILES = 12,
 }
 
 enum Namespace {
@@ -31,6 +32,7 @@ enum Namespace {
 	ENCOUNTER = 10,
 	RELIC = 11,
 	CONSUMABLE = 12,
+	REWARD_PROFILE = 13,
 }
 
 enum EntryState {
@@ -51,8 +53,9 @@ const ACTS_FILE: String = "acts.json"
 const ENCOUNTERS_FILE: String = "encounters.json"
 const RELICS_FILE: String = "relics.json"
 const CONSUMABLES_FILE: String = "consumables.json"
+const REWARD_PROFILES_FILE: String = "reward_profiles.json"
 
-const CATALOG_SCHEMA_VERSION: int = 7
+const CATALOG_SCHEMA_VERSION: int = 8
 const REGISTRY_SCHEMA_VERSION: int = 1
 const PIECES_SCHEMA_VERSION: int = 3
 const ABILITIES_SCHEMA_VERSION: int = 5
@@ -64,15 +67,16 @@ const ACTS_SCHEMA_VERSION: int = 1
 const ENCOUNTERS_SCHEMA_VERSION: int = 1
 const RELICS_SCHEMA_VERSION: int = 1
 const CONSUMABLES_SCHEMA_VERSION: int = 1
-const FINGERPRINT_FORMAT_VERSION: int = 7
+const REWARD_PROFILES_SCHEMA_VERSION: int = 1
+const FINGERPRINT_FORMAT_VERSION: int = 8
 
 
 static func is_known_namespace(value: int) -> bool:
-	return value >= Namespace.PIECE and value <= Namespace.CONSUMABLE
+	return value >= Namespace.PIECE and value <= Namespace.REWARD_PROFILE
 
 
 static func is_known_document_kind(value: int) -> bool:
-	return value >= DocumentKind.ID_REGISTRY and value <= DocumentKind.CONSUMABLES
+	return value >= DocumentKind.ID_REGISTRY and value <= DocumentKind.REWARD_PROFILES
 
 
 static func valid_string_id(value: String) -> bool:
@@ -101,6 +105,7 @@ static func expected_json_files() -> PackedStringArray:
 		MAPS_FILE,
 		PIECES_FILE,
 		RELICS_FILE,
+		REWARD_PROFILES_FILE,
 		STATUSES_FILE,
 		SYNERGIES_FILE,
 	])
@@ -119,6 +124,7 @@ static func file_for_document_kind(kind_id: int) -> String:
 		DocumentKind.ENCOUNTERS: return ENCOUNTERS_FILE
 		DocumentKind.RELICS: return RELICS_FILE
 		DocumentKind.CONSUMABLES: return CONSUMABLES_FILE
+		DocumentKind.REWARD_PROFILES: return REWARD_PROFILES_FILE
 	return ""
 
 
@@ -135,4 +141,5 @@ static func schema_for_document_kind(kind_id: int) -> int:
 		DocumentKind.ENCOUNTERS: return ENCOUNTERS_SCHEMA_VERSION
 		DocumentKind.RELICS: return RELICS_SCHEMA_VERSION
 		DocumentKind.CONSUMABLES: return CONSUMABLES_SCHEMA_VERSION
+		DocumentKind.REWARD_PROFILES: return REWARD_PROFILES_SCHEMA_VERSION
 	return 0

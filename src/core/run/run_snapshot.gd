@@ -2,7 +2,8 @@ class_name RunSnapshot
 extends RefCounted
 
 const MAGIC: PackedByteArray = [70, 76, 73, 67, 75, 82, 85, 78, 0] # FLICKRUN\0
-const SCHEMA_VERSION: int = 1
+const LEGACY_SCHEMA_VERSION: int = 1
+const SCHEMA_VERSION: int = 2
 
 class Writer:
 	var data: PackedByteArray = PackedByteArray()
@@ -65,6 +66,7 @@ class Decoded:
 	var relic_numeric_ids: Array[int] = []
 	var consumable_stacks: Array[RunConsumableStack] = []
 	var pending_choice: RunPendingChoice = RunPendingChoice.new()
+	var next_battle_status_numeric_id: int = 0
 	var initialized: bool = false
 
 var _bytes: PackedByteArray = PackedByteArray()
@@ -73,7 +75,7 @@ var _initialized: bool = false
 static func capture(state: RunState, status: SimStatus) -> RunSnapshot:
 	var result := RunSnapshot.new()
 	if not status.is_ok(): return result
-	if state == null or not state.is_initialized() or state.phase_id() == RunPhase.Value.BATTLE or (state.phase_id() != RunPhase.Value.MAP_CHOICE and state.phase_id() != RunPhase.Value.FORMATION and state.phase_id() != RunPhase.Value.REWARD and state.phase_id() != RunPhase.Value.RUN_FAILED) or (state.phase_id() == RunPhase.Value.FORMATION and state.deployment_count() < ContentLimits.MAP_DEPLOY_MIN_COUNT):
+	if state == null or not state.is_initialized() or state.phase_id() == RunPhase.Value.BATTLE or (state.phase_id() != RunPhase.Value.MAP_CHOICE and state.phase_id() != RunPhase.Value.FORMATION and state.phase_id() != RunPhase.Value.REWARD and state.phase_id() != RunPhase.Value.REST and state.phase_id() != RunPhase.Value.ACT_COMPLETE and state.phase_id() != RunPhase.Value.RUN_FAILED):
 		status.fail(SimStatus.Code.INVALID_RUN_STATE, SimStatus.Operation.RUN_SNAPSHOT_CAPTURE, 0 if state == null else state.phase_id(), 0); return result
 	var state_copy: RunState = state.copy(status)
 	if not status.is_ok(): return RunSnapshot.new()
@@ -96,7 +98,7 @@ func restore_state(catalog: ContentCatalog, status: SimStatus) -> RunState:
 		return RunState.new()
 	var decoded: Decoded = _parse(_bytes, status)
 	if not status.is_ok(): return RunState.new()
-	return RunState.restore_v1(catalog, decoded.fingerprint, decoded.seed_hi, decoded.seed_lo, decoded.phase_id, decoded.act_numeric_id, decoded.current_floor, decoded.current_node_id, decoded.life, decoded.max_life, decoded.gold, decoded.roster_capacity, decoded.deployment_capacity, decoded.next_piece_instance_id, decoded.next_transition_sequence, decoded.graph, decoded.visited_node_ids, decoded.completed_node_ids, decoded.roster, decoded.deployment_instance_ids, decoded.relic_numeric_ids, decoded.consumable_stacks, decoded.pending_choice, status)
+	return RunState.restore_v2(catalog, decoded.fingerprint, decoded.seed_hi, decoded.seed_lo, decoded.phase_id, decoded.act_numeric_id, decoded.current_floor, decoded.current_node_id, decoded.life, decoded.max_life, decoded.gold, decoded.roster_capacity, decoded.deployment_capacity, decoded.next_piece_instance_id, decoded.next_transition_sequence, decoded.graph, decoded.visited_node_ids, decoded.completed_node_ids, decoded.roster, decoded.deployment_instance_ids, decoded.relic_numeric_ids, decoded.consumable_stacks, decoded.pending_choice, decoded.next_battle_status_numeric_id, status)
 
 func is_initialized() -> bool: return _initialized
 
@@ -143,6 +145,7 @@ static func _encode_state(state: RunState, status: SimStatus) -> PackedByteArray
 	for index: int in range(pending.entry_count()):
 		var entry: RunChoiceEntry = pending.entry_at(index, status)
 		writer.u16(entry.choice_id()); writer.u16(entry.kind_id()); writer.u32(entry.primary_numeric_id()); writer.u32(entry.secondary_numeric_id()); writer.i64(entry.amount()); writer.u32(entry.cost()); writer.u8(1 if entry.enabled() else 0)
+	writer.u32(state.next_battle_status_numeric_id())
 	if not status.is_ok() or writer.data.size() > RunLimits.SNAPSHOT_MAX_BYTES:
 		if status.is_ok(): status.fail(SimStatus.Code.RUN_LIMIT_EXCEEDED, SimStatus.Operation.RUN_SNAPSHOT_ENCODE, writer.data.size(), RunLimits.SNAPSHOT_MAX_BYTES)
 		return PackedByteArray()
@@ -178,7 +181,7 @@ static func _parse(bytes: PackedByteArray, status: SimStatus) -> Decoded:
 	for expected: int in MAGIC:
 		if reader.u8() != expected: return _fail_decode(status, reader.offset - 1, expected)
 	var schema_version: int = reader.u16()
-	if schema_version != SCHEMA_VERSION:
+	if schema_version != LEGACY_SCHEMA_VERSION and schema_version != SCHEMA_VERSION:
 		status.fail(SimStatus.Code.UNSUPPORTED_SCHEMA, SimStatus.Operation.RUN_SNAPSHOT_DECODE, schema_version, SCHEMA_VERSION); return result
 	result.fingerprint = reader.bytes(32); result.seed_hi = reader.u32(); result.seed_lo = reader.u32(); result.phase_id = reader.u16(); result.act_numeric_id = reader.u32()
 	result.current_floor = reader.u16(); result.current_node_id = reader.u32(); result.life = reader.u16(); result.max_life = reader.u16(); result.gold = reader.u32()
@@ -254,6 +257,9 @@ static func _parse(bytes: PackedByteArray, status: SimStatus) -> Decoded:
 		entries.append(entry)
 	var pending_status := SimStatus.new(); result.pending_choice = RunPendingChoice.create(pending_kind, source_node_id, generation_ordinal, entries, pending_status)
 	if not pending_status.is_ok() or (pending_kind != RunPendingKind.Value.NONE and source_node_id > node_count): return _fail_decode(status, reader.offset, pending_status.code() if not pending_status.is_ok() else source_node_id)
+	if schema_version >= SCHEMA_VERSION:
+		if reader.remaining() < 4: return _fail_decode(status, reader.remaining(), 4)
+		result.next_battle_status_numeric_id = reader.u32()
 	if not reader.valid or reader.remaining() != 0: return _fail_decode(status, reader.remaining(), reader.offset)
 	result.initialized = true
 	return result

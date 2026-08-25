@@ -19,6 +19,25 @@
           "value": 25
         }
       ]
+    },
+    {
+      "numeric_id": 2,
+      "id": "development_revenge",
+      "stack_policy_id": 1,
+      "max_stacks": 1,
+      "duration_kind_id": 2,
+      "default_duration": 0,
+      "max_duration": 0,
+      "refresh_policy_id": 4,
+      "merge_sources": true,
+      "modifiers": [
+        {
+          "kind_id": 4,
+          "operation_id": 1,
+          "value_mode_id": 2,
+          "value": 2500
+        }
+      ]
     }
   ]
 }

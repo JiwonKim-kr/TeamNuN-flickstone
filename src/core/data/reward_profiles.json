@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "numeric_id": 1,
+      "id": "development_normal_reward",
+      "victory_gold": 10,
+      "recruit_choice_count": 2,
+      "recruit_pool_refs": [
+        {"numeric_id": 1, "id": "baduk_stone"},
+        {"numeric_id": 2, "id": "bottle_cap"}
+      ],
+      "revenge_status_ref": {"numeric_id": 2, "id": "development_revenge"}
+    },
+    {
+      "numeric_id": 2,
+      "id": "development_elite_reward",
+      "victory_gold": 20,
+      "recruit_choice_count": 2,
+      "recruit_pool_refs": [
+        {"numeric_id": 1, "id": "baduk_stone"},
+        {"numeric_id": 2, "id": "bottle_cap"}
+      ],
+      "revenge_status_ref": {"numeric_id": 2, "id": "development_revenge"}
+    },
+    {
+      "numeric_id": 3,
+      "id": "development_boss_reward",
+      "victory_gold": 30,
+      "recruit_choice_count": 2,
+      "recruit_pool_refs": [
+        {"numeric_id": 1, "id": "baduk_stone"},
+        {"numeric_id": 2, "id": "bottle_cap"}
+      ],
+      "revenge_status_ref": {"numeric_id": 2, "id": "development_revenge"}
+    }
+  ]
+}
