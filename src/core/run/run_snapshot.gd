@@ -73,7 +73,7 @@ var _initialized: bool = false
 static func capture(state: RunState, status: SimStatus) -> RunSnapshot:
 	var result := RunSnapshot.new()
 	if not status.is_ok(): return result
-	if state == null or not state.is_initialized() or state.phase_id() != RunPhase.Value.MAP_CHOICE:
+	if state == null or not state.is_initialized() or state.phase_id() == RunPhase.Value.BATTLE or (state.phase_id() != RunPhase.Value.MAP_CHOICE and state.phase_id() != RunPhase.Value.FORMATION and state.phase_id() != RunPhase.Value.REWARD and state.phase_id() != RunPhase.Value.RUN_FAILED) or (state.phase_id() == RunPhase.Value.FORMATION and state.deployment_count() < ContentLimits.MAP_DEPLOY_MIN_COUNT):
 		status.fail(SimStatus.Code.INVALID_RUN_STATE, SimStatus.Operation.RUN_SNAPSHOT_CAPTURE, 0 if state == null else state.phase_id(), 0); return result
 	var state_copy: RunState = state.copy(status)
 	if not status.is_ok(): return RunSnapshot.new()

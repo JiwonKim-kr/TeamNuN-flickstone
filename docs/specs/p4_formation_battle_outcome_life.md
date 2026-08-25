@@ -9,6 +9,7 @@
 | 후속 단계 | P4-4 영입·골드·휴식·합성·전투 후 reward 처리 |
 | 승인 | 2026-08-25 · 사용자 P4-B01~17 및 전체 명세 승인 |
 | 구현 권한 | **있음. 승인된 P4-3 범위 구현 가능** |
+| 구현 | 2026-08-25 · 완료 및 데모 자동 검증 통과 |
 
 ## 목적
 
@@ -601,3 +602,12 @@ AGENTS.md
 5. 전체 상세 명세와 구현 진입
 
 특히 P4-B03은 기존 P2-M21, P4-B14는 game design U-14의 “패배 node 다음 진행” 미정을 바꾸는 재승인 지점이다. 둘을 승인하지 않으면 구현값을 추측하지 않고 P4-3을 대기 상태로 둔다.
+
+## 구현·검증 기록
+
+- 불변 `RunBattleRequest`/entry와 `RunBattleOutcome`/fact, `RunBattleBridge`, append-only 진단 및 `RUN_BATTLE_SEED=8`을 구현했다. node 선택·편성·request sequence/seed 생성·terminal outcome 적용은 후보 사본 검증 뒤 원자적으로 commit한다.
+- `BattleSetupBuilder`의 player deployment를 승인된 `3..map.deploy_count`로 이관했다. enemy는 계속 map 정원과 정확히 같고 양쪽 slot은 0부터 연속이다. 기존 3대3 fixture의 body 순서는 유지된다.
+- 초기 비토큰 body별 누적 처치를 `BattleKillTally`로 기록하고 transition rollback에 포함했다. `BattleSnapshot`은 v8로 올렸으며 legacy v1~7은 빈 tally로 복원한 뒤 v8로 재캡처한다.
+- 승패·DRAW별 라이프 차감, 출전 기물의 `BATTLES_SURVIVED`/`KILLS`, D-12 전원 복원 경계, 승리 completed 및 패배 미완료 `REWARD`, life 0 `RUN_FAILED`, FORMATION·REWARD·RUN_FAILED RunSnapshot v1 저장을 구현했다. BATTLE 저장 금지는 유지된다.
+- 독립 Python seed KAT와 1,000회 반복, Godot 15개 grouped check, P1 trigger/result·P2 setup/dynamic·P3 AI·P4-1/2 대표 회귀가 통과했다. Godot 4.6.3 `verify --demo`는 기본 게이트와 대표 러너 9종을 모두 통과했고 lore 미초기화 게이트만 정상 SKIP했다.
+- 데모 프로필은 P0 반복 20회·순열 3종을 로컬/CI child runner에 동일하게 전달한다. `verify --full`과 16-seed 전체 route는 승인된 P4-B17에 따라 P4-6 단계 종료로 이연했다.

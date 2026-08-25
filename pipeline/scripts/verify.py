@@ -56,6 +56,7 @@ DEMO_RUNNER_NAMES = (
     "run_p0_determinism.py",
     "run_p2_content_graybox.py",
     "run_p3_ai_shot_selection.py",
+    "run_p4_formation_battle_outcome_life.py",
     "run_placeholder_pipeline.py",
     "run_play_pipeline.py",
     "run_web_export.py",
@@ -529,6 +530,11 @@ def main(argv: list[str] | None = None) -> int:
             child_env["GODOT_BIN"] = (
                 godot_process.resolve_executable(args.godot) or args.godot
             )
+            if args.demo:
+                child_env["FLICKSTONE_CI_PROFILE"] = "demo"
+                child_env["P0_ALLOW_QUICK"] = "1"
+                child_env["P0_REPEAT_COUNT"] = "20"
+                child_env["P0_PERMUTATION_COUNT"] = "3"
             if args.skip_godot:
                 child_env["ARTIFICER_SKIP_GODOT_TESTS"] = "1"
             else:

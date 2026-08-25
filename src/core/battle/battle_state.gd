@@ -49,6 +49,7 @@ var _dynamic_spawn_transition_count: int = 0
 var _dynamic_transform_body_ids: Array[int] = []
 var _zone_spawns: Array[ZoneSpawnState] = []
 var _zone_spawn_transition_count: int = 0
+var _kill_tallies: Array[BattleKillTally] = []
 
 
 static func _participant_less(left: BattleParticipant, right: BattleParticipant) -> bool:
@@ -577,6 +578,32 @@ static func _copy_piece_origins(source: Array[BattlePieceOrigin]) -> Array[Battl
 	return result
 
 
+static func _copy_kill_tallies(source: Array[BattleKillTally]) -> Array[BattleKillTally]:
+	var result: Array[BattleKillTally] = []
+	for item: BattleKillTally in source: result.append(item.copy())
+	return result
+
+
+func _has_piece_origin(body_id: int) -> bool:
+	for origin: BattlePieceOrigin in _piece_origins:
+		if origin.body_id() == body_id: return true
+		if origin.body_id() > body_id: break
+	return false
+
+
+func _increment_kill_tally(body_id: int, status: SimStatus) -> void:
+	if not status.is_ok() or not _has_piece_origin(body_id): return
+	for index: int in range(_kill_tallies.size()):
+		var item: BattleKillTally = _kill_tallies[index]
+		if item.body_id() == body_id:
+			if item.kill_count() >= 0xFFFFFFFF:
+				status.fail(SimStatus.Code.COUNTER_EXHAUSTED, SimStatus.Operation.BATTLE_KILL_TALLY_UPDATE, body_id, item.kill_count()); return
+			_kill_tallies[index] = BattleKillTally.create(body_id, item.kill_count() + 1, status); return
+		if item.body_id() > body_id:
+			_kill_tallies.insert(index, BattleKillTally.create(body_id, 1, status)); return
+	_kill_tallies.append(BattleKillTally.create(body_id, 1, status))
+
+
 func _select_actor(status: SimStatus) -> bool:
 	var effective: Array[BattleParticipant] = _effective_participants(status)
 	var selection: CtbScheduler.Selection = CtbScheduler.select_next(effective, _abstract_time, _last_acted_faction, status)
@@ -870,6 +897,7 @@ func _process_destroy_event(event: SimEvent, status: SimStatus) -> void:
 		killer_faction = _participant_faction(direct_attacker)
 	if killer_id > 0 and ((killer_faction == BattleParticipant.Faction.PLAYER and victim_faction == BattleParticipant.Faction.ENEMY) or (killer_faction == BattleParticipant.Faction.ENEMY and victim_faction == BattleParticipant.Faction.PLAYER)):
 		_emit_trigger(BattleTriggerId.Value.ON_KILL, event.sequence(), killer_id, victim_id, direct_attacker, event.cause_id(), event.position(), event.vector(), 0, 0, status)
+		_increment_kill_tally(killer_id, status)
 	_remove_body_state(victim_id, status)
 
 
@@ -1368,6 +1396,7 @@ func copy(status: SimStatus) -> BattleState:
 	result._expire_states = _copy_expire_states(_expire_states); result._piece_origins = _copy_piece_origins(_piece_origins); result._runtime_spawn_count = _runtime_spawn_count
 	result._dynamic_spawn_transition_count = _dynamic_spawn_transition_count; result._dynamic_transform_body_ids = _dynamic_transform_body_ids.duplicate()
 	result._zone_spawns = _copy_zone_spawns(_zone_spawns); result._zone_spawn_transition_count = _zone_spawn_transition_count
+	result._kill_tallies = _copy_kill_tallies(_kill_tallies)
 	return result
 
 
@@ -1389,6 +1418,7 @@ func _rollback_snapshot() -> BattleState:
 	result._turn_index = _turn_index; result._content_catalog = _content_catalog; result._piece_identities = _piece_identities.duplicate(); result._synergy_tally = _synergy_tally; result._statuses = _statuses.copy(); result._modifier_resolver = _modifier_resolver; result._base_body_stats = _base_body_stats.duplicate()
 	result._expire_states = _expire_states.duplicate(); result._piece_origins = _piece_origins.duplicate(); result._runtime_spawn_count = _runtime_spawn_count; result._dynamic_spawn_transition_count = _dynamic_spawn_transition_count; result._dynamic_transform_body_ids = _dynamic_transform_body_ids.duplicate()
 	result._zone_spawns = _zone_spawns.duplicate(); result._zone_spawn_transition_count = _zone_spawn_transition_count
+	result._kill_tallies = _kill_tallies.duplicate()
 	return result
 
 
@@ -1409,6 +1439,7 @@ func _assign_from(other: BattleState) -> void:
 	_turn_index = other._turn_index; _content_catalog = other._content_catalog; _piece_identities = other._piece_identities; _synergy_tally = other._synergy_tally; _statuses = other._statuses; _modifier_resolver = other._modifier_resolver; _base_body_stats = other._base_body_stats
 	_expire_states = other._expire_states; _piece_origins = other._piece_origins; _runtime_spawn_count = other._runtime_spawn_count; _dynamic_spawn_transition_count = other._dynamic_spawn_transition_count; _dynamic_transform_body_ids = other._dynamic_transform_body_ids
 	_zone_spawns = other._zone_spawns; _zone_spawn_transition_count = other._zone_spawn_transition_count
+	_kill_tallies = other._kill_tallies
 
 
 func attach_content(catalog: ContentCatalog, identities: Array[BattlePieceIdentity], bindings: Array[AbilityBinding], status: SimStatus) -> bool:
@@ -1762,6 +1793,15 @@ func piece_origin_count() -> int: return _piece_origins.size()
 func piece_origin_at(index: int, status: SimStatus) -> BattlePieceOrigin:
 	if index < 0 or index >= _piece_origins.size(): status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.BATTLE_PIECE_IDENTITY_READ, index, _piece_origins.size()); return BattlePieceOrigin.new()
 	return _piece_origins[index].copy()
+func kill_tally_count() -> int: return _kill_tallies.size()
+func kill_tally_at(index: int, status: SimStatus) -> BattleKillTally:
+	if index < 0 or index >= _kill_tallies.size(): status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.BATTLE_KILL_TALLY_UPDATE, index, _kill_tallies.size()); return BattleKillTally.new()
+	return _kill_tallies[index].copy()
+func kill_count_for_body(body_id: int) -> int:
+	for tally: BattleKillTally in _kill_tallies:
+		if tally.body_id() == body_id: return tally.kill_count()
+		if tally.body_id() > body_id: break
+	return 0
 func runtime_spawn_count() -> int: return _runtime_spawn_count
 func zone_spawn_count() -> int: return _zone_spawns.size()
 func zone_spawn_at(index: int, status: SimStatus) -> ZoneSpawnState:
@@ -1822,6 +1862,16 @@ func _zone_restore_snapshot(zone_spawns: Array[ZoneSpawnState], status: SimStatu
 			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.CONTENT_SNAPSHOT_VALIDATE, 0 if zone_state == null else zone_state.zone_id(), previous); return false
 		_zone_spawns.append(zone_state.copy()); previous = zone_state.zone_id()
 	return status.is_ok()
+
+func _kill_tally_restore_snapshot(tallies: Array[BattleKillTally], status: SimStatus) -> bool:
+	if tallies.size() > _piece_origins.size():
+		status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_KILL_TALLY_UPDATE, tallies.size(), _piece_origins.size()); return false
+	var previous: int = 0; _kill_tallies.clear()
+	for tally: BattleKillTally in tallies:
+		if tally == null or not tally.is_initialized() or tally.body_id() <= previous or not _has_piece_origin(tally.body_id()):
+			status.fail(SimStatus.Code.INVALID_BATTLE_KILL_TALLY, SimStatus.Operation.BATTLE_KILL_TALLY_UPDATE, 0 if tally == null else tally.body_id(), previous); return false
+		_kill_tallies.append(tally.copy()); previous = tally.body_id()
+	return true
 
 func _status_bind_restored_catalog(catalog: ContentCatalog, status: SimStatus) -> bool:
 	if catalog == null or not catalog.is_initialized() or catalog.fingerprint_bytes() != _content_fingerprint:

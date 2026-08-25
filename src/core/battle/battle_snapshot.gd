@@ -8,7 +8,8 @@ const TRIGGER_SCHEMA_VERSION: int = 3
 const EFFECT_SCHEMA_VERSION: int = 4
 const STATUS_SCHEMA_VERSION: int = 5
 const DYNAMIC_SCHEMA_VERSION: int = 6
-const SCHEMA_VERSION: int = 7
+const ZONE_SCHEMA_VERSION: int = 7
+const SCHEMA_VERSION: int = 8
 const MAX_PARTICIPANTS: int = 65535
 const MAX_COMBATANTS: int = 65535
 const MAX_COOLDOWNS: int = 65535
@@ -78,6 +79,7 @@ var _expire_states: Array[ExpireState] = []
 var _piece_origins: Array[BattlePieceOrigin] = []
 var _runtime_spawn_count: int = 0
 var _zone_spawns: Array[ZoneSpawnState] = []
+var _kill_tallies: Array[BattleKillTally] = []
 
 
 static func capture(state: BattleState, status: SimStatus) -> BattleSnapshot:
@@ -113,6 +115,7 @@ static func capture(state: BattleState, status: SimStatus) -> BattleSnapshot:
 	for index: int in range(state.piece_origin_count()): snapshot._piece_origins.append(state.piece_origin_at(index, status))
 	snapshot._runtime_spawn_count = state.runtime_spawn_count()
 	for index: int in range(state.zone_spawn_count()): snapshot._zone_spawns.append(state.zone_spawn_at(index, status))
+	for index: int in range(state.kill_tally_count()): snapshot._kill_tallies.append(state.kill_tally_at(index, status))
 	if not status.is_ok(): return BattleSnapshot.new()
 	snapshot._initialized = true
 	return snapshot
@@ -170,6 +173,8 @@ func encode(status: SimStatus) -> PackedByteArray:
 	for item: BattlePieceOrigin in _piece_origins: writer.u32(item.body_id()); writer.u32(item.original_piece_numeric_id())
 	writer.u32(_zone_spawns.size())
 	for item: ZoneSpawnState in _zone_spawns: writer.u32(item.zone_id()); writer.u32(item.remaining_turns()); writer.u32(item.applied_turn_index())
+	writer.u32(_kill_tallies.size())
+	for item: BattleKillTally in _kill_tallies: writer.u32(item.body_id()); writer.u32(item.kill_count())
 	writer.u32(_sim_bytes.size()); writer.data.append_array(_sim_bytes)
 	return writer.data
 
@@ -182,7 +187,7 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> BattleSnapshot:
 		if reader.u8() != expected:
 			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, reader.offset, 0); return result
 	var version: int = reader.u16()
-	if version != LEGACY_SCHEMA_VERSION and version != COMBAT_SCHEMA_VERSION and version != TRIGGER_SCHEMA_VERSION and version != EFFECT_SCHEMA_VERSION and version != STATUS_SCHEMA_VERSION and version != DYNAMIC_SCHEMA_VERSION and version != SCHEMA_VERSION:
+	if version != LEGACY_SCHEMA_VERSION and version != COMBAT_SCHEMA_VERSION and version != TRIGGER_SCHEMA_VERSION and version != EFFECT_SCHEMA_VERSION and version != STATUS_SCHEMA_VERSION and version != DYNAMIC_SCHEMA_VERSION and version != ZONE_SCHEMA_VERSION and version != SCHEMA_VERSION:
 		status.fail(SimStatus.Code.UNSUPPORTED_SCHEMA, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, version, SCHEMA_VERSION); return result
 	result._phase = reader.u16(); result._current_actor = reader.u32(); result._abstract_time = reader.i64(); result._last_faction = reader.u16()
 	result._normal_ticks = reader.u32(); result._forced_ticks = reader.u32(); var forced: int = reader.u8()
@@ -305,7 +310,7 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> BattleSnapshot:
 		if origin_count > MAX_PARTICIPANTS or origin_count > reader.remaining() / 8: status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, origin_count, reader.remaining()); return BattleSnapshot.new()
 		for index: int in range(origin_count): result._piece_origins.append(BattlePieceOrigin.create(reader.u32(), reader.u32(), status))
 		if not status.is_ok(): return BattleSnapshot.new()
-	if version >= SCHEMA_VERSION:
+	if version >= ZONE_SCHEMA_VERSION:
 		var zone_count: int = reader.u32()
 		if zone_count > BattleLimits.ZONE_SPAWN_MAX_PER_BATTLE or zone_count > reader.remaining() / 12:
 			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, zone_count, reader.remaining()); return BattleSnapshot.new()
@@ -315,6 +320,17 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> BattleSnapshot:
 			if zone_id <= previous_zone_id or remaining_turns > ContentLimits.ZONE_DURATION_MAX_TURNS or applied_turn_index > result._turn_index:
 				status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, zone_id, previous_zone_id); return BattleSnapshot.new()
 			result._zone_spawns.append(ZoneSpawnState.create(zone_id, remaining_turns, applied_turn_index, status)); previous_zone_id = zone_id
+			if not status.is_ok(): return BattleSnapshot.new()
+	if version >= SCHEMA_VERSION:
+		var kill_tally_count: int = reader.u32()
+		if kill_tally_count > result._piece_origins.size() or kill_tally_count > reader.remaining() / 8:
+			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, kill_tally_count, result._piece_origins.size()); return BattleSnapshot.new()
+		var previous_killer_id: int = 0
+		for index: int in range(kill_tally_count):
+			var killer_body_id: int = reader.u32(); var kill_count: int = reader.u32()
+			if killer_body_id <= previous_killer_id:
+				status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, killer_body_id, previous_killer_id); return BattleSnapshot.new()
+			result._kill_tallies.append(BattleKillTally.create(killer_body_id, kill_count, status)); previous_killer_id = killer_body_id
 			if not status.is_ok(): return BattleSnapshot.new()
 	var sim_length: int = reader.u32()
 	if sim_length <= 0 or sim_length > MAX_SIM_BYTES or sim_length != reader.remaining():
@@ -351,8 +367,11 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> BattleSnapshot:
 	if version >= DYNAMIC_SCHEMA_VERSION:
 		restored._dynamic_restore_snapshot(result._expire_states, result._piece_origins, result._runtime_spawn_count, validation_status)
 		if not validation_status.is_ok(): status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, validation_status.code(), validation_status.operation()); return BattleSnapshot.new()
-	if version >= SCHEMA_VERSION:
+	if version >= ZONE_SCHEMA_VERSION:
 		restored._zone_restore_snapshot(result._zone_spawns, validation_status)
+		if not validation_status.is_ok(): status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, validation_status.code(), validation_status.operation()); return BattleSnapshot.new()
+	if version >= SCHEMA_VERSION:
+		restored._kill_tally_restore_snapshot(result._kill_tallies, validation_status)
 		if not validation_status.is_ok(): status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, validation_status.code(), validation_status.operation()); return BattleSnapshot.new()
 	result._initialized = true
 	return result
@@ -369,6 +388,7 @@ func restore_state(status: SimStatus) -> BattleState:
 	if status.is_ok(): restored._status_restore_snapshot(_turn_index, _identities, _tally, _statuses, _next_status_sequence, _base_body_stats, status)
 	if status.is_ok(): restored._dynamic_restore_snapshot(_expire_states, _piece_origins, _runtime_spawn_count, status)
 	if status.is_ok(): restored._zone_restore_snapshot(_zone_spawns, status)
+	if status.is_ok(): restored._kill_tally_restore_snapshot(_kill_tallies, status)
 	return restored
 
 func restore_state_with_catalog(catalog: ContentCatalog, status: SimStatus) -> BattleState:

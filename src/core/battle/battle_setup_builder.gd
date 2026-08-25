@@ -31,16 +31,21 @@ static func build(catalog: ContentCatalog, map_numeric_id: int, deployment: Arra
 		normalized.append(entry.copy())
 	normalized.sort_custom(_deployment_less)
 	var player_count: int = 0; var enemy_count: int = 0
+	var next_player_slot: int = 0; var next_enemy_slot: int = 0
 	for index: int in range(normalized.size()):
 		var entry: BattleDeploymentEntry = normalized[index]
 		if index > 0 and entry.side_id() == normalized[index - 1].side_id() and entry.slot_index() == normalized[index - 1].slot_index(): return _fail(status, entry.side_id(), entry.slot_index())
 		if entry.side_id() == BattleDeploymentEntry.Side.PLAYER:
+			if entry.slot_index() != next_player_slot: return _fail(status, entry.side_id(), entry.slot_index())
 			player_count += 1
+			next_player_slot += 1
 			if entry.slot_index() >= map_definition.player_slot_count(): return _fail(status, entry.side_id(), entry.slot_index())
 		else:
+			if entry.slot_index() != next_enemy_slot: return _fail(status, entry.side_id(), entry.slot_index())
 			enemy_count += 1
+			next_enemy_slot += 1
 			if entry.slot_index() >= map_definition.enemy_slot_count(): return _fail(status, entry.side_id(), entry.slot_index())
-	if player_count != map_definition.deploy_count() or enemy_count != map_definition.deploy_count(): return _fail(status, player_count, enemy_count)
+	if player_count < ContentLimits.MAP_DEPLOY_MIN_COUNT or player_count > map_definition.deploy_count() or enemy_count != map_definition.deploy_count(): return _fail(status, player_count, enemy_count)
 
 	var world: SimWorld = SimWorld.create(seed_hi, seed_lo, status)
 	world.configure_boundary(map_definition.boundary_vertices_copy(), map_definition.boundary_type_id(), status)

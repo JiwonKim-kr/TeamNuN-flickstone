@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P4-1 RunState/snapshot과 P4-2 Act/Encounter map generation 구현 완료 · 다음은 P4-3 상세 명세**. P4-W 제출용 Web 프리뷰는 공개 배포·브라우저 검수 완료 |
+| 현재 단계 | **P4-1~3 구현·자동 검증 완료 · 다음은 P4-4 영입·골드·휴식·합성·덱 관리 상세 명세**. P4-W 제출용 Web 프리뷰는 공개 배포·브라우저 검수 완료 |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -288,7 +288,15 @@
 - 데모 quick은 terminal snapshot restore exact와 seed-0 gameplay golden을 검증한다. catalog-only fingerprint 변경에 따른 16×2 terminal hash 재생성은 정식 release profile에서 수행한다.
 - Godot 4.6.3 `verify --demo`는 기본 게이트와 대표 러너 8종이 통과했고 lore 미초기화 게이트만 정상 SKIP이다.
 
-### 3.13 다음 작업 실행 명령
+### 3.13 P4-3 편성·전투 결과·라이프 구현 기록
+
+- 불변 request/outcome과 전투 bridge, node 선택·편성·battle seed/sequence, terminal 결과의 정확히 한 번 적용을 구현했다.
+- player deployment는 3~map 정원으로 이관했고 enemy는 full deployment를 유지한다. 초기 비토큰 body 처치 ledger와 rollback을 추가하고 `BattleSnapshot` v8/legacy v1~7 복원을 구현했다.
+- 출전 기물의 생존/처치 counter, D-12 복원 경계, normal/boss/DRAW −1·elite −2 라이프, 승리 completed·패배 미완료 REWARD와 life 0 RUN_FAILED를 구현했다. RunSnapshot v1은 FORMATION·REWARD·RUN_FAILED를 열고 BATTLE 금지를 유지한다.
+- 독립 Python seed KAT·1,000회, Godot 15개 grouped check와 대표 P1~P4 회귀가 통과했다. Godot 4.6.3 `verify --demo`는 대표 러너 9종을 통과했으며 P0 quick 20회·순열 3종이 실제 적용됐다.
+- `verify --full`과 16-seed 전체 route는 데모 일정 합의에 따라 P4-6 단계 종료로 이연했다.
+
+### 3.14 다음 작업 실행 명령
 
 Windows PowerShell에서 먼저 `$env:PYTHONUTF8='1'`을 설정한다.
 
