@@ -18,8 +18,8 @@ $ARGUMENTS 가 비어 있으면 무엇의 컨셉을 만들지 되묻고 멈춘�
 2. 주제를 반영한 프롬프트를 구성해 후보를 생성한다:
    ```
    python3 pipeline/scripts/scenario_client.py generate \
-     --base-model --model-id <FLUX.2/GPT Image 등 범용 모델 ID> \
-     --prompt "<주제 + 방향 묘사>" --num-samples <N> \
+     --third-party-model --model-id <FLUX.2/GPT Image 등 범용 모델 ID> \
+     --prompt "<주제 + 방향 묘사>" --num-outputs <N> \
      --out-dir assets/art/concepts
    ```
    - 키가 없으면 스크립트가 발급 안내 + 종료 코드 3 으로 멈춘다. 이때는 `--dry-run` 으로 요청 구성만 확인하고, 사용자에게 키 발급을 안내한다.

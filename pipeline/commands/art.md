@@ -51,7 +51,7 @@
 **출력**: `assets/art/concepts/` 하위 컨셉 이미지 후보 여러 장(+ 프롬프트/시드 메모). 이 단계 산출물은 **탐색용**이며 매니페스트 placeholder 를 실제화하지 않는다.
 
 **처리 플로우**:
-1. **생성**: 관련 lore 를 반영해 프롬프트를 구성하고, `scenario_client.py generate --base-model --model-id <FLUX.2/GPT Image 등> --prompt "<...>" --num-samples <N> --out-dir assets/art/concepts` 로 후보를 만든다. (키 부재 시 `--dry-run` 으로 요청만 확인.)
+1. **생성**: 관련 lore 를 반영해 프롬프트를 구성하고, Scenario 제3자 모델은 현재 API 계약에 맞춰 `scenario_client.py generate --third-party-model --model-id <FLUX.2/GPT Image 등> --prompt "<...>" --num-outputs <N> --out-dir assets/art/concepts` 로 후보를 만든다. 잠긴 커스텀 스타일 모델은 플래그 없이 기존 생성 경로를 사용한다. (키 부재 시 `--dry-run` 으로 요청만 확인.)
 2. **자동 검증**: 저장된 파일을 `art_post.py probe` 로 규격(크기/투명) 확인.
 3. **사람 검수**: 후보를 제시한다. 여기서의 선택은 다음 `art lock` 의 학습 입력이 된다.
 4. (컨셉 저장 외 매니페스트/씬 변경 없음.)
@@ -119,7 +119,7 @@
   # (선택) SCENARIO_PROJECT_ID=프로젝트_ID
   ```
 - 키 검증: `python3 pipeline/scripts/scenario_client.py check-auth`. 키 부재 시 발급 안내 + 종료 코드 3.
-- 인증 방식: Scenario **Basic 인증**(`base64(KEY:SECRET)`). 엔드포인트/응답 스키마의 단일 정의는 `scenario_client.py` 의 `Api` 블록에 격리돼 있으며 **라이브 검증 필요 TODO** 가 명시돼 있다.
+- 인증 방식: Scenario **Basic 인증**(`base64(KEY:SECRET)`). 엔드포인트/응답 스키마의 단일 정의는 `scenario_client.py`의 `Api` 블록에 격리한다. 2026-08-25 제3자 FLUX.2 생성의 `numOutputs` 요청과 `job.result.images` 결과 다운로드를 라이브 검증했으며, 학습·배경 제거·레거시 폴백은 각 단계 최초 실행 때 별도로 재검증한다.
 
 ## 관련 파일
 

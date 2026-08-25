@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P4-1~3 구현·자동 검증 완료 · 다음 런 작업은 P4-4 상세 명세**. 병행 트랙은 P5 아트 디렉션·첫 컨셉 배치 승인 대기이며, P4-W Web 프리뷰는 공개 배포·브라우저 검수 완료 |
+| 현재 단계 | **P4-1~3 구현·자동 검증 완료 · 다음 런 작업은 P4-4 상세 명세**. 병행 P5 트랙은 A/B/C 스타일 보드 생성·probe 완료 후 사람 방향 선택 대기이며, P4-W Web 프리뷰는 공개 배포·브라우저 검수 완료 |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -139,7 +139,9 @@
 - [x] P4-3 편성·불변 battle request/outcome·라이프·D-12 복원·BattleSnapshot v8 구현 및 데모 검증 완료 (`docs/specs/p4_formation_battle_outcome_life.md`)
 - [x] P5 아트 디렉션과 첫 컨셉 배치 승인 초안 작성 (`docs/specs/p5_art_direction.md`)
 - [x] 아트 파이프라인 준비 검증 — env/dry-run·nearest/alpha·임시 reskin·Godot 4.6.3 재임포트·play_test 전체 통과, Scenario 라이브 생성만 키 부재로 SKIP
-- [ ] P5-ART01~10 사람 승인 뒤 첫 `art concept` 후보 생성·검수
+- [x] Scenario 인증과 최신 제3자 생성 API 라이브 검증 — FLUX.2 `numOutputs` 요청, `job.result.images` 다운로드 확인
+- [x] P5 A/B/C 스타일 보드 3장 생성·640×1,024 PNG probe·시각 사전 점검 완료 (`assets/art/concepts/p5_styleboards/`). 엔진 포함 art 파이프라인과 Godot 4.6.3 `verify --demo`도 통과
+- [ ] P5 A/B/C 중 사람 방향 선택. 이후 선택안 대표 클로즈업 6~9장은 별도 승인 범위로 진행
 
 ### 3.1 P1-2 현재 작업 기록
 
@@ -396,6 +398,6 @@ python pipeline/scripts/verify.py --full --godot pipeline/artifacts/godot-4.6.3/
 - [x] Python 설치 확인
 - [x] Node/npm 설치 확인
 - [x] ffmpeg/ffprobe 설치
-- [ ] Scenario 계정과 API 키 준비 — 아트 단계에서만 필요
+- [x] Scenario 계정과 API 키 준비 — 로컬 `.env`에만 보관, 2026-08-25 인증·생성 확인
 - [ ] ElevenLabs API 키 준비 — 사운드 단계에서만 필요
 - [ ] API 키는 `.env`로 관리하고 저장소에 커밋하지 않기

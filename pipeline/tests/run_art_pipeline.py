@@ -165,6 +165,24 @@ def section_scenario_client() -> None:
     check("generate custom: 바디 prompt/aspectRatio", g.body["prompt"] == "hi" and g.body["aspectRatio"] == "1:1")
     gb = sc.prepare_generate(model_id="base1", prompt="hi", auth=auth, custom=False)
     check("generate base: txt2img + modelId 바디", gb.url.endswith("/generate/txt2img") and gb.body["modelId"] == "base1")
+    gt = sc.prepare_generate(
+        model_id="model_bfl-flux-2-dev", prompt="hi", auth=auth,
+        third_party=True, width=640, height=1024, num_samples=2, seed=25,
+    )
+    check(
+        "generate third-party: custom URL + 최신 바디",
+        gt.url.endswith("/generate/custom/model_bfl-flux-2-dev")
+        and gt.body["numOutputs"] == 2
+        and gt.body["width"] == 640
+        and gt.body["height"] == 1024
+        and gt.body["seed"] == 25
+        and "numSamples" not in gt.body,
+    )
+    check(
+        "generate result: job.result.images URL 추출",
+        sc.extract_image_urls({"result": {"images": ["https://example/a.png", {"url": "https://example/b.png"}]}})
+        == ["https://example/a.png", "https://example/b.png"],
+    )
     tc = sc.prepare_model_create(name="Sty", model_type="flux.2-dev-lora", auth=auth)
     check("train create: POST /models + name/type", tc.method == "POST" and tc.body == {"name": "Sty", "type": "flux.2-dev-lora"})
     ts = sc.prepare_train_start(model_id="m1", auth=auth, seed=7)
@@ -203,6 +221,16 @@ def section_scenario_client() -> None:
         check("dry-run generate → 종료 0", r.returncode == 0)
         check("dry-run 출력에 엔드포인트", "/generate/custom/m1" in r.stdout)
         check("dry-run 출력에 비밀값 없음(demo:demo 미노출)", "demo:demo" not in r.stdout)
+
+        r = subprocess.run(
+            [sys.executable, str(SCRIPTS / "scenario_client.py"),
+             "generate", "--third-party-model", "--model-id", "model_bfl-flux-2-dev",
+             "--prompt", "x", "--num-outputs", "2", "--width", "640", "--height", "1024",
+             "--seed", "25", "--env", str(envp), "--dry-run"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", env=clean_env,
+        )
+        check("dry-run third-party generate → 종료 0", r.returncode == 0)
+        check("dry-run third-party generate → numOutputs", '"numOutputs": 2' in r.stdout)
 
         # train dry-run: create→upload→start 3건 구성
         img = Path(td) / "concept.png"
