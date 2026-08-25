@@ -1,0 +1,4 @@
+Flickstone A-direction tactile otherworld board token concept, premium handcrafted pixel art. One single circular game token centered on a perfectly plain near-black background, strict top-down orthographic view, square 512 by 512 composition. The round token fills about seventy percent of the image while keeping generous clean margin. Fixed upper-left lighting, compact hard shadow, crisp intentional pixel clusters, clear material response, strong top-face symbol readable at 64-pixel game scale, unified dark rim and identical circular silhouette across the whole set. Neutral token with no ally or enemy faction color baked in.
+
+Exactly one token only. No second object, no hands, no character body outside the circle, no stand, no scene, no board, no floor texture, no UI, no HUD, no text, no letter, no number, no logo, no watermark, no cyan or orange faction ring, no perspective tilt, no isometric view. Keep all decoration inside the circular collision silhouette.
+

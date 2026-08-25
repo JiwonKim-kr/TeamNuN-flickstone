@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P4-1~6 및 P5-DZ 구현 완료 · 병합 통합 검증 진행**. P4 사람 Act/저장/Web 검수와 P5-DZ 사람 플레이 검수가 남아 있다. 병행 아트 트랙은 보드/기물/데미지 존 overlay 분리 방향과 A/B/C 스타일 선택을 기다리며, P4-W Web 프리뷰는 공개 배포·브라우저 검수 완료 |
+| 현재 단계 | **P4-1~6 및 P5-DZ 구현 완료 · 병합 통합 검증 진행**. P4 사람 Act/저장/Web 검수와 P5-DZ 사람 플레이 검수가 남아 있다. 아트 트랙은 A 방향·보드 기준안·대표 기물 7종과 8장 잠금 입력 묶음 승인을 완료해 `art lock` 학습·테스트 샘플 준비 중이다. P4-W Web 프리뷰는 공개 배포·브라우저 검수 완료 |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -145,7 +145,12 @@
 - [x] 아트 파이프라인 준비 검증 — env/dry-run·nearest/alpha·임시 reskin·Godot 4.6.3 재임포트·play_test 전체 통과, Scenario 라이브 생성만 키 부재로 SKIP
 - [x] Scenario 인증과 최신 제3자 생성 API 라이브 검증 — FLUX.2 `numOutputs` 요청, `job.result.images` 다운로드 확인
 - [x] P5 A/B/C 스타일 보드 3장 생성·640×1,024 PNG probe·시각 사전 점검 완료 (`assets/art/concepts/p5_styleboards/`). 엔진 포함 art 파이프라인과 Godot 4.6.3 `verify --demo`도 통과
-- [ ] P5 A/B/C 중 사람 방향 선택. 이후 선택안 대표 클로즈업 6~9장은 별도 승인 범위로 진행
+- [x] P5 A/B/C 중 **A · 손에 잡히는 이세계 보드 토큰** 방향 사용자 선택
+- [x] A 방향 보드 전용 컨셉 10장 생성·640×1,024 PNG probe·중복/금지 요소 점검 완료 (`assets/art/concepts/p5_map_board_a/`)
+- [x] A 방향 보드 세부 후보 선택 — `p5_map_board_a_refined_02.png` 사용자 선택
+- [x] A 방향 대표 기물 7종 + 바둑돌 대체안 생성·512×512 PNG probe 완료 (`assets/art/concepts/p5_token_refs_a/`)
+- [ ] 선택 보드 1장 + 권장 기물 7장, 총 8장 입력 묶음 사람 승인 후 별도 `art lock` 진행
+- [ ] `art lock` 승인 후 64×64·1배 런타임 에셋 생성, 보드/기물 reskin, 실제 게임 화면 검수
 - [x] P5-DZ encounter 기반 턴 시작 데미지 존 명세 승인·구현 — 존당 15, 접선 포함 원 접촉, zone ID 순 중첩, 환경 피해 우선, runtime KILL 콘텐츠 제거 (`docs/specs/p5_turn_start_damage_zones.md`)
 - [x] P5-DZ 독립 기하 KAT·Godot 9개 그룹, P2-6 quick 22개 그룹·1,000회 결정성·seed-0 두 프리셋 종결 회귀 통과
 - [x] P5-DZ Godot 4.6.3 `verify --demo` 통합 게이트 완료 — 기본 게이트 4 PASS·lore 1 정책 SKIP·대표 러너 9종 PASS
