@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "numeric_id": 1,
+      "id": "baduk_stone",
+      "texture": "res://assets/art/sprites/p5/baduk_stone.png",
+      "pixel_width": 64,
+      "pixel_height": 64,
+      "scale_raw": 65536
+    },
+    {
+      "numeric_id": 2,
+      "id": "bottle_cap",
+      "texture": "res://assets/art/sprites/p5/bottle_cap.png",
+      "pixel_width": 64,
+      "pixel_height": 64,
+      "scale_raw": 65536
+    },
+    {
+      "numeric_id": 4,
+      "id": "bouncy_ball",
+      "texture": "res://assets/art/sprites/p5/bouncy_ball.png",
+      "pixel_width": 64,
+      "pixel_height": 64,
+      "scale_raw": 65536
+    },
+    {
+      "numeric_id": 5,
+      "id": "caveman",
+      "texture": "res://assets/art/sprites/p5/caveman.png",
+      "pixel_width": 64,
+      "pixel_height": 64,
+      "scale_raw": 65536
+    },
+    {
+      "numeric_id": 6,
+      "id": "ai_core",
+      "texture": "res://assets/art/sprites/p5/ai_core.png",
+      "pixel_width": 64,
+      "pixel_height": 64,
+      "scale_raw": 65536
+    }
+  ]
+}

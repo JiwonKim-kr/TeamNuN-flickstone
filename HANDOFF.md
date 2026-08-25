@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P4-1~6 및 P5-DZ 구현 완료 · 병합 통합 검증 진행**. P4 사람 Act/저장/Web 검수와 P5-DZ 사람 플레이 검수가 남아 있다. 아트는 A 방향·보드·대표 기물·8장 참조 세트 승인을 완료했고, Flickstone 제출 범위에서 커스텀 학습과 범용 파이프라인 `art lock`을 사용하지 않는 참조 기반 생성 단계다. P4-W Web 프리뷰는 공개 배포·브라우저 검수 완료 |
+| 현재 단계 | **P4-1~6, P5-DZ, P5-BR 구현 완료 · P5 런타임 리스킨 진행**. 선택 중립 보드와 바둑돌·병뚜껑·탱탱볼, 데미지 존이 실제 전투에 연결됐다. 원시인·AI·체스·원소의 정식 콘텐츠·아트 연결, P4/P5 사람 검수와 장시간 검증 부채가 남아 있다. Flickstone 제출 범위에서는 커스텀 학습과 범용 파이프라인 `art lock`을 사용하지 않는다. P4-W Web 프리뷰는 공개 배포·브라우저 검수 완료 |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -152,9 +152,11 @@
 - [x] 선택 보드 1장 + 권장 기물 7장, 총 8장 참조 묶음 및 P5-ART01~11 사용자 승인
 - [x] Flickstone 제출용 커스텀 학습 제외 결정 — 미학습 모델 `model_J3axGWbQRqMhjkoCrLsKBPdb`는 이력으로만 보존하고 요금제 업그레이드·학습 재시도를 선행 조건에서 제거. 범용 아트 파이프라인 계약은 변경하지 않음
 - [x] 승인 참조 8장 + P5 고정 모델/프롬프트/출력 규칙으로 무학습 바둑돌·대표 기물 6종 생성 원본, 64×64 RGBA 검수본, 선택 보드 1배 합성 생성 (`assets/art/concepts/p5_no_training_samples/`, `art lock` 명령 미사용)
-- [ ] 샘플 승인 후 P5 범위에서 64×64·1배 런타임 에셋 생성, 보드/기물 연결, 실제 게임 화면 검수. manifest 쓰기는 `manifest.py`만 사용
+- [ ] 승인 샘플의 P5 런타임 연결 완료 — 보드·바둑돌·병뚜껑·탱탱볼 완료, 원시인·AI·체스 나이트·불 원소는 정식 콘텐츠 명세 이후 연결. manifest 쓰기는 `manifest.py`만 사용
 - [x] 대표 샘플 중 바둑돌·병뚜껑·원시인·AI·체스 나이트·불 원소 6종 사용자 검수 통과
-- [ ] 탱탱볼 최종 검수 — 기존 소용돌이 후보는 마법 구슬 오인으로 제외·보존, 고무 성형선과 청록/노랑 인쇄 띠를 강조한 `bouncy_ball_refined_00` 대체 후보 생성·64px/보드 합성 probe 완료
+- [x] 탱탱볼 최종 검수·정식 콘텐츠·런타임 연결 — 기존 소용돌이 후보는 마법 구슬 오인으로 제외·보존, `bouncy_ball_refined_00_64.png`를 2배 탄성 기물에 적용
+- [x] 선택 중립 보드와 바둑돌·병뚜껑 런타임 연결 — strict map/piece visual catalog, manifest approved 3건, Godot 실제 전투 렌더에서 경계·오버레이·진영 링 확인
+- [ ] P5 원시인·AI 정식 콘텐츠 — `docs/specs/p5_caveman_ai_runtime.md` 초안 작성, P5-CA01~18 사람 승인 뒤 구현
 - [x] P5-DZ encounter 기반 턴 시작 데미지 존 명세 승인·구현 — 존당 15, 접선 포함 원 접촉, zone ID 순 중첩, 환경 피해 우선, runtime KILL 콘텐츠 제거 (`docs/specs/p5_turn_start_damage_zones.md`)
 - [x] P5-DZ 독립 기하 KAT·Godot 9개 그룹, P2-6 quick 22개 그룹·1,000회 결정성·seed-0 두 프리셋 종결 회귀 통과
 - [x] P5-DZ Godot 4.6.3 `verify --demo` 통합 게이트 완료 — 기본 게이트 4 PASS·lore 1 정책 SKIP·대표 러너 9종 PASS
@@ -357,7 +359,16 @@
 - 원격 단독 구현에서 독립 기하 기준값과 Godot P5-DZ 9개 그룹, P2-6 quick 22개 그룹·1,000회 결정성·seed-0 두 종결 전투가 통과했다. 병합 통합 결과는 아래 데모 검증 기록을 정본으로 삼는다. 정식 release의 16×2 exact terminal 골든 갱신과 사람 플레이 검수는 남아 있다.
 - 병합 통합에서 P2-1 23개, P2-6 22개, P4-1 17개, P4-2 8개, P5-DZ 9개 그룹과 P4-6 저장/UI 기본 8개 그룹을 통과했다. production 4런도 세 병렬 케이스와 한 단독 재검증으로 전부 통과했다. 병렬 러너는 PID별 저장소로 격리했고 CPU 경쟁을 고려해 케이스 제한을 600초로 조정했다.
 
-### 3.18 다음 작업 실행 명령
+### 3.18 P5-CA 원시인·AI 정식 콘텐츠 구현 기록
+
+- `docs/specs/p5_caveman_ai_runtime.md`의 P5-CA01~18이 승인·구현됐다. PIECE 5 `caveman`, 6 `ai_core`, ABILITY 2 `caveman_unmindful`, 3 `ai_calculation`, TAG 4 `outlaw`, 5 `support`를 append-only로 추가했다.
+- 원시인은 발사 actor가 벽·아군과 접촉하기 전 적에게 주는 충돌 피해가 크리티컬 직전 2배다. 접촉 mask와 typed 배율은 copy/prediction/BattleSnapshot v10에 보존되고 legacy v1~9는 1배·mask 0으로 복원한다.
+- AI는 공용 궤적선을 유지하면서 `ability_presentations.json` mode 1로 각도·파워·첫 충돌 대상을 추가 표시한다. 컨트롤러에는 원시인·AI 문자열 분기가 없다.
+- 두 기물은 세 reward pool과 독립 전투 슬롯 순환에 포함되고, 승인된 64×64 샘플을 런타임 sprite로 승격했다. manifest는 `manifest.py`를 통해 approved 2건을 추가했다.
+- 통합 스키마는 catalog/fingerprint v12, pieces v5, abilities v7, BattleSnapshot v10이다. runtime fingerprint는 `8067a487ceb0ef2d721a3a985d8c5b7c0d8185cd4f52ce30c9d8cb59fd68edca`다.
+- 독립 Python catalog/fixture KAT, Godot P2 catalog 1,000회, P1 피해·snapshot 28개 그룹, P4 RunSnapshot 17개 그룹, import/smoke/manifest와 640×1,024 실제 전투 렌더가 통과했다. RunSnapshot v2 KAT SHA-256은 `1cd25f0fb2f5202a57e10f959c6cfa90c57ada377013edc7dd9206251b981e80`이다. P2-6 Python·정적 검사는 통과했으나 Godot quick terminal runner는 장시간 검증 부채 정책에 따라 약 3분 대기 후 중단했다. 다음 작업 시작 시 원시인·AI 실제 플레이 검수와 이 장시간 runner 재개 여부를 먼저 확인한다.
+
+### 3.19 다음 작업 실행 명령
 
 Windows PowerShell에서 먼저 `$env:PYTHONUTF8='1'`을 설정한다.
 

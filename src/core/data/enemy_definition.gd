@@ -47,6 +47,8 @@ func resolved_level(catalog: ContentCatalog, status: ContentStatus) -> PieceLeve
 		_override.mass_raw() if _override.has_value(EnemyOverrideDefinition.MASS_RAW_BIT) else base.mass_raw(),
 		_override.radius_raw() if _override.has_value(EnemyOverrideDefinition.RADIUS_RAW_BIT) else base.radius_raw(),
 		_override.friction_multiplier_raw() if _override.has_value(EnemyOverrideDefinition.FRICTION_RAW_BIT) else base.friction_multiplier_raw(),
+		base.elasticity_multiplier_raw(),
+		base.clean_hit_damage_multiplier_raw(),
 		_override.critical_basis_points() if _override.has_value(EnemyOverrideDefinition.CRITICAL_BIT) else base.critical_basis_points(), refs, status)
 
 

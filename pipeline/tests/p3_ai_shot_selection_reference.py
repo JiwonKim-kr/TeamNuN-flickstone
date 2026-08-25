@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT / "pipeline" / "scripts"))
 from content_catalog import ContentError, load_catalog  # noqa: E402
 
 RUNTIME = ROOT / "src" / "core" / "data"
-EXPECTED_FINGERPRINT = "68a8bc7f39ba0bc8d80c4ab097e09fc6c901ecdf7f020f8d3c5f2112f9d0e078"
+EXPECTED_FINGERPRINT = "8067a487ceb0ef2d721a3a985d8c5b7c0d8185cd4f52ce30c9d8cb59fd68edca"
 
 
 def main() -> int:
@@ -20,7 +20,7 @@ def main() -> int:
     raw_enemies = json.loads((RUNTIME / "enemies.json").read_text(encoding="utf-8"))
     enemy_document = next(item for item in raw_catalog["documents"] if item["kind_id"] == 7)
 
-    assert raw_catalog["schema_version"] == 10
+    assert raw_catalog["schema_version"] == 11
     assert enemy_document == {"kind_id": 7, "file_name": "enemies.json", "schema_version": 2}
     assert raw_enemies["schema_version"] == 2
     assert [enemy.ai_grade_id for enemy in catalog.enemies] == [1, 1, 1, 2, 3]
@@ -32,7 +32,7 @@ def main() -> int:
     assert all(limit % 256 == 0 for limit in angle_limits.values())
     assert all(limit % 8 == 0 for limit in power_limits.values())
 
-    print("[PASS] P3-PY-SCHEMA catalog v10 and enemies v2 exact records")
+    print("[PASS] P3-PY-SCHEMA catalog v11 and enemies v2 exact records")
     print("[PASS] P3-PY-GRADES runtime enemies preserve COMMON and append ELITE/BOSS grades")
     print("[PASS] P3-PY-FINGERPRINT independent canonical SHA-256")
     print("[PASS] P3-PY-ERROR-QUANTA approved grade limits align to quanta")

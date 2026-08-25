@@ -10,7 +10,8 @@ const STATUS_SCHEMA_VERSION: int = 5
 const DYNAMIC_SCHEMA_VERSION: int = 6
 const ZONE_SCHEMA_VERSION: int = 7
 const KILL_TALLY_SCHEMA_VERSION: int = 8
-const SCHEMA_VERSION: int = 9
+const DAMAGE_ZONE_SCHEMA_VERSION: int = 9
+const SCHEMA_VERSION: int = 10
 const MAX_PARTICIPANTS: int = 65535
 const MAX_COMBATANTS: int = 65535
 const MAX_COOLDOWNS: int = 65535
@@ -82,6 +83,7 @@ var _runtime_spawn_count: int = 0
 var _zone_spawns: Array[ZoneSpawnState] = []
 var _kill_tallies: Array[BattleKillTally] = []
 var _damage_zones: Array[DamageZoneState] = []
+var _launch_contact_mask: int = 0
 
 
 static func capture(state: BattleState, status: SimStatus) -> BattleSnapshot:
@@ -119,6 +121,7 @@ static func capture(state: BattleState, status: SimStatus) -> BattleSnapshot:
 	for index: int in range(state.zone_spawn_count()): snapshot._zone_spawns.append(state.zone_spawn_at(index, status))
 	for index: int in range(state.kill_tally_count()): snapshot._kill_tallies.append(state.kill_tally_at(index, status))
 	for index: int in range(state.damage_zone_count()): snapshot._damage_zones.append(state.damage_zone_at(index, status))
+	snapshot._launch_contact_mask = state.launch_contact_mask()
 	if not status.is_ok(): return BattleSnapshot.new()
 	snapshot._initialized = true
 	return snapshot
@@ -142,7 +145,7 @@ func encode(status: SimStatus) -> PackedByteArray:
 	writer.u32(_combatants.size())
 	for item: BattleCombatant in _combatants:
 		writer.u32(item.body_id()); writer.u16(item.faction()); writer.i64(item.current_hp())
-		writer.i64(item.max_hp()); writer.i64(item.attack()); writer.u16(item.critical_basis_points())
+		writer.i64(item.max_hp()); writer.i64(item.attack()); writer.u16(item.critical_basis_points()); writer.i64(item.clean_hit_damage_multiplier_raw())
 	writer.u32(_cooldowns.size())
 	for item: DamagePairCooldown in _cooldowns:
 		writer.u32(item.low_body_id()); writer.u32(item.high_body_id()); writer.i64(item.next_allowed_tick())
@@ -180,6 +183,7 @@ func encode(status: SimStatus) -> PackedByteArray:
 	for item: BattleKillTally in _kill_tallies: writer.u32(item.body_id()); writer.u32(item.kill_count())
 	writer.u32(_damage_zones.size())
 	for item: DamageZoneState in _damage_zones: writer.u32(item.zone_id()); writer.i64(item.turn_start_damage())
+	writer.u32(_launch_contact_mask)
 	writer.u32(_sim_bytes.size()); writer.data.append_array(_sim_bytes)
 	return writer.data
 
@@ -192,7 +196,7 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> BattleSnapshot:
 		if reader.u8() != expected:
 			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, reader.offset, 0); return result
 	var version: int = reader.u16()
-	if version != LEGACY_SCHEMA_VERSION and version != COMBAT_SCHEMA_VERSION and version != TRIGGER_SCHEMA_VERSION and version != EFFECT_SCHEMA_VERSION and version != STATUS_SCHEMA_VERSION and version != DYNAMIC_SCHEMA_VERSION and version != ZONE_SCHEMA_VERSION and version != KILL_TALLY_SCHEMA_VERSION and version != SCHEMA_VERSION:
+	if version != LEGACY_SCHEMA_VERSION and version != COMBAT_SCHEMA_VERSION and version != TRIGGER_SCHEMA_VERSION and version != EFFECT_SCHEMA_VERSION and version != STATUS_SCHEMA_VERSION and version != DYNAMIC_SCHEMA_VERSION and version != ZONE_SCHEMA_VERSION and version != KILL_TALLY_SCHEMA_VERSION and version != DAMAGE_ZONE_SCHEMA_VERSION and version != SCHEMA_VERSION:
 		status.fail(SimStatus.Code.UNSUPPORTED_SCHEMA, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, version, SCHEMA_VERSION); return result
 	result._phase = reader.u16(); result._current_actor = reader.u32(); result._abstract_time = reader.i64(); result._last_faction = reader.u16()
 	result._normal_ticks = reader.u32(); result._forced_ticks = reader.u32(); var forced: int = reader.u8()
@@ -213,15 +217,17 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> BattleSnapshot:
 		previous_id = body_id
 	if version >= COMBAT_SCHEMA_VERSION:
 		var combatant_count: int = reader.u32()
-		if combatant_count > MAX_COMBATANTS or combatant_count > reader.remaining() / 32:
+		var combatant_size: int = 40 if version >= SCHEMA_VERSION else 32
+		if combatant_count > MAX_COMBATANTS or combatant_count > reader.remaining() / combatant_size:
 			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, combatant_count, reader.remaining()); return BattleSnapshot.new()
 		previous_id = 0
 		for index: int in range(combatant_count):
 			var body_id: int = reader.u32(); var faction: int = reader.u16(); var current_hp: int = reader.i64()
 			var max_hp: int = reader.i64(); var attack: int = reader.i64(); var critical_basis_points: int = reader.u16()
+			var clean_hit_multiplier_raw: int = reader.i64() if version >= SCHEMA_VERSION else FixMath.ONE_RAW
 			if body_id <= previous_id:
 				status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, body_id, previous_id); return BattleSnapshot.new()
-			result._combatants.append(BattleCombatant.restore(body_id, faction, current_hp, max_hp, attack, critical_basis_points, status))
+			result._combatants.append(BattleCombatant.restore_with_clean_hit_multiplier(body_id, faction, current_hp, max_hp, attack, critical_basis_points, clean_hit_multiplier_raw, status))
 			if not status.is_ok(): return BattleSnapshot.new()
 			previous_id = body_id
 		var cooldown_count: int = reader.u32()
@@ -337,7 +343,7 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> BattleSnapshot:
 				status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, killer_body_id, previous_killer_id); return BattleSnapshot.new()
 			result._kill_tallies.append(BattleKillTally.create(killer_body_id, kill_count, status)); previous_killer_id = killer_body_id
 			if not status.is_ok(): return BattleSnapshot.new()
-	if version >= SCHEMA_VERSION:
+	if version >= DAMAGE_ZONE_SCHEMA_VERSION:
 		var damage_zone_count: int = reader.u32()
 		if damage_zone_count > BattleLimits.ZONE_TOTAL_MAX or damage_zone_count > reader.remaining() / 12:
 			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, damage_zone_count, reader.remaining()); return BattleSnapshot.new()
@@ -348,6 +354,8 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> BattleSnapshot:
 				status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, zone_id, previous_damage_zone_id); return BattleSnapshot.new()
 			result._damage_zones.append(DamageZoneState.create(zone_id, damage, status)); previous_damage_zone_id = zone_id
 			if not status.is_ok(): return BattleSnapshot.new()
+	if version >= SCHEMA_VERSION:
+		result._launch_contact_mask = reader.u32()
 	var sim_length: int = reader.u32()
 	if sim_length <= 0 or sim_length > MAX_SIM_BYTES or sim_length != reader.remaining():
 		status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, sim_length, reader.remaining()); return BattleSnapshot.new()
@@ -389,8 +397,11 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> BattleSnapshot:
 	if version >= KILL_TALLY_SCHEMA_VERSION:
 		restored._kill_tally_restore_snapshot(result._kill_tallies, validation_status)
 		if not validation_status.is_ok(): status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, validation_status.code(), validation_status.operation()); return BattleSnapshot.new()
-	if version >= SCHEMA_VERSION:
+	if version >= DAMAGE_ZONE_SCHEMA_VERSION:
 		restored._damage_zone_restore_snapshot(result._damage_zones, validation_status)
+		if not validation_status.is_ok(): status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, validation_status.code(), validation_status.operation()); return BattleSnapshot.new()
+	if version >= SCHEMA_VERSION:
+		restored._clean_hit_restore_snapshot(result._launch_contact_mask, validation_status)
 		if not validation_status.is_ok(): status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.BATTLE_SNAPSHOT_DECODE, validation_status.code(), validation_status.operation()); return BattleSnapshot.new()
 	result._initialized = true
 	return result
@@ -409,6 +420,7 @@ func restore_state(status: SimStatus) -> BattleState:
 	if status.is_ok(): restored._zone_restore_snapshot(_zone_spawns, status)
 	if status.is_ok(): restored._kill_tally_restore_snapshot(_kill_tallies, status)
 	if status.is_ok(): restored._damage_zone_restore_snapshot(_damage_zones, status)
+	if status.is_ok(): restored._clean_hit_restore_snapshot(_launch_contact_mask, status)
 	return restored
 
 func restore_state_with_catalog(catalog: ContentCatalog, status: SimStatus) -> BattleState:

@@ -1357,8 +1357,16 @@ func _resolve_walls(substep: int, status: SimStatus) -> void:
 	for index: int in range(_bodies.size()):
 		if not _bodies[index].alive():
 			continue
+		var elasticity_multiplier_raw: int = _bodies[index].elasticity_multiplier_raw()
+		var effective_restitution_raw: int = _restitution_raw
+		if elasticity_multiplier_raw != FixMath.ONE_RAW:
+			effective_restitution_raw = SimCollision.enhanced_restitution_raw(
+				_restitution_raw, elasticity_multiplier_raw, status
+			)
+		if not status.is_ok():
+			return
 		var result: SimCollision.WallResult = SimCollision.resolve_wall(
-			_bodies[index], _boundary, _restitution_raw, status
+			_bodies[index], _boundary, effective_restitution_raw, status
 		)
 		if not status.is_ok():
 			return
@@ -1407,11 +1415,22 @@ func _resolve_circle_contacts(substep: int, status: SimStatus) -> void:
 					continue
 				if not _links.is_empty() and _pair_is_linked(_bodies[low_index].id(), _bodies[high_index].id()):
 					continue
+				var elasticity_multiplier_raw: int = maxi(
+					_bodies[low_index].elasticity_multiplier_raw(),
+					_bodies[high_index].elasticity_multiplier_raw()
+				)
+				var effective_restitution_raw: int = _restitution_raw
+				if elasticity_multiplier_raw != FixMath.ONE_RAW:
+					effective_restitution_raw = SimCollision.enhanced_restitution_raw(
+						_restitution_raw, elasticity_multiplier_raw, status
+					)
+				if not status.is_ok():
+					return
 				var result: SimCollision.CircleResult = (
 					SimCollision.resolve_circle_pair(
 						_bodies[low_index],
 						_bodies[high_index],
-						_restitution_raw,
+						effective_restitution_raw,
 						status
 					)
 				)

@@ -153,6 +153,15 @@ func _world_bytes(state: BattleState, status: SimStatus) -> PackedByteArray:
 	return SimSnapshot.capture(state.world_copy(status), status).encode(status)
 
 
+func _test_clean_hit_multiplier() -> void:
+	var status := SimStatus.new()
+	var base: DamageContext = _context(100, 100, 64, 64, 1024, false, false, 0, 0, 0, 0, status)
+	var clean: DamageContext = DamageContext.create_with_clean_hit_multiplier(1, 2, 100, 100, 64 * FixMath.SCALE, 64 * FixMath.SCALE, 1024 * FixMath.SCALE, false, false, 0, 0, 0, 0, 2 * FixMath.ONE_RAW, status)
+	var base_result: DamageResult = DamageCalculator.resolve(base, status)
+	var clean_result: DamageResult = DamageCalculator.resolve(clean, status)
+	_check("P5-CA-CLEAN-HIT-X2-001", status.is_ok() and clean_result.resolved_damage() == base_result.resolved_damage() * 2)
+
+
 func _append_collision_event(
 		state: BattleState,
 		approach_speed_raw: int,
@@ -674,8 +683,8 @@ func _test_snapshot_compatibility() -> void:
 	var restored: BattleState = BattleSnapshot.decode(encoded, status).restore_state(status)
 	var reencoded: PackedByteArray = BattleSnapshot.capture(restored, status).encode(status)
 	_check(
-		"P1-SNAPSHOT-V9-ROUNDTRIP-001",
-		status.is_ok() and encoded[9] == 9 and encoded[10] == 0
+		"P1-SNAPSHOT-V10-ROUNDTRIP-001",
+		status.is_ok() and encoded[9] == 10 and encoded[10] == 0
 		and encoded == reencoded and restored.combatant_count() == 2
 		and restored.cooldown_count() == 1
 	)
@@ -789,9 +798,10 @@ func _initialize() -> void:
 		SimStatus.Code.INVALID_COLLISION_FACT == 27
 		and SimStatus.Operation.BATTLE_DAMAGE_EVENT == 94
 		and SimEvent.CauseId.DAMAGE == 3
-		and BattleSnapshot.SCHEMA_VERSION == 9
+		and BattleSnapshot.SCHEMA_VERSION == 10
 	)
 	_test_formula()
+	_test_clean_hit_multiplier()
 	_test_collision_payload()
 	_test_destroy_api()
 	_test_battle_damage_and_cooldown()

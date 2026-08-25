@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "numeric_id": 1,
+      "id": "graybox_pit_arena",
+      "texture": "res://assets/art/boards/p5/neutral_board.png",
+      "pixel_width": 640,
+      "pixel_height": 1024,
+      "arena_left_px": 100,
+      "arena_top_px": 154,
+      "arena_right_px": 540,
+      "arena_bottom_px": 890
+    }
+  ]
+}

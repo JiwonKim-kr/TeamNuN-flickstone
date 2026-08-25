@@ -674,3 +674,7 @@ P4-4 전용 runner·fixture 파일은 지금 만들지 않고 P4-6 통합 검증
 - REST 회복·동일 기물 합성, 작은 instance ID 생존, counter별 max 병합을 구현했다.
 - RunSnapshot v2와 legacy v1 복원, 다음 전투 opening status의 1회 소비·player initial body 적용을 연결했다.
 - 최소 Godot import에서 신규·변경 class 등록을 확인했다. 반복 runner, 대표 회귀, fingerprint KAT와 `verify`는 P4-RD18에 따라 P4-6 누적 검증으로 이연했다.
+
+## P5-BR 영입 풀 이관
+
+2026-08-25 `docs/specs/p5_bouncy_ball_runtime.md`의 P5-BR09가 사용자 승인되면서 P4-RD02의 개발 영입 풀만 `[baduk_stone, bottle_cap, bouncy_ball]` 3종으로 재승인되었다. 승리 gold 10/20/30, 후보 수 2, 강제 영입·skip·결정론 정렬 등 나머지 P4-RD 계약은 유지한다. 시작 로스터는 기존 바둑돌 3기 + 병뚜껑 3기를 그대로 사용한다.

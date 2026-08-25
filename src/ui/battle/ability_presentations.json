@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "ability_numeric_id": 3,
+      "id": "ai_calculation",
+      "aim_detail_mode_id": 1
+    }
+  ]
+}

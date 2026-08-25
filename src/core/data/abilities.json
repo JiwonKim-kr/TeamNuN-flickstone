@@ -1,5 +1,5 @@
 {
-  "schema_version": 6,
+  "schema_version": 7,
   "records": [
     {
       "numeric_id": 1,
@@ -19,6 +19,8 @@
           "operation_id": 0
         }
       ]
-    }
+    },
+    {"numeric_id": 2, "id": "caveman_unmindful", "trigger_id": 1, "conditions": [], "effects": []},
+    {"numeric_id": 3, "id": "ai_calculation", "trigger_id": 1, "conditions": [], "effects": []}
   ]
 }

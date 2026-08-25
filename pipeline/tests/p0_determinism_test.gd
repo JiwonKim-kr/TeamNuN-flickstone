@@ -230,7 +230,7 @@ func _test_schema_failures(scenario: Dictionary) -> void:
 	var world: SimWorld = _build_world(scenario, 0, status)
 	var original: SimSnapshot = SimSnapshot.capture(world, status)
 	var wrong_version: SimSnapshot = original.copy_for_test()
-	wrong_version.set_schema_version_for_test(3)
+	wrong_version.set_schema_version_for_test(4)
 	var version_status := SimStatus.new()
 	wrong_version.encode(version_status)
 	_check(
@@ -255,7 +255,7 @@ func _test_schema_failures(scenario: Dictionary) -> void:
 		"DET-CANONICAL-PREFIX-001",
 		status.is_ok()
 		and canonical.slice(0, 9) == SimSnapshot.MAGIC
-		and canonical[9] == 2
+		and canonical[9] == 3
 		and canonical[10] == 0
 	)
 	var pending_status := SimStatus.new()

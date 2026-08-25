@@ -14,6 +14,10 @@ enum Phase {
 
 enum CheckDirective { INVALID = 0, CONTINUE = 1, END = 2 }
 
+const CLEAN_CONTACT_WALL: int = 1 << 0
+const CLEAN_CONTACT_ALLY: int = 1 << 1
+const CLEAN_CONTACT_VALID_MASK: int = CLEAN_CONTACT_WALL | CLEAN_CONTACT_ALLY
+
 var _initialized: bool = false
 var _phase: int = Phase.INVALID
 var _current_actor_body_id: int = 0
@@ -27,6 +31,7 @@ var _pending: Array[BattleMutationRequest] = []
 var _normal_resolve_ticks: int = 0
 var _forced_resolve_ticks: int = 0
 var _forced_settle_used: bool = false
+var _launch_contact_mask: int = 0
 var _battle_result: int = BattleResult.Value.ONGOING
 var _next_trigger_sequence: int = 1
 var _last_trigger_batch: Array[BattleTriggerRecord] = []
@@ -325,6 +330,9 @@ func _validate(status: SimStatus) -> bool:
 		return false
 	if _forced_settle_used and _forced_resolve_ticks == 0 and _phase != Phase.RESOLVE:
 		status.fail(SimStatus.Code.INVALID_BATTLE_STATE, SimStatus.Operation.BATTLE_STATE_READ, _phase, 0)
+		return false
+	if _launch_contact_mask < 0 or (_launch_contact_mask & ~CLEAN_CONTACT_VALID_MASK) != 0 or (_current_actor_body_id == 0 and _launch_contact_mask != 0) or ((_phase == Phase.AIM or _phase == Phase.BATTLE_END) and _launch_contact_mask != 0):
+		status.fail(SimStatus.Code.INVALID_BATTLE_STATE, SimStatus.Operation.BATTLE_STATE_READ, _phase, _launch_contact_mask)
 		return false
 	for index: int in range(_participants.size()):
 		var item: BattleParticipant = _participants[index]
@@ -659,7 +667,10 @@ func _resolve_damage_direction(
 		if not status.is_ok(): return DamageResult.new()
 	var critical_applied: bool = BattleRandom.for_collision_critical(_world, attacker.body_id(), collision_sequence, status).chance(critical_bp, 10000, status)
 	if not status.is_ok(): return DamageResult.new()
-	var context: DamageContext = DamageContext.create(
+	var clean_multiplier_raw: int = FixMath.ONE_RAW
+	if attacker.body_id() == _current_actor_body_id and attacker.faction() != victim.faction() and _launch_contact_mask == 0:
+		clean_multiplier_raw = attacker.clean_hit_damage_multiplier_raw()
+	var context: DamageContext = DamageContext.create_with_clean_hit_multiplier(
 		attacker.body_id(),
 		victim.body_id(),
 		attack,
@@ -673,6 +684,7 @@ func _resolve_damage_direction(
 		FixMath.from_ratio(incoming_bp, 10000, status),
 		fixed_increase,
 		fixed_reduction,
+		clean_multiplier_raw,
 		status
 	)
 	return DamageCalculator.resolve(context, status)
@@ -801,6 +813,8 @@ func _process_collision_event(
 	if not status.is_ok():
 		return
 	if _same_non_neutral_faction(source, target):
+		if source_id == _current_actor_body_id or target_id == _current_actor_body_id:
+			_launch_contact_mask |= CLEAN_CONTACT_ALLY
 		_emit_trigger(BattleTriggerId.Value.ON_ALLY_COLLIDE, event.sequence(), source_id, target_id, 0, SimEvent.CauseId.NONE, event.position(), event.vector(), event.value_a(), 0, status)
 		_emit_trigger(BattleTriggerId.Value.ON_ALLY_COLLIDE, event.sequence(), target_id, source_id, 0, SimEvent.CauseId.NONE, event.position(), event.vector().negated(status), event.value_a(), 0, status)
 	# Motion lineage follows contact even when the impact is below the damage threshold.
@@ -931,6 +945,7 @@ func _consume_world_events(status: SimStatus) -> void:
 				event, pending_body_ids, pending_cause_ids, status
 			)
 		elif event.type_id() == SimEvent.TypeId.BODY_HIT_WALL:
+			if event.source_body_id() == _current_actor_body_id: _launch_contact_mask |= CLEAN_CONTACT_WALL
 			_expire_collision_body(event.source_body_id(), event.sequence(), status)
 			_emit_trigger(BattleTriggerId.Value.ON_WALL_BOUNCE, event.sequence(), event.source_body_id(), 0, 0, SimEvent.CauseId.NONE, event.position(), event.vector(), event.value_a(), event.value_b(), status)
 		elif event.type_id() == SimEvent.TypeId.BODY_DESTROYED:
@@ -1213,6 +1228,7 @@ func complete_turn_start(status: SimStatus) -> bool:
 	if _find_participant(_current_actor_body_id) < 0:
 		if not _finish_trigger_transition(status): _assign_from(backup); return false
 		_phase = Phase.TURN_END
+		_launch_contact_mask = 0
 		return true
 	_emit_trigger(BattleTriggerId.Value.ON_TURN_START, 0, _current_actor_body_id, 0, 0, SimEvent.CauseId.NONE, FixVec2.zero(), FixVec2.zero(), 0, 0, status)
 	if not _finish_trigger_transition(status): _assign_from(backup); return false
@@ -1252,6 +1268,7 @@ func commit_launch_velocity(launch_velocity: FixVec2, status: SimStatus) -> bool
 	if not status.is_ok() or not _consume_actor(status): _assign_from(backup); return false
 	_world = next_world
 	_motion_credits.clear()
+	_launch_contact_mask = 0
 	var actor_faction: int = _participant_faction(_current_actor_body_id)
 	_set_motion_credit(_current_actor_body_id, _current_actor_body_id, actor_faction, 0, _world.tick(), status)
 	_emit_trigger(BattleTriggerId.Value.ON_LAUNCH, 0, _current_actor_body_id, 0, 0, SimEvent.CauseId.NONE, FixVec2.zero(), launch_velocity, 0, 0, status)
@@ -1269,8 +1286,10 @@ func commit_forced_no_launch(status: SimStatus) -> bool:
 	_begin_trigger_transition()
 	if not _apply_barrier(status) or not _consume_actor(status): _assign_from(backup); return false
 	_motion_credits.clear()
+	_launch_contact_mask = 0
 	_normal_resolve_ticks = 0; _forced_resolve_ticks = 0; _forced_settle_used = false
 	_phase = Phase.TURN_END if _world.is_quiescent(SimWorld.ContinuousAccelerationMode.APPLY, status) else Phase.RESOLVE
+	if _phase == Phase.TURN_END: _launch_contact_mask = 0
 	if not _finish_trigger_transition(status): _assign_from(backup); return false
 	return status.is_ok()
 
@@ -1291,6 +1310,7 @@ func interrupt_missing_current_actor(status: SimStatus) -> bool:
 		_assign_from(backup)
 		return false
 	_phase = Phase.TURN_END if _world.is_quiescent(SimWorld.ContinuousAccelerationMode.APPLY, status) else Phase.RESOLVE
+	if _phase == Phase.TURN_END: _launch_contact_mask = 0
 	if not _finish_trigger_transition(status): _assign_from(backup); return false
 	return status.is_ok()
 
@@ -1302,6 +1322,7 @@ func advance_resolve(status: SimStatus) -> bool:
 	var mode: int = SimWorld.ContinuousAccelerationMode.SUPPRESS if _forced_settle_used else SimWorld.ContinuousAccelerationMode.APPLY
 	if (not _forced_settle_used or _forced_resolve_ticks > 0) and _world.is_quiescent(mode, status) and _pending.is_empty() and _world.event_cursor() == _world.event_count():
 		_phase = Phase.TURN_END
+		_launch_contact_mask = 0
 		return _finish_trigger_transition(status)
 	if _pending.is_empty() and _world.event_cursor() == _world.event_count() and ResolvePacingPolicy.should_settle(_world, status):
 		var settled_world: SimWorld = _world._transaction_copy(status)
@@ -1311,6 +1332,7 @@ func advance_resolve(status: SimStatus) -> bool:
 		if not status.is_ok(): _assign_from(backup); return false
 		_world = settled_world
 		_phase = Phase.TURN_END
+		_launch_contact_mask = 0
 		return _finish_trigger_transition(status)
 	if _forced_settle_used and _forced_resolve_ticks >= BattleLimits.FORCED_RESOLVE_MAX_TICKS:
 		var blocker: int = 0
@@ -1344,7 +1366,7 @@ func advance_resolve(status: SimStatus) -> bool:
 		if not _finish_trigger_transition(status): _assign_from(backup); return false
 		return status.is_ok()
 	mode = SimWorld.ContinuousAccelerationMode.SUPPRESS if _forced_settle_used else SimWorld.ContinuousAccelerationMode.APPLY
-	if _world.is_quiescent(mode, status) and _pending.is_empty() and _world.event_cursor() == _world.event_count(): _phase = Phase.TURN_END
+	if _world.is_quiescent(mode, status) and _pending.is_empty() and _world.event_cursor() == _world.event_count(): _phase = Phase.TURN_END; _launch_contact_mask = 0
 	if not _finish_trigger_transition(status): _assign_from(backup); return false
 	return status.is_ok()
 
@@ -1389,6 +1411,7 @@ func resolve_check(status: SimStatus) -> bool:
 	_phase = Phase.BATTLE_END
 	_statuses.clear()
 	_motion_credits.clear()
+	_launch_contact_mask = 0
 	_emit_trigger(BattleTriggerId.Value.ON_BATTLE_END, 0, 0, 0, 0, SimEvent.CauseId.NONE, FixVec2.zero(), FixVec2.zero(), computed, 0, status)
 	if not _finish_trigger_transition(status): _assign_from(backup); return false
 	return true
@@ -1424,6 +1447,7 @@ func copy(status: SimStatus) -> BattleState:
 	result._world = _world.copy(status)
 	result._pending = _copy_pending(_pending); result._normal_resolve_ticks = _normal_resolve_ticks
 	result._forced_resolve_ticks = _forced_resolve_ticks; result._forced_settle_used = _forced_settle_used
+	result._launch_contact_mask = _launch_contact_mask
 	result._battle_result = _battle_result; result._next_trigger_sequence = _next_trigger_sequence
 	result._last_trigger_batch = _copy_trigger_records(_last_trigger_batch)
 	result._motion_credits = _copy_motion_credits(_motion_credits)
@@ -1454,6 +1478,7 @@ func _rollback_snapshot() -> BattleState:
 	result._cooldowns = _cooldowns.duplicate(); result._world = _world
 	result._pending = _pending.duplicate(); result._normal_resolve_ticks = _normal_resolve_ticks
 	result._forced_resolve_ticks = _forced_resolve_ticks; result._forced_settle_used = _forced_settle_used
+	result._launch_contact_mask = _launch_contact_mask
 	result._battle_result = _battle_result; result._next_trigger_sequence = _next_trigger_sequence
 	result._last_trigger_batch = _last_trigger_batch.duplicate(); result._motion_credits = _motion_credits.duplicate()
 	result._content_fingerprint = _content_fingerprint.duplicate(); result._ability_bindings = _ability_bindings.duplicate(); result._next_effect_sequence = _next_effect_sequence
@@ -1472,6 +1497,7 @@ func _assign_from(other: BattleState) -> void:
 	_cooldowns = other._cooldowns; _world = other._world; _pending = other._pending
 	_normal_resolve_ticks = other._normal_resolve_ticks; _forced_resolve_ticks = other._forced_resolve_ticks
 	_forced_settle_used = other._forced_settle_used
+	_launch_contact_mask = other._launch_contact_mask
 	_battle_result = other._battle_result; _next_trigger_sequence = other._next_trigger_sequence
 	_last_trigger_batch = other._last_trigger_batch; _motion_credits = other._motion_credits
 	_trigger_bus = BattleTriggerBus.new()
@@ -1576,10 +1602,10 @@ func _effect_dynamic_spawn(owner_body_id: int, target_body_id: int, record: Batt
 	if not content_status.is_ok(): status.fail(SimStatus.Code.INVALID_SPAWN_REQUEST, SimStatus.Operation.BATTLE_DYNAMIC_SPAWN, piece.numeric_id(), 1); return false
 	var faction: int = BattleParticipant.Faction.NEUTRAL if piece.spawn_faction_mode_id() == PieceDefinition.SpawnFactionMode.NEUTRAL else _participant_faction(owner_body_id)
 	if faction == BattleParticipant.Faction.INVALID: status.fail(SimStatus.Code.INVALID_SPAWN_REQUEST, SimStatus.Operation.BATTLE_DYNAMIC_SPAWN, owner_body_id, faction); return false
-	var body_template: SimBody = SimBody.create_unassigned(position, velocity, level.radius_raw(), level.mass_raw(), status, level.friction_multiplier_raw(), piece.destructible())
+	var body_template: SimBody = SimBody.create_unassigned(position, velocity, level.radius_raw(), level.mass_raw(), status, level.friction_multiplier_raw(), piece.destructible(), level.elasticity_multiplier_raw())
 	var participant_template: BattleParticipant = BattleParticipant.create_unassigned(faction, piece.has_turn(), faction == BattleParticipant.Faction.PLAYER and piece.has_turn(), piece.counts_for_victory(), level.speed_stat(), status)
 	var combatant_template: BattleCombatant = null
-	if piece.destructible(): combatant_template = BattleCombatant.create_unassigned(faction, level.max_hp(), level.attack(), level.critical_basis_points(), status)
+	if piece.destructible(): combatant_template = BattleCombatant.create_unassigned_with_clean_hit_multiplier(faction, level.max_hp(), level.attack(), level.critical_basis_points(), level.clean_hit_damage_multiplier_raw(), status)
 	if not status.is_ok(): return false
 	var request := DynamicSpawnRequest.new(); request.body_template = body_template; request.participant_template = participant_template; request.combatant_template = combatant_template
 	request.piece_numeric_id = piece.numeric_id(); request.faction = faction; request.ability_numeric_ids = _level_one_ability_ids(piece, status); request.expire_kind_id = piece.expire_kind_id(); request.expire_value = piece.expire_value(); request.applied_turn_index = _turn_index
@@ -1636,6 +1662,9 @@ func transform_body(body_id: int, piece: PieceDefinition, status: SimStatus) -> 
 	_replace_bindings_for_piece(body_id, piece, status); _dynamic_transform_body_ids.append(body_id); _dynamic_transform_body_ids.sort()
 	_modifier_resolver = ModifierResolver.build(_content_catalog, _piece_identities, _synergy_tally, status)
 	if not status.is_ok() or not _materialize_physical_stats(status): return false
+	var transformed_body: SimBody = _world.body_by_id(body_id, status).with_elasticity_multiplier(level.elasticity_multiplier_raw(), status)
+	_world.replace_body(transformed_body, status)
+	if not status.is_ok(): return false
 	if not _world.correct_body_overlap_once(body_id, status):
 		if status.is_ok(): status.fail(SimStatus.Code.INVALID_TRANSFORM_REQUEST, SimStatus.Operation.BATTLE_TRANSFORM, body_id, piece.numeric_id())
 		return false
@@ -1787,6 +1816,13 @@ func _status_expire_turn_end(body_id: int, status: SimStatus) -> Array[int]:
 	return _statuses.expire_target_turn(body_id, maxi(0, _turn_index - 1), _content_catalog, status)
 
 func is_initialized() -> bool: return _initialized
+func launch_contact_mask() -> int: return _launch_contact_mask
+
+
+func _clean_hit_restore_snapshot(value: int, status: SimStatus) -> void:
+	if not status.is_ok(): return
+	_launch_contact_mask = value
+	if not _validate(status): return
 func phase() -> int: return _phase
 func current_actor_body_id() -> int: return _current_actor_body_id
 func abstract_time() -> int: return _abstract_time

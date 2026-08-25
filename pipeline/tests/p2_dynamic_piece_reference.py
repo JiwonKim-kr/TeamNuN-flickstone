@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "pipeline" / "scripts"))
 from content_catalog import ContentError, load_catalog  # noqa: E402
 
 FIXTURE = ROOT / "pipeline" / "tests" / "fixtures" / "p2_dynamic_piece"
-EXPECTED_FINGERPRINT = "f3ab8b5b192ee5644686a6bdb4708196d6f044b1753855035c76da769ba82bd4"
+EXPECTED_FINGERPRINT = "6fe861d4d8eeac383d741b7644a662fcdd9b3b61d62aaecaa89591f0f72188e4"
 
 
 def expect_catalog_failure(mutator) -> None:

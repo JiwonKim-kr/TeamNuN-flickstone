@@ -111,6 +111,8 @@ static func encode(
 			writer.i64(level.mass_raw())
 			writer.i64(level.radius_raw())
 			writer.i64(level.friction_multiplier_raw())
+			writer.i64(level.elasticity_multiplier_raw())
+			writer.i64(level.clean_hit_damage_multiplier_raw())
 			writer.i64(level.critical_basis_points())
 			writer.u16(level.ability_ref_count())
 			for ref_index: int in range(level.ability_ref_count()):

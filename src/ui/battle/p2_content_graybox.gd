@@ -7,6 +7,9 @@ signal run_battle_finished(outcome: RunBattleOutcome)
 const PLAYER_TEXTURE := preload("res://assets/art/sprites/p1_graybox/PLACEHOLDER_player_piece.png")
 const ENEMY_TEXTURE := preload("res://assets/art/sprites/p1_graybox/PLACEHOLDER_enemy_piece.png")
 const DAMAGE_ZONE_TEXTURE := preload("res://assets/art/zones/turn_start_damage.png")
+const PIECE_VISUALS_PATH := "res://src/ui/battle/piece_visuals.json"
+const BOARD_VISUALS_PATH := "res://src/ui/battle/board_visuals.json"
+const ABILITY_PRESENTATIONS_PATH := "res://src/ui/battle/ability_presentations.json"
 const CONTENT_DRIVER: Script = preload("res://src/ui/battle/p2_content_battle_driver.gd")
 const PREDICTION_QUEUE: Script = preload("res://src/ui/battle/trajectory_prediction_queue.gd")
 const ENEMY_ACTION_DELAY: Script = preload("res://src/ui/battle/enemy_action_delay.gd")
@@ -51,6 +54,11 @@ var _run_mode: bool = false
 var _run_request := RunBattleRequest.new()
 var _run_outcome_emitted: bool = false
 var _damage_notice: String = ""
+var _piece_visuals: Dictionary = {}
+var _board_visuals: Dictionary = {}
+var _ability_presentations: Dictionary = {}
+var _aim_command: LaunchCommand = LaunchCommand.new()
+var _aim_first_target_body_id: int = 0
 
 
 func _ready() -> void:
@@ -80,6 +88,11 @@ func _load_content() -> void:
 		return
 	for index: int in range(_catalog.piece_count()):
 		_piece_definitions.append(_catalog.piece_at(index, _content_error))
+	_load_piece_visuals()
+	_load_board_visuals()
+	_load_ability_presentations()
+	if not _content_error.is_ok():
+		return
 	for index: int in range(_encounter_definition.enemy_ref_count()):
 		_enemy_definitions.append(_catalog.enemy_by_numeric_id(_encounter_definition.enemy_ref_at(index, _content_error).numeric_id(), _content_error))
 	if not _content_error.is_ok():
@@ -233,6 +246,8 @@ func _on_prediction_requested(command: LaunchCommand) -> void:
 		return
 	var direction := Vector2(float(fixed_direction.x_raw()), float(fixed_direction.y_raw())).normalized()
 	_aim_power_step = command.power_step()
+	_aim_command = command.copy()
+	_aim_first_target_body_id = 0
 	var guide_length: float = (
 		float(LaunchLimits.MAX_DRAG_DISTANCE_RAW)
 		* float(_aim_power_step)
@@ -335,6 +350,12 @@ func _show_prediction(prediction: TrajectoryPrediction) -> void:
 	_trajectory.update_from_prediction(prediction, status)
 	if status.is_ok():
 		_trajectory_line.points = _trajectory.positions()
+		_aim_first_target_body_id = 0
+		for index: int in range(prediction.point_count()):
+			var point: TrajectoryPoint = prediction.point_at(index, status)
+			if point.marker() == TrajectoryPoint.Marker.COLLISION:
+				_aim_first_target_body_id = point.target_body_id()
+				break
 
 
 func _on_launch_requested(command: LaunchCommand) -> void:
@@ -350,6 +371,8 @@ func _clear_aim() -> void:
 	_prediction_source_state = null
 	_prediction_cache.clear()
 	_aim_power_step = 0
+	_aim_command = LaunchCommand.new()
+	_aim_first_target_body_id = 0
 	_trajectory.clear()
 	_trajectory_line.clear_points()
 	_aim_line.clear_points()
@@ -376,11 +399,13 @@ func _build_map_view() -> void:
 	var boundary_points := PackedVector2Array()
 	for vertex: FixVec2 in _map_definition.boundary_vertices_copy():
 		boundary_points.append(_fix_to_vector(vertex))
-	var floor := Polygon2D.new()
-	floor.name = "Floor"
-	floor.polygon = boundary_points
-	floor.color = Color(0.105, 0.125, 0.15, 1.0)
-	_map_visuals.add_child(floor)
+	var has_board_visual: bool = _add_board_visual(boundary_points)
+	if not has_board_visual:
+		var floor := Polygon2D.new()
+		floor.name = "Floor"
+		floor.polygon = boundary_points
+		floor.color = Color(0.105, 0.125, 0.15, 1.0)
+		_map_visuals.add_child(floor)
 	for zone_index: int in range(_map_definition.zone_count()):
 		var zone: MapZoneDefinition = _map_definition.zone_at(zone_index, content_status)
 		var points := PackedVector2Array()
@@ -443,6 +468,29 @@ func _build_map_view() -> void:
 		_content_error = content_status
 
 
+func _add_board_visual(boundary_points: PackedVector2Array) -> bool:
+	var visual: Dictionary = _board_visuals.get(_map_definition.numeric_id(), {}) as Dictionary
+	if visual.is_empty() or boundary_points.is_empty():
+		return false
+	var boundary_min: Vector2 = boundary_points[0]
+	var boundary_max: Vector2 = boundary_points[0]
+	for point: Vector2 in boundary_points:
+		boundary_min = Vector2(minf(boundary_min.x, point.x), minf(boundary_min.y, point.y))
+		boundary_max = Vector2(maxf(boundary_max.x, point.x), maxf(boundary_max.y, point.y))
+	var arena_width: float = float(int(visual["arena_right_px"]) - int(visual["arena_left_px"]))
+	var arena_height: float = float(int(visual["arena_bottom_px"]) - int(visual["arena_top_px"]))
+	var board_scale := Vector2((boundary_max.x - boundary_min.x) / arena_width, (boundary_max.y - boundary_min.y) / arena_height)
+	var board := Sprite2D.new()
+	board.name = "Board"
+	board.centered = false
+	board.texture = visual["texture"] as Texture2D
+	board.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	board.scale = board_scale
+	board.position = boundary_min - Vector2(float(int(visual["arena_left_px"])), float(int(visual["arena_top_px"]))) * board_scale
+	_map_visuals.add_child(board)
+	return true
+
+
 func _zone_color(zone: MapZoneDefinition, alpha: float) -> Color:
 	if zone.is_kill_zone():
 		return Color(0.95, 0.18, 0.22, alpha)
@@ -473,17 +521,203 @@ func _status_text_for_body(body_id: int, status: SimStatus) -> String:
 	return ",".join(items)
 
 
-func _ensure_piece_view(body_id: int, faction: int) -> Node2D:
+func _load_piece_visuals() -> void:
+	var file := FileAccess.open(PIECE_VISUALS_PATH, FileAccess.READ)
+	if file == null:
+		_content_error.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.LOOKUP)
+		return
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	if typeof(parsed) != TYPE_DICTIONARY:
+		_content_error.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.DOCUMENT_VALIDATE)
+		return
+	var root: Dictionary = parsed as Dictionary
+	if root.size() != 2 or not root.has("schema_version") or not root.has("records") or root["schema_version"] != 1 or typeof(root["records"]) != TYPE_ARRAY:
+		_content_error.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE)
+		return
+	for value: Variant in root["records"] as Array:
+		if typeof(value) != TYPE_DICTIONARY:
+			_content_error.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.DOCUMENT_VALIDATE)
+			return
+		var record: Dictionary = value as Dictionary
+		var keys: PackedStringArray = PackedStringArray(["numeric_id", "id", "texture", "pixel_width", "pixel_height", "scale_raw"])
+		if record.size() != keys.size():
+			_content_error.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE)
+			return
+		for key: String in keys:
+			if not record.has(key):
+				_content_error.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE)
+				return
+		var numeric_id: int = int(record["numeric_id"])
+		var piece: PieceDefinition = _catalog.piece_by_numeric_id(numeric_id, _content_error)
+		if not _content_error.is_ok() or piece.string_id() != String(record["id"]) or _piece_visuals.has(numeric_id):
+			if _content_error.is_ok(): _content_error.fail(ContentStatus.Code.INVALID_ID, ContentStatus.Operation.REFERENCE_RESOLVE)
+			return
+		var path: String = String(record["texture"])
+		if not path.begins_with("res://assets/art/") or not path.ends_with(".png"):
+			_content_error.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE)
+			return
+		var texture: Texture2D = load(path) as Texture2D
+		if texture == null or texture.get_width() != int(record["pixel_width"]) or texture.get_height() != int(record["pixel_height"]) or int(record["scale_raw"]) <= 0:
+			_content_error.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE)
+			return
+		_piece_visuals[numeric_id] = {"texture": texture, "scale": float(int(record["scale_raw"])) / float(FixMath.SCALE)}
+
+
+func _load_board_visuals() -> void:
+	var file := FileAccess.open(BOARD_VISUALS_PATH, FileAccess.READ)
+	if file == null:
+		_content_error.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.LOOKUP)
+		return
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	if typeof(parsed) != TYPE_DICTIONARY:
+		_content_error.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.DOCUMENT_VALIDATE)
+		return
+	var root: Dictionary = parsed as Dictionary
+	if root.size() != 2 or not root.has("schema_version") or not root.has("records") or root["schema_version"] != 1 or typeof(root["records"]) != TYPE_ARRAY:
+		_content_error.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE)
+		return
+	var keys: PackedStringArray = PackedStringArray(["numeric_id", "id", "texture", "pixel_width", "pixel_height", "arena_left_px", "arena_top_px", "arena_right_px", "arena_bottom_px"])
+	for value: Variant in root["records"] as Array:
+		if typeof(value) != TYPE_DICTIONARY:
+			_content_error.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.DOCUMENT_VALIDATE)
+			return
+		var record: Dictionary = value as Dictionary
+		if record.size() != keys.size():
+			_content_error.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE)
+			return
+		for key: String in keys:
+			if not record.has(key):
+				_content_error.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE)
+				return
+		var numeric_id: int = int(record["numeric_id"])
+		var map: MapDefinition = _catalog.map_by_numeric_id(numeric_id, _content_error)
+		if not _content_error.is_ok() or map.string_id() != String(record["id"]) or _board_visuals.has(numeric_id):
+			if _content_error.is_ok(): _content_error.fail(ContentStatus.Code.INVALID_ID, ContentStatus.Operation.REFERENCE_RESOLVE)
+			return
+		var path: String = String(record["texture"])
+		var pixel_width: int = int(record["pixel_width"])
+		var pixel_height: int = int(record["pixel_height"])
+		var left: int = int(record["arena_left_px"])
+		var top: int = int(record["arena_top_px"])
+		var right: int = int(record["arena_right_px"])
+		var bottom: int = int(record["arena_bottom_px"])
+		if not path.begins_with("res://assets/art/") or not path.ends_with(".png") or left < 0 or top < 0 or right <= left or bottom <= top or right > pixel_width or bottom > pixel_height:
+			_content_error.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE)
+			return
+		var texture: Texture2D = load(path) as Texture2D
+		if texture == null or texture.get_width() != pixel_width or texture.get_height() != pixel_height:
+			_content_error.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE)
+			return
+		_board_visuals[numeric_id] = {
+			"texture": texture,
+			"arena_left_px": left,
+			"arena_top_px": top,
+			"arena_right_px": right,
+			"arena_bottom_px": bottom,
+		}
+
+
+func _load_ability_presentations() -> void:
+	var file := FileAccess.open(ABILITY_PRESENTATIONS_PATH, FileAccess.READ)
+	if file == null:
+		_content_error.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.LOOKUP)
+		return
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	if typeof(parsed) != TYPE_DICTIONARY:
+		_content_error.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.DOCUMENT_VALIDATE)
+		return
+	var root: Dictionary = parsed as Dictionary
+	if root.size() != 2 or root.get("schema_version", 0) != 1 or typeof(root.get("records", null)) != TYPE_ARRAY:
+		_content_error.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE)
+		return
+	for value: Variant in root["records"] as Array:
+		if typeof(value) != TYPE_DICTIONARY:
+			_content_error.fail(ContentStatus.Code.INVALID_TYPE, ContentStatus.Operation.DOCUMENT_VALIDATE)
+			return
+		var record: Dictionary = value as Dictionary
+		if record.size() != 3 or not record.has("ability_numeric_id") or not record.has("id") or not record.has("aim_detail_mode_id"):
+			_content_error.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE)
+			return
+		var ability_id: int = int(record["ability_numeric_id"])
+		var ability: AbilityDefinition = _catalog.ability_by_numeric_id(ability_id, _content_error)
+		var mode_id: int = int(record["aim_detail_mode_id"])
+		if not _content_error.is_ok() or ability.string_id() != String(record["id"]) or mode_id != 1 or _ability_presentations.has(ability_id):
+			if _content_error.is_ok(): _content_error.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.REFERENCE_RESOLVE)
+			return
+		_ability_presentations[ability_id] = mode_id
+
+
+func _actor_aim_detail_mode(status: SimStatus) -> int:
+	if _state == null or _state.current_actor_body_id() == 0: return 0
+	var identity: BattlePieceIdentity = _identity_for_body(_state.current_actor_body_id(), status)
+	if not identity.is_initialized(): return 0
+	var content_status := ContentStatus.new()
+	var piece: PieceDefinition = _catalog.piece_by_numeric_id(identity.piece_numeric_id(), content_status)
+	var level: PieceLevelDefinition = piece.level_definition(identity.level(), content_status)
+	if not content_status.is_ok(): return 0
+	for index: int in range(level.ability_ref_count()):
+		var ability_ref: ContentIdRef = level.ability_ref_at(index, content_status)
+		if _ability_presentations.has(ability_ref.numeric_id()): return int(_ability_presentations[ability_ref.numeric_id()])
+	return 0
+
+
+func _aim_detail_text(status: SimStatus) -> String:
+	if not _input.is_dragging() or not _aim_command.is_initialized() or _actor_aim_detail_mode(status) != 1: return ""
+	var angle_degrees: int = (_aim_command.angle() * 360 + 32768) / 65536
+	var power_percent: int = (_aim_command.power_step() * 100 + LaunchLimits.POWER_STEPS / 2) / LaunchLimits.POWER_STEPS
+	var target_name: String = "없음"
+	if _aim_first_target_body_id > 0:
+		var identity: BattlePieceIdentity = _identity_for_body(_aim_first_target_body_id, status)
+		if identity.is_initialized():
+			var content_status := ContentStatus.new()
+			var piece: PieceDefinition = _catalog.piece_by_numeric_id(identity.piece_numeric_id(), content_status)
+			target_name = piece.string_id() if content_status.is_ok() else "#%d" % _aim_first_target_body_id
+	return " · 계산 각도 %d° / 파워 %d%% / 첫 충돌 %s" % [angle_degrees, power_percent, target_name]
+
+
+func _configure_piece_sprite(holder: Node2D, faction: int, piece: PieceDefinition) -> void:
+	var sprite: Sprite2D = holder.get_node("Sprite") as Sprite2D
+	var visual: Dictionary = _piece_visuals.get(piece.numeric_id(), {}) as Dictionary
+	if visual.is_empty():
+		sprite.texture = PLAYER_TEXTURE if faction == BattleParticipant.Faction.PLAYER else ENEMY_TEXTURE
+		sprite.scale = PIECE_SCALE
+	else:
+		sprite.texture = visual["texture"] as Texture2D
+		var scale_value: float = float(visual["scale"])
+		sprite.scale = Vector2(scale_value, scale_value)
+	holder.set_meta("piece_numeric_id", piece.numeric_id())
+
+
+func _ensure_piece_view(body_id: int, faction: int, piece: PieceDefinition) -> Node2D:
 	var holder: Node2D = _piece_nodes.get(body_id) as Node2D
 	if holder != null:
+		if int(holder.get_meta("piece_numeric_id", 0)) != piece.numeric_id():
+			_configure_piece_sprite(holder, faction, piece)
 		return holder
 	holder = Node2D.new()
 	holder.name = "Body%d" % body_id
 	var sprite := Sprite2D.new()
 	sprite.name = "Sprite"
-	sprite.texture = PLAYER_TEXTURE if faction == BattleParticipant.Faction.PLAYER else ENEMY_TEXTURE
-	sprite.scale = PIECE_SCALE
 	holder.add_child(sprite)
+	var ring := Line2D.new()
+	ring.name = "FactionRing"
+	ring.width = 3.0
+	ring.default_color = Color(0.20, 0.92, 0.84) if faction == BattleParticipant.Faction.PLAYER else Color(1.0, 0.43, 0.20)
+	for point_index: int in range(33):
+		var angle: float = TAU * float(point_index) / 32.0
+		ring.add_point(Vector2(cos(angle), sin(angle)) * 35.0)
+	holder.add_child(ring)
+	var faction_mark := Polygon2D.new()
+	faction_mark.name = "FactionMark"
+	faction_mark.color = ring.default_color
+	faction_mark.polygon = PackedVector2Array([Vector2(-5, -39), Vector2(5, -39), Vector2(0, -31)]) if faction == BattleParticipant.Faction.PLAYER else PackedVector2Array([Vector2(-6, -39), Vector2(6, -39), Vector2(0, -29)])
+	holder.add_child(faction_mark)
+	var actor_mark := Polygon2D.new()
+	actor_mark.name = "ActorMark"
+	actor_mark.color = Color(1.0, 0.92, 0.25)
+	actor_mark.polygon = PackedVector2Array([Vector2(-8, -49), Vector2(8, -49), Vector2(0, -38)])
+	actor_mark.visible = false
+	holder.add_child(actor_mark)
 	var label := Label.new()
 	label.name = "Info"
 	label.position = Vector2(-105.0, 42.0)
@@ -494,6 +728,7 @@ func _ensure_piece_view(body_id: int, faction: int) -> Node2D:
 	holder.add_child(label)
 	_pieces.add_child(holder)
 	_piece_nodes[body_id] = holder
+	_configure_piece_sprite(holder, faction, piece)
 	return holder
 
 
@@ -577,10 +812,11 @@ func _sync_view() -> void:
 		var piece: PieceDefinition = _catalog.piece_by_numeric_id(identity.piece_numeric_id(), content_status)
 		var combatant: BattleCombatant = _state.combatant_by_body_id(body.id(), status)
 		alive[body.id()] = true
-		var holder := _ensure_piece_view(body.id(), participant.faction())
+		var holder := _ensure_piece_view(body.id(), participant.faction(), piece)
 		holder.position = _fix_to_vector(body.position())
 		var sprite: Sprite2D = holder.get_node("Sprite") as Sprite2D
-		sprite.modulate = Color(1.0, 0.92, 0.35) if body.id() == _state.current_actor_body_id() else Color.WHITE
+		sprite.modulate = Color.WHITE
+		(holder.get_node("ActorMark") as Polygon2D).visible = body.id() == _state.current_actor_body_id()
 		var info: Label = holder.get_node("Info") as Label
 		var status_text := _status_text_for_body(body.id(), status)
 		info.text = "%s L%d\nHP %d/%d%s" % [piece.string_id(), identity.level(), combatant.current_hp(), combatant.max_hp(), "\n" + status_text if not status_text.is_empty() else ""]
@@ -612,7 +848,7 @@ func _sync_view() -> void:
 	elif _state.phase() == BattleState.Phase.BATTLE_END:
 		_status_label.text += " · 결과 %s" % BattleResult.Value.keys()[_state.battle_result()]
 	var preview := _preview_text(status)
-	_details_label.text = "편성 %s\n시너지 %s%s%s" % [_selection_text(), _synergy_text(), " · CTB " + preview if not preview.is_empty() else "", _damage_notice]
+	_details_label.text = "편성 %s\n시너지 %s%s%s%s" % [_selection_text(), _synergy_text(), " · CTB " + preview if not preview.is_empty() else "", _damage_notice, _aim_detail_text(status)]
 	if not status.is_ok() and _error.is_ok():
 		_error = status
 

@@ -14,6 +14,7 @@ var _outgoing_ratio_bonus_raw: int = 0
 var _incoming_ratio_reduction_raw: int = 0
 var _fixed_increase: int = 0
 var _fixed_reduction: int = 0
+var _clean_hit_damage_multiplier_raw: int = FixMath.ONE_RAW
 var _initialized: bool = false
 
 
@@ -31,6 +32,26 @@ static func create(
 		incoming_ratio_reduction_raw: int,
 		fixed_increase: int,
 		fixed_reduction: int,
+		status: SimStatus
+) -> DamageContext:
+	return create_with_clean_hit_multiplier(attacker_body_id, victim_body_id, attacker_attack, victim_current_hp, attacker_mass_raw, victim_mass_raw, impact_speed_raw, same_non_neutral_faction, critical_applied, outgoing_ratio_bonus_raw, incoming_ratio_reduction_raw, fixed_increase, fixed_reduction, FixMath.ONE_RAW, status)
+
+
+static func create_with_clean_hit_multiplier(
+		attacker_body_id: int,
+		victim_body_id: int,
+		attacker_attack: int,
+		victim_current_hp: int,
+		attacker_mass_raw: int,
+		victim_mass_raw: int,
+		impact_speed_raw: int,
+		same_non_neutral_faction: bool,
+		critical_applied: bool,
+		outgoing_ratio_bonus_raw: int,
+		incoming_ratio_reduction_raw: int,
+		fixed_increase: int,
+		fixed_reduction: int,
+		clean_hit_damage_multiplier_raw: int,
 		status: SimStatus
 ) -> DamageContext:
 	var result := DamageContext.new()
@@ -56,6 +77,8 @@ static func create(
 		or fixed_increase > DamageLimits.STAT_MAX
 		or fixed_reduction < 0
 		or fixed_reduction > DamageLimits.STAT_MAX
+		or clean_hit_damage_multiplier_raw < FixMath.ONE_RAW
+		or clean_hit_damage_multiplier_raw > 4 * FixMath.ONE_RAW
 	):
 		status.fail(
 			SimStatus.Code.INVALID_DAMAGE_CONTEXT,
@@ -77,6 +100,7 @@ static func create(
 	result._incoming_ratio_reduction_raw = incoming_ratio_reduction_raw
 	result._fixed_increase = fixed_increase
 	result._fixed_reduction = fixed_reduction
+	result._clean_hit_damage_multiplier_raw = clean_hit_damage_multiplier_raw
 	result._initialized = true
 	return result
 
@@ -95,3 +119,4 @@ func outgoing_ratio_bonus_raw() -> int: return _outgoing_ratio_bonus_raw
 func incoming_ratio_reduction_raw() -> int: return _incoming_ratio_reduction_raw
 func fixed_increase() -> int: return _fixed_increase
 func fixed_reduction() -> int: return _fixed_reduction
+func clean_hit_damage_multiplier_raw() -> int: return _clean_hit_damage_multiplier_raw

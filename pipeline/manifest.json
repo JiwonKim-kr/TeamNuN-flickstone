@@ -98,6 +98,120 @@
           "feedback": "2026-08-25 사용자 선택: 경고 격자 64x64 RGBA, 실제 존 polygon mask, 38% alpha, 2px 주황 경계"
         }
       ]
+    },
+    {
+      "id": "art:sprites/p5_bouncy_ball",
+      "track": "art",
+      "status": "approved",
+      "spec": "P5-BR 탱탱볼 정식 기물: 64x64 RGBA, 고무 장난감 재질, 진영색 미포함",
+      "requested_by": [
+        {
+          "kind": "code_event",
+          "path": "src/ui/battle/piece_visuals.json::bouncy_ball"
+        }
+      ],
+      "file": "assets/art/sprites/p5/bouncy_ball.png",
+      "history": [
+        {
+          "at": "2026-08-25T11:53:03.410311+00:00",
+          "action": "approved"
+        }
+      ]
+    },
+    {
+      "id": "art:boards/p5_neutral_board",
+      "track": "art",
+      "status": "approved",
+      "spec": "P5 중립 전투 보드: 640x1024 RGB PNG, 기물·슬롯·HUD·위험 구역이 굽지 않은 A 방향 보드",
+      "requested_by": [
+        {
+          "kind": "code_event",
+          "path": "src/ui/battle/board_visuals.json::graybox_pit_arena"
+        }
+      ],
+      "file": "assets/art/boards/p5/neutral_board.png",
+      "history": [
+        {
+          "at": "2026-08-25T14:11:25.806163+00:00",
+          "action": "approved"
+        }
+      ]
+    },
+    {
+      "id": "art:sprites/p5_baduk_stone",
+      "track": "art",
+      "status": "approved",
+      "spec": "P5 바둑돌 정식 기물: 64x64 RGBA, 유광 흑색 도자기, 진영색 미포함",
+      "requested_by": [
+        {
+          "kind": "code_event",
+          "path": "src/ui/battle/piece_visuals.json::baduk_stone"
+        }
+      ],
+      "file": "assets/art/sprites/p5/baduk_stone.png",
+      "history": [
+        {
+          "at": "2026-08-25T14:11:25.943078+00:00",
+          "action": "approved"
+        }
+      ]
+    },
+    {
+      "id": "art:sprites/p5_bottle_cap",
+      "track": "art",
+      "status": "approved",
+      "spec": "P5 병뚜껑 정식 기물: 64x64 RGBA, 긁힌 금속 재질, 진영색 미포함",
+      "requested_by": [
+        {
+          "kind": "code_event",
+          "path": "src/ui/battle/piece_visuals.json::bottle_cap"
+        }
+      ],
+      "file": "assets/art/sprites/p5/bottle_cap.png",
+      "history": [
+        {
+          "at": "2026-08-25T14:11:26.083168+00:00",
+          "action": "approved"
+        }
+      ]
+    },
+    {
+      "id": "art:sprites/p5_caveman",
+      "track": "art",
+      "status": "approved",
+      "spec": "P5-CA 원시인 정식 기물: 64x64 RGBA, 돌망치 실루엣, 진영색 미포함",
+      "requested_by": [
+        {
+          "kind": "code_event",
+          "path": "src/ui/battle/piece_visuals.json::caveman"
+        }
+      ],
+      "file": "assets/art/sprites/p5/caveman.png",
+      "history": [
+        {
+          "at": "2026-08-25T15:19:00.764007+00:00",
+          "action": "approved"
+        }
+      ]
+    },
+    {
+      "id": "art:sprites/p5_ai_core",
+      "track": "art",
+      "status": "approved",
+      "spec": "P5-CA AI 코어 정식 기물: 64x64 RGBA, 기계 코어 실루엣, 진영색 미포함",
+      "requested_by": [
+        {
+          "kind": "code_event",
+          "path": "src/ui/battle/piece_visuals.json::ai_core"
+        }
+      ],
+      "file": "assets/art/sprites/p5/ai_core.png",
+      "history": [
+        {
+          "at": "2026-08-25T15:19:00.875835+00:00",
+          "action": "approved"
+        }
+      ]
     }
   ]
 }

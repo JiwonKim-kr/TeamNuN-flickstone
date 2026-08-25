@@ -18,7 +18,7 @@ const ZONE_PAYLOAD_KEYS: PackedStringArray = ["flags", "friction_multiplier_raw"
 const SELECTOR_KEYS: PackedStringArray = ["kind_id", "relation_id", "limit"]
 const PIECE_KEYS: PackedStringArray = ["numeric_id", "id", "flags", "spawnable", "spawn_faction_mode_id", "expire_kind_id", "expire_value", "attach_anchor_mode_id", "attach_anchor_offset_x_raw", "attach_anchor_offset_y_raw", "tag_refs", "levels"]
 const FLAG_KEYS: PackedStringArray = ["has_turn", "destructible", "transformable", "counts_for_victory", "is_token"]
-const LEVEL_KEYS: PackedStringArray = ["level", "max_hp", "attack", "speed_stat", "mass_raw", "radius_raw", "friction_multiplier_raw", "critical_basis_points", "ability_refs"]
+const LEVEL_KEYS: PackedStringArray = ["level", "max_hp", "attack", "speed_stat", "mass_raw", "radius_raw", "friction_multiplier_raw", "elasticity_multiplier_raw", "clean_hit_damage_multiplier_raw", "critical_basis_points", "ability_refs"]
 const REF_KEYS: PackedStringArray = ["numeric_id", "id"]
 const STATUS_KEYS: PackedStringArray = ["numeric_id", "id", "stack_policy_id", "max_stacks", "duration_kind_id", "default_duration", "max_duration", "refresh_policy_id", "merge_sources", "modifiers"]
 const SYNERGY_KEYS: PackedStringArray = ["numeric_id", "id", "tag_ref", "tag_kind_id", "scope_id", "count_cap", "tiers"]
@@ -524,6 +524,8 @@ static func _valid_level_domain(
 		mass_raw: int,
 		radius_raw: int,
 		friction_multiplier_raw: int,
+		elasticity_multiplier_raw: int,
+		clean_hit_damage_multiplier_raw: int,
 		critical_basis_points: int,
 		status: ContentStatus,
 		piece_numeric_id: int
@@ -536,6 +538,8 @@ static func _valid_level_domain(
 	elif not SimLimits.is_mass_valid(mass_raw): field_id = ContentStatus.FieldId.MASS_RAW
 	elif not SimLimits.is_radius_valid(radius_raw): field_id = ContentStatus.FieldId.RADIUS_RAW
 	elif friction_multiplier_raw < 0: field_id = ContentStatus.FieldId.FRICTION_MULTIPLIER_RAW
+	elif elasticity_multiplier_raw < FixMath.ONE_RAW or elasticity_multiplier_raw > 4 * FixMath.ONE_RAW: field_id = ContentStatus.FieldId.ELASTICITY_MULTIPLIER_RAW
+	elif clean_hit_damage_multiplier_raw < FixMath.ONE_RAW or clean_hit_damage_multiplier_raw > 4 * FixMath.ONE_RAW: field_id = ContentStatus.FieldId.CLEAN_HIT_DAMAGE_MULTIPLIER_RAW
 	elif not DamageLimits.valid_critical_basis_points(critical_basis_points): field_id = ContentStatus.FieldId.CRITICAL_BASIS_POINTS
 	if field_id != ContentStatus.FieldId.NONE:
 		status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE, ContentIds.DocumentKind.PIECES, piece_numeric_id, field_id)
@@ -633,10 +637,12 @@ static func _parse_pieces(
 			var mass_raw: int = _int_field(level_value, "mass_raw", status, KIND, numeric_id, ContentStatus.FieldId.MASS_RAW)
 			var radius_raw: int = _int_field(level_value, "radius_raw", status, KIND, numeric_id, ContentStatus.FieldId.RADIUS_RAW)
 			var friction_raw: int = _int_field(level_value, "friction_multiplier_raw", status, KIND, numeric_id, ContentStatus.FieldId.FRICTION_MULTIPLIER_RAW)
+			var elasticity_raw: int = _int_field(level_value, "elasticity_multiplier_raw", status, KIND, numeric_id, ContentStatus.FieldId.ELASTICITY_MULTIPLIER_RAW)
+			var clean_hit_raw: int = _int_field(level_value, "clean_hit_damage_multiplier_raw", status, KIND, numeric_id, ContentStatus.FieldId.CLEAN_HIT_DAMAGE_MULTIPLIER_RAW)
 			var critical: int = _int_field(level_value, "critical_basis_points", status, KIND, numeric_id, ContentStatus.FieldId.CRITICAL_BASIS_POINTS)
 			var raw_refs: Array = _array_field(level_value, "ability_refs", status, KIND, numeric_id, ContentStatus.FieldId.ABILITY_REFS)
 			if not status.is_ok(): return false
-			if level != level_index + 1 or not _valid_level_domain(level, max_hp, attack, speed_stat, mass_raw, radius_raw, friction_raw, critical, status, numeric_id):
+			if level != level_index + 1 or not _valid_level_domain(level, max_hp, attack, speed_stat, mass_raw, radius_raw, friction_raw, elasticity_raw, clean_hit_raw, critical, status, numeric_id):
 				if status.is_ok(): status.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.DOCUMENT_VALIDATE, KIND, numeric_id, ContentStatus.FieldId.LEVEL)
 				return false
 			if raw_refs.size() > ContentLimits.ABILITY_REFS_MAX_COUNT:
@@ -653,7 +659,7 @@ static func _parse_pieces(
 				seen_refs[ability_ref.numeric_id()] = true
 				refs.append(ability_ref)
 			refs.sort_custom(_ref_less)
-			var level_definition: PieceLevelDefinition = PieceLevelDefinition.create(level, max_hp, attack, speed_stat, mass_raw, radius_raw, friction_raw, critical, refs, status)
+			var level_definition: PieceLevelDefinition = PieceLevelDefinition.create(level, max_hp, attack, speed_stat, mass_raw, radius_raw, friction_raw, elasticity_raw, clean_hit_raw, critical, refs, status)
 			if not status.is_ok(): return false
 			levels.append(level_definition)
 

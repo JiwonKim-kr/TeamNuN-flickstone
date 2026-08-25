@@ -53,7 +53,8 @@ func _body(
 		radius: int,
 		mass: int,
 		status: SimStatus,
-		destructible: bool = true
+		destructible: bool = true,
+		elasticity_multiplier_raw: int = FixMath.ONE_RAW
 ) -> SimBody:
 	return SimBody.create_unassigned(
 		_v(position_x, position_y, status),
@@ -62,7 +63,8 @@ func _body(
 		_q(mass),
 		status,
 		FixMath.ONE_RAW,
-		destructible
+		destructible,
+		elasticity_multiplier_raw
 	)
 
 
@@ -715,6 +717,69 @@ func _test_stress_determinism() -> void:
 	)
 
 
+func _elastic_pair_target_velocity(elasticity_a: int, elasticity_b: int, status: SimStatus) -> int:
+	var world: SimWorld = SimWorld.create(0, 39, status, 0, 0)
+	var keys: Array[int] = [1, 2]
+	var bodies: Array[SimBody] = [
+		_body(-7, 0, 100, 0, 8, 64, status, true, elasticity_a),
+		_body(7, 0, 0, 0, 8, 64, status, true, elasticity_b),
+	]
+	world.add_initial_bodies(keys, bodies, status)
+	world.step(status)
+	return world.body_by_id(2, status).velocity().x_raw()
+
+
+func _test_piece_elasticity() -> void:
+	var normal_status := SimStatus.new()
+	var one_bouncy_status := SimStatus.new()
+	var two_bouncy_status := SimStatus.new()
+	var normal_velocity: int = _elastic_pair_target_velocity(FixMath.ONE_RAW, FixMath.ONE_RAW, normal_status)
+	var one_bouncy_velocity: int = _elastic_pair_target_velocity(FixMath.ONE_RAW, 2 * FixMath.ONE_RAW, one_bouncy_status)
+	var two_bouncy_velocity: int = _elastic_pair_target_velocity(2 * FixMath.ONE_RAW, 2 * FixMath.ONE_RAW, two_bouncy_status)
+	_check(
+		"P5-BR-PAIR-MAX-001",
+		normal_status.is_ok()
+		and one_bouncy_status.is_ok()
+		and two_bouncy_status.is_ok()
+		and one_bouncy_velocity > normal_velocity
+		and two_bouncy_velocity == one_bouncy_velocity
+	)
+
+	var wall_status := SimStatus.new()
+	var wall_world: SimWorld = SimWorld.create(0, 40, wall_status, 0, 0)
+	wall_world.configure_boundary(_square(100, wall_status), SimWorld.BoundaryType.WALL, wall_status)
+	var wall_keys: Array[int] = [1]
+	var wall_bodies: Array[SimBody] = [_body(91, 0, 240, 0, 8, 64, wall_status, true, 2 * FixMath.ONE_RAW)]
+	wall_world.add_initial_bodies(wall_keys, wall_bodies, wall_status)
+	wall_world.step(wall_status)
+	var bouncy_body: SimBody = wall_world.body_by_id(1, wall_status)
+	var snapshot: SimSnapshot = SimSnapshot.capture(wall_world, wall_status)
+	var restored: SimWorld = SimSnapshot.decode(snapshot.encode(wall_status), wall_status).restore_world(wall_status)
+	_check(
+		"P5-BR-WALL-SNAPSHOT-001",
+		wall_status.is_ok()
+		and bouncy_body.velocity().x_raw() < -14942160
+		and restored.body_by_id(1, wall_status).elasticity_multiplier_raw() == 2 * FixMath.ONE_RAW
+	)
+
+	var legacy_status := SimStatus.new()
+	var legacy_world: SimWorld = SimWorld.create(0, 41, legacy_status, 0, 0)
+	var legacy_keys: Array[int] = [1]
+	var legacy_bodies: Array[SimBody] = [_body(0, 0, 0, 0, 8, 64, legacy_status)]
+	legacy_world.add_initial_bodies(legacy_keys, legacy_bodies, legacy_status)
+	var current_bytes: PackedByteArray = SimSnapshot.capture(legacy_world, legacy_status).encode(legacy_status)
+	var legacy_v2: PackedByteArray = current_bytes.slice(0, 168)
+	legacy_v2.append_array(current_bytes.slice(176))
+	legacy_v2[9] = 2
+	legacy_v2[10] = 0
+	var legacy_restored: SimWorld = SimSnapshot.decode(legacy_v2, legacy_status).restore_world(legacy_status)
+	_check(
+		"P5-BR-LEGACY-V2-ELASTICITY-001",
+		legacy_status.is_ok()
+		and legacy_restored.body_by_id(1, legacy_status).elasticity_multiplier_raw() == FixMath.ONE_RAW
+	)
+
+
 func _initialize() -> void:
 	print("== P0-3 circle collision / wall / kill zones ==")
 	_test_contract_and_polygon_validation()
@@ -726,6 +791,7 @@ func _initialize() -> void:
 	_test_management_remove_is_distinct()
 	_test_collision_failure_is_atomic()
 	_test_stress_determinism()
+	_test_piece_elasticity()
 
 	if _failures == 0:
 		print("P0_COLLISION_BOUNDARIES_RESULT: PASS")

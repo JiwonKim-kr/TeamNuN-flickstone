@@ -61,10 +61,10 @@ const REWARD_PROFILES_FILE: String = "reward_profiles.json"
 const SHOPS_FILE: String = "shops.json"
 const EVENTS_FILE: String = "events.json"
 
-const CATALOG_SCHEMA_VERSION: int = 10
+const CATALOG_SCHEMA_VERSION: int = 12
 const REGISTRY_SCHEMA_VERSION: int = 1
-const PIECES_SCHEMA_VERSION: int = 3
-const ABILITIES_SCHEMA_VERSION: int = 6
+const PIECES_SCHEMA_VERSION: int = 5
+const ABILITIES_SCHEMA_VERSION: int = 7
 const STATUSES_SCHEMA_VERSION: int = 1
 const SYNERGIES_SCHEMA_VERSION: int = 1
 const MAPS_SCHEMA_VERSION: int = 1
@@ -76,7 +76,7 @@ const CONSUMABLES_SCHEMA_VERSION: int = 2
 const REWARD_PROFILES_SCHEMA_VERSION: int = 1
 const SHOPS_SCHEMA_VERSION: int = 1
 const EVENTS_SCHEMA_VERSION: int = 1
-const FINGERPRINT_FORMAT_VERSION: int = 10
+const FINGERPRINT_FORMAT_VERSION: int = 12
 
 
 static func is_known_namespace(value: int) -> bool:

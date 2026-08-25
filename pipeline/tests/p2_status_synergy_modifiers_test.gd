@@ -33,7 +33,7 @@ func refreshed_remaining(definition: StatusDefinition) -> int:
 func _init() -> void:
 	var db: Node = DATA_DB_SCRIPT.new(); root.add_child(db)
 	var content_status := ContentStatus.new(); var loaded: bool = bool(db.call("reload_catalog", FIXTURE, content_status)); var catalog: ContentCatalog = db.call("catalog_copy", content_status) as ContentCatalog
-	check("P2-3-SCHEMA-CATALOG-V10", loaded and content_status.is_ok() and catalog.status_count() == 3 and catalog.synergy_count() == 1 and catalog.fingerprint_hex() == "347c83b02ff0480748d0504109a83e538664ae3a15ae1ae219da4963eca70e6d")
+	check("P2-3-SCHEMA-CATALOG-V11", loaded and content_status.is_ok() and catalog.status_count() == 3 and catalog.synergy_count() == 1 and catalog.fingerprint_hex() == "ce2ca9861bc0af11aa8cc4c3f6eab007b8b7f10904c5f2cef23f7638360e5049")
 	var status := SimStatus.new(); var ids: Array[BattlePieceIdentity] = identities(status); var tally: SynergyTally = SynergyTallyBuilder.build(catalog, ids, status)
 	check("P2-3-SYNERGY-TALLY", status.is_ok() and tally.count() == 2 and tally.value_at(0) == 2 and tally.value_at(1) == 2)
 	var reversed_ids: Array[BattlePieceIdentity] = ids.duplicate(); reversed_ids.reverse(); var reversed_tally: SynergyTally = SynergyTallyBuilder.build(catalog, reversed_ids, status)

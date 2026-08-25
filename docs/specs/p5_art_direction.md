@@ -163,6 +163,16 @@ Flickstone 제출용 예외 경로는 다음과 같다.
 - 실제 고무 장난감의 성형선·사출점·인쇄 띠를 강조한 `bouncy_ball_refined_00` 대체 후보를 생성했다. 64×64 RGBA probe와 선택 보드 1배 합성을 통과했으며 사람 최종 검수 전에는 런타임에 연결하지 않는다.
 - 턴 시작 위험 지역은 `damage_zone_warning_lattice_00_64`를 사용자 선택안으로 확정하고 `assets/art/zones/turn_start_damage.png`로 승격했다. 다른 위험 지역 컨셉은 향후 사용을 위해 보존한다.
 
+2026-08-25 후속 P5-BR 승인으로 `bouncy_ball_refined_00_64.png`를 최종 선택하고 `assets/art/sprites/p5/bouncy_ball.png`로 승격했다. 정식 `bouncy_ball` 콘텐츠와 strict visual catalog에 연결했으며 본체에는 진영색을 굽지 않고 런타임 링·행동자 화살표를 사용한다. 원본 swirl 후보는 생성 기록으로만 보존한다.
+
+2026-08-25 후속 구현에서 선택 보드와 이미 정식 콘텐츠 ID가 있는 바둑돌·병뚜껑을 먼저 런타임에 연결했다.
+
+- `p5_map_board_a_refined_02.png`를 `assets/art/boards/p5/neutral_board.png`로 승격하고, strict `board_visuals.json`의 source arena calibration으로 실제 맵 경계에 맞췄다.
+- `baduk_stone_test_00_64.png`, `bottle_cap_test_00_64.png`를 각각 `assets/art/sprites/p5/` 런타임 경로로 승격하고 기존 `piece_visuals.json`에 추가했다.
+- 보드·바둑돌·병뚜껑은 `manifest.py`로 approved 등록했다. 위험 존은 보드에 굽지 않고 기존 encounter polygon overlay를 유지한다.
+- Godot 4.6.3 import·smoke·manifest와 640×1,024 실제 전투 렌더를 통과했다. 물리 경계선과 보드 안쪽 프레임, 양 진영 공용 본체와 진영 링이 화면에서 일치한다.
+- 2026-08-26 P5-CA 승인 후 원시인·AI를 각각 정식 PIECE 5·6과 strict visual catalog에 연결했다. 체스 나이트·불 원소는 정식 piece/ability 명세 전이므로 concept 후보로 유지한다.
+
 ## 환경 준비
 
 저장소 아트 파이프라인은 Scenario 경유 생성 계약을 사용한다. 실제 생성 전 로컬 `.env`에 `SCENARIO_API_KEY`와 `SCENARIO_API_SECRET`이 필요하며 값은 문서·로그·커밋에 남기지 않는다. 키가 준비되지 않았으면 `scenario_client.py --dry-run`으로 요청·프롬프트만 검증한다.

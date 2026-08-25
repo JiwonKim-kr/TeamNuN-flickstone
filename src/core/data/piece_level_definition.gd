@@ -8,6 +8,8 @@ var _speed_stat: int = 0
 var _mass_raw: int = 0
 var _radius_raw: int = 0
 var _friction_multiplier_raw: int = 0
+var _elasticity_multiplier_raw: int = FixMath.ONE_RAW
+var _clean_hit_damage_multiplier_raw: int = FixMath.ONE_RAW
 var _critical_basis_points: int = 0
 var _ability_refs: Array[ContentIdRef] = []
 var _initialized: bool = false
@@ -21,6 +23,8 @@ static func create(
 		mass_raw: int,
 		radius_raw: int,
 		friction_multiplier_raw: int,
+		elasticity_multiplier_raw: int,
+		clean_hit_damage_multiplier_raw: int,
 		critical_basis_points: int,
 		ability_refs: Array[ContentIdRef],
 		status: ContentStatus
@@ -37,6 +41,10 @@ static func create(
 		or not SimLimits.is_mass_valid(mass_raw)
 		or not SimLimits.is_radius_valid(radius_raw)
 		or friction_multiplier_raw < 0
+		or elasticity_multiplier_raw < FixMath.ONE_RAW
+		or elasticity_multiplier_raw > 4 * FixMath.ONE_RAW
+		or clean_hit_damage_multiplier_raw < FixMath.ONE_RAW
+		or clean_hit_damage_multiplier_raw > 4 * FixMath.ONE_RAW
 		or not DamageLimits.valid_critical_basis_points(critical_basis_points)
 		or ability_refs.size() > ContentLimits.ABILITY_REFS_MAX_COUNT
 	):
@@ -56,6 +64,8 @@ static func create(
 	result._mass_raw = mass_raw
 	result._radius_raw = radius_raw
 	result._friction_multiplier_raw = friction_multiplier_raw
+	result._elasticity_multiplier_raw = elasticity_multiplier_raw
+	result._clean_hit_damage_multiplier_raw = clean_hit_damage_multiplier_raw
 	result._critical_basis_points = critical_basis_points
 	result._initialized = true
 	return result
@@ -66,7 +76,7 @@ func copy() -> PieceLevelDefinition:
 	var status := ContentStatus.new()
 	return create(
 		_level, _max_hp, _attack, _speed_stat, _mass_raw, _radius_raw,
-		_friction_multiplier_raw, _critical_basis_points, _ability_refs, status
+		_friction_multiplier_raw, _elasticity_multiplier_raw, _clean_hit_damage_multiplier_raw, _critical_basis_points, _ability_refs, status
 	)
 
 
@@ -78,6 +88,8 @@ func speed_stat() -> int: return _speed_stat
 func mass_raw() -> int: return _mass_raw
 func radius_raw() -> int: return _radius_raw
 func friction_multiplier_raw() -> int: return _friction_multiplier_raw
+func elasticity_multiplier_raw() -> int: return _elasticity_multiplier_raw
+func clean_hit_damage_multiplier_raw() -> int: return _clean_hit_damage_multiplier_raw
 func critical_basis_points() -> int: return _critical_basis_points
 func ability_ref_count() -> int: return _ability_refs.size()
 

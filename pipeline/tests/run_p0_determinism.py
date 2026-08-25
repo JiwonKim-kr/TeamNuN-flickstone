@@ -135,7 +135,7 @@ def _parse_snapshots(output: str) -> dict[str, list[tuple[str, bytes]]]:
         encoded = bytes.fromhex(encoded_hex)
         if len(encoded) < 27 or encoded[:9] != b"FLICKSIM\0":
             raise ValueError(f"{scenario_id} tick {tick}: invalid canonical prefix")
-        if int.from_bytes(encoded[9:11], "little", signed=False) != 2:
+        if int.from_bytes(encoded[9:11], "little", signed=False) != 3:
             raise ValueError(f"{scenario_id} tick {tick}: invalid schema version bytes")
         encoded_tick = int.from_bytes(encoded[11:19], "little", signed=True)
         if encoded_tick != tick:

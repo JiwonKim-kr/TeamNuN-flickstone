@@ -2,7 +2,7 @@ extends SceneTree
 
 const DATA_DB_SCRIPT: Script = preload("res://src/core/autoload/data_db.gd")
 const FIXTURE: String = "res://pipeline/tests/fixtures/p2_maps_enemies"
-const EXPECTED_FINGERPRINT: String = "d103ee1c2f313c34cc90e00c38e401ac7a3a2b8aa1af69cd8d4303842338bfe5"
+const EXPECTED_FINGERPRINT: String = "7ee10b4bbf510e9a6f392300f790ea91ce6af47bc5585362ec603c8ee30c24d8"
 
 var failures: int = 0
 
@@ -61,7 +61,7 @@ func test_catalog(catalog: ContentCatalog) -> void:
 	var map_definition: MapDefinition = catalog.map_by_numeric_id(1, status)
 	var enemy: EnemyDefinition = catalog.enemy_by_numeric_id(1, status)
 	var level: PieceLevelDefinition = enemy.resolved_level(catalog, status)
-	check("P2-5-CATALOG-V10-MAP-ENEMY", status.is_ok() and catalog.catalog_schema_version() == 10 and catalog.map_count() == 1 and catalog.enemy_count() == 1 and catalog.fingerprint_hex() == EXPECTED_FINGERPRINT)
+	check("P2-5-CATALOG-V11-MAP-ENEMY", status.is_ok() and catalog.catalog_schema_version() == 11 and catalog.map_count() == 1 and catalog.enemy_count() == 1 and catalog.fingerprint_hex() == EXPECTED_FINGERPRINT)
 	check("P2-5-MAP-ZONE-LOCAL-ID-SORT", status.is_ok() and map_definition.zone_count() == 2 and map_definition.zone_at(0, status).local_id() == 2 and map_definition.zone_at(1, status).local_id() == 10)
 	check("P2-5-ENEMY-OVERRIDE-RESOLVE", status.is_ok() and level.max_hp() == 120 and level.attack() == 24 and level.radius_raw() == 40 * FixMath.SCALE and level.ability_ref_count() == 0)
 

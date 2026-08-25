@@ -15,7 +15,7 @@ import godot_test_support
 ROOT = Path(__file__).resolve().parents[2]
 TEST_SCRIPT = "res://pipeline/tests/p2_content_graybox_test.gd"
 GOLDEN = ROOT / "pipeline" / "tests" / "fixtures" / "p2_content_graybox_goldens.json"
-FINGERPRINT = "68a8bc7f39ba0bc8d80c4ab097e09fc6c901ecdf7f020f8d3c5f2112f9d0e078"
+FINGERPRINT = "8067a487ceb0ef2d721a3a985d8c5b7c0d8185cd4f52ce30c9d8cb59fd68edca"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -55,7 +55,7 @@ def main(argv: list[str] | None = None) -> int:
 
     controller = (project / "src/ui/battle/p2_content_graybox.gd").read_text(encoding="utf-8")
     p1_controller = (project / "src/ui/battle/p1_graybox_battle.gd").read_text(encoding="utf-8")
-    forbidden_ids = ("baduk_stone", "bottle_cap", "graybox_striker", "graybox_opening_haste", "graybox_haste")
+    forbidden_ids = ("baduk_stone", "bottle_cap", "graybox_striker", "bouncy_ball", "caveman", "ai_core", "ai_calculation", "graybox_opening_haste", "graybox_haste")
     if any(value in controller for value in forbidden_ids):
         print("[FAIL] P2-6-ARCH graybox controller contains content-ID-specific behavior")
         return 1
@@ -80,6 +80,58 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[FAIL] P2-6-MANIFEST missing requested_by: {entry_id} -> {path}")
             return 1
     print("[PASS] P2-6-MANIFEST existing placeholders declare P2 consumers")
+
+    piece_visuals = json.loads((project / "src/ui/battle/piece_visuals.json").read_text(encoding="utf-8"))
+    piece_records = {record["id"]: record for record in piece_visuals.get("records", [])}
+    expected_piece_art = {
+        "baduk_stone": "res://assets/art/sprites/p5/baduk_stone.png",
+        "bottle_cap": "res://assets/art/sprites/p5/bottle_cap.png",
+        "bouncy_ball": "res://assets/art/sprites/p5/bouncy_ball.png",
+        "caveman": "res://assets/art/sprites/p5/caveman.png",
+        "ai_core": "res://assets/art/sprites/p5/ai_core.png",
+    }
+    piece_visuals_ok = piece_visuals.get("schema_version") == 1 and all(
+        piece_records.get(piece_id, {}).get("texture") == texture
+        and piece_records[piece_id].get("pixel_width") == 64
+        and piece_records[piece_id].get("pixel_height") == 64
+        and piece_records[piece_id].get("scale_raw") == 65536
+        for piece_id, texture in expected_piece_art.items()
+    )
+    if not piece_visuals_ok:
+        print("[FAIL] P5-ART piece visual catalog missing approved 64x64 mappings")
+        return 1
+
+    presentations = json.loads((project / "src/ui/battle/ability_presentations.json").read_text(encoding="utf-8"))
+    if presentations != {"schema_version": 1, "records": [{"ability_numeric_id": 3, "id": "ai_calculation", "aim_detail_mode_id": 1}]}:
+        print("[FAIL] P5-CA AI ability presentation mapping is not exact")
+        return 1
+
+    board_visuals = json.loads((project / "src/ui/battle/board_visuals.json").read_text(encoding="utf-8"))
+    board_records = board_visuals.get("records", [])
+    board_visuals_ok = (
+        board_visuals.get("schema_version") == 1
+        and len(board_records) == 1
+        and board_records[0].get("id") == "graybox_pit_arena"
+        and board_records[0].get("texture") == "res://assets/art/boards/p5/neutral_board.png"
+        and board_records[0].get("arena_right_px", 0) > board_records[0].get("arena_left_px", 0)
+        and board_records[0].get("arena_bottom_px", 0) > board_records[0].get("arena_top_px", 0)
+    )
+    if not board_visuals_ok:
+        print("[FAIL] P5-ART board visual catalog missing calibrated neutral board")
+        return 1
+    expected_approved_art = {
+        "art:boards/p5_neutral_board": "src/ui/battle/board_visuals.json::graybox_pit_arena",
+        "art:sprites/p5_baduk_stone": "src/ui/battle/piece_visuals.json::baduk_stone",
+        "art:sprites/p5_bottle_cap": "src/ui/battle/piece_visuals.json::bottle_cap",
+        "art:sprites/p5_caveman": "src/ui/battle/piece_visuals.json::caveman",
+        "art:sprites/p5_ai_core": "src/ui/battle/piece_visuals.json::ai_core",
+    }
+    for entry_id, path in expected_approved_art.items():
+        entry = entries.get(entry_id, {})
+        if entry.get("status") != "approved" or {"kind": "code_event", "path": path} not in entry.get("requested_by", []):
+            print(f"[FAIL] P5-ART manifest mapping missing: {entry_id} -> {path}")
+            return 1
+    print("[PASS] P5-ART board and five formal piece visual mappings are strict and manifest-backed")
 
     if os.environ.get("ARTIFICER_SKIP_GODOT_TESTS") == "1":
         print("[SKIP] GODOT-P2-6 explicitly skipped by verify --skip-godot")

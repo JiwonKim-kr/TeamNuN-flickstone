@@ -49,18 +49,19 @@ static func resolve(context: DamageContext, status: SimStatus) -> DamageResult:
 	)
 	value_raw = FixMath.mul_raw(value_raw, outgoing_factor_raw, status)
 	value_raw = FixMath.mul_raw(value_raw, incoming_factor_raw, status)
-	if context.critical_applied():
-		value_raw = FixMath.mul_ratio_raw(
-			value_raw,
-			DamageLimits.CRITICAL_DAMAGE_NUMERATOR,
-			DamageLimits.CRITICAL_DAMAGE_DENOMINATOR,
-			status
-		)
 	if context.same_non_neutral_faction():
 		value_raw = FixMath.mul_ratio_raw(
 			value_raw,
 			DamageLimits.FRIENDLY_DAMAGE_NUMERATOR,
 			DamageLimits.FRIENDLY_DAMAGE_DENOMINATOR,
+			status
+		)
+	value_raw = FixMath.mul_raw(value_raw, context.clean_hit_damage_multiplier_raw(), status)
+	if context.critical_applied():
+		value_raw = FixMath.mul_ratio_raw(
+			value_raw,
+			DamageLimits.CRITICAL_DAMAGE_NUMERATOR,
+			DamageLimits.CRITICAL_DAMAGE_DENOMINATOR,
 			status
 		)
 	var fixed_increase_raw: int = FixMath.from_int(

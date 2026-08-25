@@ -51,8 +51,8 @@ EXPECTED_FILES = {
 }
 DOCUMENTS = {
     1: ("id_registry.json", 1),
-    2: ("pieces.json", 3),
-    3: ("abilities.json", 6),
+    2: ("pieces.json", 5),
+    3: ("abilities.json", 7),
     4: ("statuses.json", 1),
     5: ("synergies.json", 1),
     6: ("maps.json", 1),
@@ -365,6 +365,8 @@ class Level:
     mass_raw: int
     radius_raw: int
     friction_multiplier_raw: int
+    elasticity_multiplier_raw: int
+    clean_hit_damage_multiplier_raw: int
     critical_basis_points: int
     ability_refs: tuple[Ref, ...]
 
@@ -631,8 +633,8 @@ def canonical_bytes(
 ) -> bytes:
     writer = Writer()
     writer.data += b"FLICKCAT"
-    writer.u16(10)
-    writer.u16(10)
+    writer.u16(12)
+    writer.u16(12)
     writer.u16(1)
     writer.u16(15)
     for namespace_id in range(1, 16):
@@ -646,7 +648,7 @@ def canonical_bytes(
 
     writer.u16(13)
     writer.u16(2)
-    writer.u16(3)
+    writer.u16(5)
     writer.u32(len(pieces))
     for piece in pieces:
         writer.u32(piece.numeric_id)
@@ -673,6 +675,8 @@ def canonical_bytes(
                 level.mass_raw,
                 level.radius_raw,
                 level.friction_multiplier_raw,
+                level.elasticity_multiplier_raw,
+                level.clean_hit_damage_multiplier_raw,
                 level.critical_basis_points,
             ):
                 writer.i64(value)
@@ -681,7 +685,7 @@ def canonical_bytes(
                 writer.u32(ref.numeric_id)
                 writer.string(ref.string_id)
     writer.u16(3)
-    writer.u16(6)
+    writer.u16(7)
     writer.u32(len(abilities))
     for ability in abilities:
         writer.u32(ability.numeric_id)
@@ -947,7 +951,7 @@ def load_catalog(root: Path) -> Catalog:
         raise ContentError("CATALOG_LIMIT:bytes")
 
     catalog = _exact(_load_file(root, "catalog.json"), {"schema_version", "documents"}, "catalog")
-    if _integer(catalog["schema_version"], "catalog.schema_version") != 10:
+    if _integer(catalog["schema_version"], "catalog.schema_version") != 12:
         raise ContentError("UNSUPPORTED_SCHEMA:catalog")
     documents = catalog["documents"]
     if not isinstance(documents, list) or len(documents) != 14:
@@ -1011,7 +1015,7 @@ def load_catalog(root: Path) -> Catalog:
         return numeric
 
     abilities_doc = _exact(_load_file(root, "abilities.json"), {"schema_version", "records"}, "abilities")
-    if _integer(abilities_doc["schema_version"], "abilities.schema_version") != 6:
+    if _integer(abilities_doc["schema_version"], "abilities.schema_version") != 7:
         raise ContentError("UNSUPPORTED_SCHEMA:abilities")
     ability_records = abilities_doc["records"]
     if not isinstance(ability_records, list) or len(ability_records) > RECORD_MAX_COUNT:
@@ -1170,7 +1174,7 @@ def load_catalog(root: Path) -> Catalog:
     ability_by_id = {item.numeric_id: item for item in abilities}
 
     pieces_doc = _exact(_load_file(root, "pieces.json"), {"schema_version", "records"}, "pieces")
-    if _integer(pieces_doc["schema_version"], "pieces.schema_version") != 3:
+    if _integer(pieces_doc["schema_version"], "pieces.schema_version") != 5:
         raise ContentError("UNSUPPORTED_SCHEMA:pieces")
     piece_records = pieces_doc["records"]
     if not isinstance(piece_records, list) or len(piece_records) > RECORD_MAX_COUNT:
@@ -1225,8 +1229,8 @@ def load_catalog(root: Path) -> Catalog:
             raise ContentError("INVALID_DOMAIN:levels")
         levels: list[Level] = []
         for index, raw_level in enumerate(levels_raw, 1):
-            level = _exact(raw_level, {"level", "max_hp", "attack", "speed_stat", "mass_raw", "radius_raw", "friction_multiplier_raw", "critical_basis_points", "ability_refs"}, "level")
-            values = {name: _integer(level[name], f"level.{name}") for name in ("level", "max_hp", "attack", "speed_stat", "mass_raw", "radius_raw", "friction_multiplier_raw", "critical_basis_points")}
+            level = _exact(raw_level, {"level", "max_hp", "attack", "speed_stat", "mass_raw", "radius_raw", "friction_multiplier_raw", "elasticity_multiplier_raw", "clean_hit_damage_multiplier_raw", "critical_basis_points", "ability_refs"}, "level")
+            values = {name: _integer(level[name], f"level.{name}") for name in ("level", "max_hp", "attack", "speed_stat", "mass_raw", "radius_raw", "friction_multiplier_raw", "elasticity_multiplier_raw", "clean_hit_damage_multiplier_raw", "critical_basis_points")}
             if values["level"] != index:
                 raise ContentError("INVALID_DOMAIN:level_sequence")
             if not 1 <= values["max_hp"] <= 1_000_000 or not 1 <= values["attack"] <= 1_000_000:
@@ -1237,7 +1241,7 @@ def load_catalog(root: Path) -> Catalog:
                 raise ContentError("INVALID_DOMAIN:mass")
             if not 524_288 <= values["radius_raw"] <= 8_388_608:
                 raise ContentError("INVALID_DOMAIN:radius")
-            if values["friction_multiplier_raw"] < 0 or not 0 <= values["critical_basis_points"] <= 10_000:
+            if values["friction_multiplier_raw"] < 0 or not FIX_SCALE <= values["elasticity_multiplier_raw"] <= 4 * FIX_SCALE or not FIX_SCALE <= values["clean_hit_damage_multiplier_raw"] <= 4 * FIX_SCALE or not 0 <= values["critical_basis_points"] <= 10_000:
                 raise ContentError("INVALID_DOMAIN:ratio")
             refs_raw = level["ability_refs"]
             if not isinstance(refs_raw, list) or len(refs_raw) > ABILITY_REFS_MAX_COUNT:

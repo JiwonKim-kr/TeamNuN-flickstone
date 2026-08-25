@@ -14,6 +14,7 @@ var _velocity: FixVec2 = FixVec2.zero()
 var _radius_raw: int = 0
 var _mass_raw: int = 0
 var _friction_multiplier_raw: int = FixMath.ONE_RAW
+var _elasticity_multiplier_raw: int = FixMath.ONE_RAW
 
 
 static func _validate(
@@ -24,6 +25,7 @@ static func _validate(
 		radius_raw: int,
 		mass_raw: int,
 		friction_multiplier_raw: int,
+		elasticity_multiplier_raw: int,
 		status: SimStatus
 ) -> bool:
 	if not status.is_ok():
@@ -88,6 +90,9 @@ static func _validate(
 			0
 		)
 		return false
+	if elasticity_multiplier_raw < FixMath.ONE_RAW or elasticity_multiplier_raw > 4 * FixMath.ONE_RAW:
+		status.fail(SimStatus.Code.INVALID_RANGE, SimStatus.Operation.BODY_CREATE, elasticity_multiplier_raw, 0)
+		return false
 	return true
 
 
@@ -99,7 +104,8 @@ static func _build(
 		velocity: FixVec2,
 		radius_raw: int,
 		mass_raw: int,
-		friction_multiplier_raw: int
+		friction_multiplier_raw: int,
+		elasticity_multiplier_raw: int
 ) -> SimBody:
 	var body: SimBody = SimBody.new()
 	body._id = id
@@ -110,6 +116,7 @@ static func _build(
 	body._radius_raw = radius_raw
 	body._mass_raw = mass_raw
 	body._friction_multiplier_raw = friction_multiplier_raw
+	body._elasticity_multiplier_raw = elasticity_multiplier_raw
 	return body
 
 
@@ -120,7 +127,8 @@ static func create_unassigned(
 		mass_raw: int,
 		status: SimStatus,
 		friction_multiplier_raw: int = FixMath.ONE_RAW,
-		destructible: bool = true
+		destructible: bool = true,
+		elasticity_multiplier_raw: int = FixMath.ONE_RAW
 ) -> SimBody:
 	if not _validate(
 		0,
@@ -130,6 +138,7 @@ static func create_unassigned(
 		radius_raw,
 		mass_raw,
 		friction_multiplier_raw,
+		elasticity_multiplier_raw,
 		status
 	):
 		return SimBody.new()
@@ -141,7 +150,8 @@ static func create_unassigned(
 		velocity,
 		radius_raw,
 		mass_raw,
-		friction_multiplier_raw
+		friction_multiplier_raw,
+		elasticity_multiplier_raw
 	)
 
 
@@ -154,7 +164,8 @@ static func restore(
 		radius_raw: int,
 		mass_raw: int,
 		friction_multiplier_raw: int,
-		status: SimStatus
+		status: SimStatus,
+		elasticity_multiplier_raw: int = FixMath.ONE_RAW
 ) -> SimBody:
 	if not _validate(
 		id,
@@ -164,6 +175,7 @@ static func restore(
 		radius_raw,
 		mass_raw,
 		friction_multiplier_raw,
+		elasticity_multiplier_raw,
 		status
 	):
 		return SimBody.new()
@@ -175,7 +187,8 @@ static func restore(
 		velocity,
 		radius_raw,
 		mass_raw,
-		friction_multiplier_raw
+		friction_multiplier_raw,
+		elasticity_multiplier_raw
 	)
 
 
@@ -196,6 +209,7 @@ func assigned_copy(id: int, status: SimStatus) -> SimBody:
 		_radius_raw,
 		_mass_raw,
 		_friction_multiplier_raw,
+		_elasticity_multiplier_raw,
 		status
 	):
 		return SimBody.new()
@@ -207,7 +221,8 @@ func assigned_copy(id: int, status: SimStatus) -> SimBody:
 		_velocity,
 		_radius_raw,
 		_mass_raw,
-		_friction_multiplier_raw
+		_friction_multiplier_raw,
+		_elasticity_multiplier_raw
 	)
 
 
@@ -222,6 +237,7 @@ func with_motion(
 		_radius_raw,
 		_mass_raw,
 		_friction_multiplier_raw,
+		_elasticity_multiplier_raw,
 		status
 	):
 		return SimBody.new()
@@ -233,7 +249,8 @@ func with_motion(
 		velocity,
 		_radius_raw,
 		_mass_raw,
-		_friction_multiplier_raw
+		_friction_multiplier_raw,
+		_elasticity_multiplier_raw
 	)
 
 
@@ -241,8 +258,13 @@ func with_velocity(velocity: FixVec2, status: SimStatus) -> SimBody:
 	return with_motion(_position, velocity, status)
 
 func with_physical_stats(radius_raw: int, mass_raw: int, friction_multiplier_raw: int, status: SimStatus) -> SimBody:
-	if not _validate(_id, _id == 0, _position, _velocity, radius_raw, mass_raw, friction_multiplier_raw, status): return SimBody.new()
-	return _build(_id, _alive, _destructible, _position, _velocity, radius_raw, mass_raw, friction_multiplier_raw)
+	if not _validate(_id, _id == 0, _position, _velocity, radius_raw, mass_raw, friction_multiplier_raw, _elasticity_multiplier_raw, status): return SimBody.new()
+	return _build(_id, _alive, _destructible, _position, _velocity, radius_raw, mass_raw, friction_multiplier_raw, _elasticity_multiplier_raw)
+
+
+func with_elasticity_multiplier(elasticity_multiplier_raw: int, status: SimStatus) -> SimBody:
+	if not _validate(_id, _id == 0, _position, _velocity, _radius_raw, _mass_raw, _friction_multiplier_raw, elasticity_multiplier_raw, status): return SimBody.new()
+	return _build(_id, _alive, _destructible, _position, _velocity, _radius_raw, _mass_raw, _friction_multiplier_raw, elasticity_multiplier_raw)
 
 
 func copy() -> SimBody:
@@ -254,7 +276,8 @@ func copy() -> SimBody:
 		_velocity,
 		_radius_raw,
 		_mass_raw,
-		_friction_multiplier_raw
+		_friction_multiplier_raw,
+		_elasticity_multiplier_raw
 	)
 
 
@@ -288,3 +311,7 @@ func mass_raw() -> int:
 
 func friction_multiplier_raw() -> int:
 	return _friction_multiplier_raw
+
+
+func elasticity_multiplier_raw() -> int:
+	return _elasticity_multiplier_raw

@@ -16,7 +16,7 @@ from content_catalog import ActDefinition, Catalog, load_catalog  # noqa: E402
 from p0_rng_reference import Xoshiro128StarStar, derive_state  # noqa: E402
 
 RUNTIME = ROOT / "src" / "core" / "data"
-EXPECTED_FINGERPRINT = "68a8bc7f39ba0bc8d80c4ab097e09fc6c901ecdf7f020f8d3c5f2112f9d0e078"
+EXPECTED_FINGERPRINT = "8067a487ceb0ef2d721a3a985d8c5b7c0d8185cd4f52ce30c9d8cb59fd68edca"
 EXPECTED_GRAPH = (
     (1, 1, 0, 1, 1, (2, 3)),
     (2, 2, 0, 3, 1, (4,)),
@@ -119,7 +119,7 @@ def main() -> int:
         ("relics.json", lambda value: value["records"].append({"numeric_id": 1})),
     )
     assert all(not _mutate(file_name, callback) for file_name, callback in invalid_mutations)
-    print("[PASS] P4-2-PY-CATALOG v10 Act/Encounter, damage-zone, and run-item content")
+    print("[PASS] P4-2-PY-CATALOG v11 Act/Encounter, damage-zone, and run-item content")
     print("[PASS] P4-2-PY-NEGATIVE exact keys, indices, refs, and coverage")
     print("[PASS] P4-2-PY-GRAPH independent exact node/content/edge KAT")
     print("[PASS] P4-2-PY-DETERMINISM 1000 repeats and seed separation")

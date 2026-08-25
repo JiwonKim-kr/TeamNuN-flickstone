@@ -15,6 +15,7 @@
           ],
           "critical_basis_points": 0,
           "friction_multiplier_raw": 65536,
+          "elasticity_multiplier_raw": 65536,"clean_hit_damage_multiplier_raw":65536,
           "radius_raw": 2097152,
           "mass_raw": 4194304,
           "speed_stat": 100,
@@ -35,6 +36,7 @@
           ],
           "critical_basis_points": 500,
           "friction_multiplier_raw": 65536,
+          "elasticity_multiplier_raw": 65536,"clean_hit_damage_multiplier_raw":65536,
           "radius_raw": 2097152,
           "mass_raw": 4194304,
           "speed_stat": 100,
@@ -67,6 +69,7 @@
           "ability_refs": [],
           "critical_basis_points": 0,
           "friction_multiplier_raw": 65536,
+          "elasticity_multiplier_raw": 65536,"clean_hit_damage_multiplier_raw":65536,
           "radius_raw": 2097152,
           "mass_raw": 5242880,
           "speed_stat": 80,
@@ -94,5 +97,5 @@
       "attach_anchor_offset_y_raw": 0
     }
   ],
-  "schema_version": 3
+  "schema_version": 5
 }

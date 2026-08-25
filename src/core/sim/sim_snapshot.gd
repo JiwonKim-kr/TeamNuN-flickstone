@@ -7,7 +7,8 @@ extends RefCounted
 
 const MAGIC: PackedByteArray = [70, 76, 73, 67, 75, 83, 73, 77, 0] # FLICKSIM\0
 const LEGACY_SCHEMA_VERSION: int = 1
-const SCHEMA_VERSION: int = 2
+const LINK_SCHEMA_VERSION: int = 2
+const SCHEMA_VERSION: int = 3
 
 
 class ByteWriter:
@@ -171,7 +172,7 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> SimSnapshot:
 			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.SNAPSHOT_DECODE, reader.offset - 1, 0)
 			return snapshot
 	var decoded_version: int = reader.u16()
-	if decoded_version != LEGACY_SCHEMA_VERSION and decoded_version != SCHEMA_VERSION:
+	if decoded_version != LEGACY_SCHEMA_VERSION and decoded_version != LINK_SCHEMA_VERSION and decoded_version != SCHEMA_VERSION:
 		status.fail(SimStatus.Code.UNSUPPORTED_SCHEMA, SimStatus.Operation.SNAPSHOT_DECODE, decoded_version, SCHEMA_VERSION)
 		return snapshot
 	snapshot._schema_version = SCHEMA_VERSION
@@ -207,16 +208,19 @@ static func decode(bytes: PackedByteArray, status: SimStatus) -> SimSnapshot:
 		snapshot._zones.append(SimZone.restore(zone_id, flags, friction, acceleration, vertices, status))
 		if not status.is_ok(): return SimSnapshot.new()
 	var body_count: int = reader.u32()
-	if body_count > reader.remaining() / 58:
+	var body_record_size: int = 66 if decoded_version >= SCHEMA_VERSION else 58
+	if body_count > reader.remaining() / body_record_size:
 		status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.SNAPSHOT_DECODE, body_count, reader.remaining()); return SimSnapshot.new()
 	for index: int in range(body_count):
 		var body_id: int = reader.u32(); var alive: int = reader.u8(); var destructible: int = reader.u8()
 		if alive > 1 or destructible > 1:
 			status.fail(SimStatus.Code.INVALID_SNAPSHOT, SimStatus.Operation.SNAPSHOT_DECODE, alive, destructible); return SimSnapshot.new()
 		var position: FixVec2 = reader.vec2(); var velocity: FixVec2 = reader.vec2()
-		snapshot._bodies.append(SimBody.restore(body_id, alive == 1, destructible == 1, position, velocity, reader.i64(), reader.i64(), reader.i64(), status))
+		var radius_raw: int = reader.i64(); var mass_raw: int = reader.i64(); var friction_raw: int = reader.i64()
+		var elasticity_raw: int = reader.i64() if decoded_version >= SCHEMA_VERSION else FixMath.ONE_RAW
+		snapshot._bodies.append(SimBody.restore(body_id, alive == 1, destructible == 1, position, velocity, radius_raw, mass_raw, friction_raw, status, elasticity_raw))
 		if not status.is_ok(): return SimSnapshot.new()
-	if decoded_version >= SCHEMA_VERSION:
+	if decoded_version >= LINK_SCHEMA_VERSION:
 		snapshot._next_link_id = reader.u32()
 		var link_count: int = reader.u32()
 		if link_count > SimLimits.LINK_MAX_COUNT or link_count > reader.remaining() / 48:
@@ -381,6 +385,8 @@ func _validate(status: SimStatus) -> bool:
 			or not SimLimits.is_radius_valid(body.radius_raw())
 			or not SimLimits.is_mass_valid(body.mass_raw())
 			or body.friction_multiplier_raw() < 0
+			or body.elasticity_multiplier_raw() < FixMath.ONE_RAW
+			or body.elasticity_multiplier_raw() > 4 * FixMath.ONE_RAW
 		):
 			status.fail(
 				SimStatus.Code.INVALID_SNAPSHOT,
@@ -533,6 +539,7 @@ func encode(status: SimStatus) -> PackedByteArray:
 		writer.i64(body.radius_raw())
 		writer.i64(body.mass_raw())
 		writer.i64(body.friction_multiplier_raw())
+		writer.i64(body.elasticity_multiplier_raw())
 
 	writer.u32(_next_link_id)
 	writer.u32(_links.size())

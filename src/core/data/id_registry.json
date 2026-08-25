@@ -6,13 +6,18 @@
       "entries": [
         {"numeric_id": 1, "id": "baduk_stone", "state_id": 1},
         {"numeric_id": 2, "id": "bottle_cap", "state_id": 1},
-        {"numeric_id": 3, "id": "graybox_striker", "state_id": 1}
+        {"numeric_id": 3, "id": "graybox_striker", "state_id": 1},
+        {"numeric_id": 4, "id": "bouncy_ball", "state_id": 1},
+        {"numeric_id": 5, "id": "caveman", "state_id": 1},
+        {"numeric_id": 6, "id": "ai_core", "state_id": 1}
       ]
     },
     {
       "namespace_id": 2,
       "entries": [
-        {"numeric_id": 1, "id": "graybox_opening_haste", "state_id": 1}
+        {"numeric_id": 1, "id": "graybox_opening_haste", "state_id": 1},
+        {"numeric_id": 2, "id": "caveman_unmindful", "state_id": 1},
+        {"numeric_id": 3, "id": "ai_calculation", "state_id": 1}
       ]
     },
     {
@@ -50,7 +55,10 @@
       "namespace_id": 8,
       "entries": [
         {"numeric_id": 1, "id": "destruction", "state_id": 1},
-        {"numeric_id": 2, "id": "steel", "state_id": 1}
+        {"numeric_id": 2, "id": "steel", "state_id": 1},
+        {"numeric_id": 3, "id": "trickery", "state_id": 1},
+        {"numeric_id": 4, "id": "outlaw", "state_id": 1},
+        {"numeric_id": 5, "id": "support", "state_id": 1}
       ]
     },
     {

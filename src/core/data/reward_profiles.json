@@ -8,7 +8,10 @@
       "recruit_choice_count": 2,
       "recruit_pool_refs": [
         {"numeric_id": 1, "id": "baduk_stone"},
-        {"numeric_id": 2, "id": "bottle_cap"}
+        {"numeric_id": 2, "id": "bottle_cap"},
+        {"numeric_id": 4, "id": "bouncy_ball"},
+        {"numeric_id": 5, "id": "caveman"},
+        {"numeric_id": 6, "id": "ai_core"}
       ],
       "revenge_status_ref": {"numeric_id": 2, "id": "development_revenge"}
     },
@@ -19,7 +22,10 @@
       "recruit_choice_count": 2,
       "recruit_pool_refs": [
         {"numeric_id": 1, "id": "baduk_stone"},
-        {"numeric_id": 2, "id": "bottle_cap"}
+        {"numeric_id": 2, "id": "bottle_cap"},
+        {"numeric_id": 4, "id": "bouncy_ball"},
+        {"numeric_id": 5, "id": "caveman"},
+        {"numeric_id": 6, "id": "ai_core"}
       ],
       "revenge_status_ref": {"numeric_id": 2, "id": "development_revenge"}
     },
@@ -30,7 +36,10 @@
       "recruit_choice_count": 2,
       "recruit_pool_refs": [
         {"numeric_id": 1, "id": "baduk_stone"},
-        {"numeric_id": 2, "id": "bottle_cap"}
+        {"numeric_id": 2, "id": "bottle_cap"},
+        {"numeric_id": 4, "id": "bouncy_ball"},
+        {"numeric_id": 5, "id": "caveman"},
+        {"numeric_id": 6, "id": "ai_core"}
       ],
       "revenge_status_ref": {"numeric_id": 2, "id": "development_revenge"}
     }

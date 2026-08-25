@@ -82,7 +82,7 @@ static func build(catalog: ContentCatalog, map_numeric_id: int, deployment: Arra
 			position = map_definition.enemy_slot_at(entry.slot_index(), content_status).position(); factions.append(BattleParticipant.Faction.ENEMY)
 		if not content_status.is_ok() or piece.is_token(): return _fail(status, entry.side_id(), entry.slot_index())
 		pieces.append(piece); levels.append(level); spawn_keys.append(spawn_keys.size() + 1)
-		bodies.append(SimBody.create_unassigned(position, FixVec2.zero(), level.radius_raw(), level.mass_raw(), status, level.friction_multiplier_raw(), piece.destructible()))
+		bodies.append(SimBody.create_unassigned(position, FixVec2.zero(), level.radius_raw(), level.mass_raw(), status, level.friction_multiplier_raw(), piece.destructible(), level.elasticity_multiplier_raw()))
 		if not status.is_ok(): return BattleState.new()
 	world.add_initial_bodies(spawn_keys, bodies, status)
 	if not status.is_ok(): return BattleState.new()
@@ -95,7 +95,7 @@ static func build(catalog: ContentCatalog, map_numeric_id: int, deployment: Arra
 	for index: int in range(pieces.size()):
 		var body_id: int = index + 1; var piece: PieceDefinition = pieces[index]; var level: PieceLevelDefinition = levels[index]; var faction: int = factions[index]
 		participants.append(BattleParticipant.create(body_id, faction, piece.has_turn(), faction == BattleParticipant.Faction.PLAYER and piece.has_turn(), piece.counts_for_victory(), level.speed_stat(), status))
-		if piece.destructible(): combatants.append(BattleCombatant.create(body_id, faction, level.max_hp(), level.attack(), level.critical_basis_points(), status))
+		if piece.destructible(): combatants.append(BattleCombatant.create_with_clean_hit_multiplier(body_id, faction, level.max_hp(), level.attack(), level.critical_basis_points(), level.clean_hit_damage_multiplier_raw(), status))
 		identities.append(BattlePieceIdentity.create(body_id, piece.numeric_id(), normalized[index].level(), faction, false, status))
 		_append_bindings(body_id, level, bindings, status)
 		if not status.is_ok(): return BattleState.new()

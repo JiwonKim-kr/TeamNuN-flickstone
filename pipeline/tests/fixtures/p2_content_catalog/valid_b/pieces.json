@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 5,
   "records": [
     {
       "numeric_id": 1,
@@ -20,6 +20,8 @@
           "mass_raw": 4194304,
           "radius_raw": 2097152,
           "friction_multiplier_raw": 65536,
+          "elasticity_multiplier_raw": 65536,
+          "clean_hit_damage_multiplier_raw": 65536,
           "critical_basis_points": 0,
           "ability_refs": [
             {

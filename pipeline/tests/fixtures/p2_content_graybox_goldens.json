@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "fingerprint": "68a8bc7f39ba0bc8d80c4ab097e09fc6c901ecdf7f020f8d3c5f2112f9d0e078",
-  "approval_ref": "docs/specs/p5_turn_start_damage_zones.md (quick seed-0 migration; 16x2 release refresh pending)",
+  "fingerprint": "8067a487ceb0ef2d721a3a985d8c5b7c0d8185cd4f52ce30c9d8cb59fd68edca",
+  "approval_ref": "docs/specs/p5_bouncy_ball_runtime.md (quick gameplay migration; 16x2 terminal hash refresh pending)",
   "rows": [
     {
       "damage_destroyed": 5,
