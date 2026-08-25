@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P4-1~3 구현·자동 검증 완료 · P4-4~5 구현 완료·P4-6 누적 검증 대기 · 다음은 P4-6**. P4-W 제출용 Web 프리뷰는 공개 배포·브라우저 검수 완료 |
+| 현재 단계 | **P4-1~3 구현·자동 검증 완료 · P4-4~5 구현 완료·누적 검증 대기 · P4-6 상세 명세 승인·구현 대기**. 병행 P5 트랙은 A/B/C 스타일 보드 생성·probe 완료 후 사람 방향 선택 대기이며, P4-W Web 프리뷰는 공개 배포·브라우저 검수 완료 |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -39,7 +39,7 @@
 | 승인 지점 | play spec 승인 / art lock / review — **생략 불가** |
 | 에셋 정책 | P0·P1은 매니페스트에 등록한 플레이스홀더만 사용 |
 | 아트·사운드 시작 | 전투 감각 승인 완료. `art lock`, `art gen`, SE는 별도 요청·승인 절차로 시작 |
-| CI | 데모 push/PR은 Godot 4.6.3 `verify --demo`(대표 8종); 수동 `release`는 전체 25종 + 1,000회 + Windows 결정론 |
+| CI | 데모 push/PR은 Godot 4.6.3 `verify --demo`(대표 9종); 수동 `release`는 전체 25종 + 1,000회 + Windows 결정론 |
 
 ## 3. 현재 저장소 상태
 
@@ -136,6 +136,15 @@
 - [x] P4 런 루프 P4-R01~17 승인 — D-12 전투 후 전원 복원, 5층 개발 Act, P4-1~6 분해, 일반 검증 4런 확정 (`docs/specs/p4_run_loop.md`)
 - [x] P4-1 RunState·RunSnapshot v1 승인·구현·데모 검증 완료 (`docs/specs/p4_run_state_snapshot.md`)
 - [x] P4-2 catalog v7·Act/Encounter typed data·결정론적 7-node map generation·snapshot exact 이관 완료 (`docs/specs/p4_act_encounter_map_generation.md`)
+- [x] P4-3 편성·불변 battle request/outcome·라이프·D-12 복원·BattleSnapshot v8 구현 및 데모 검증 완료 (`docs/specs/p4_formation_battle_outcome_life.md`)
+- [x] P4-4 영입·골드·휴식·합성과 P4-5 유물·소모품·상점·이벤트 구현 완료. 누적 검증은 P4-6에서 수행
+- [x] P4-6 런 완료·단일 저장·런 UI·자동 4런 상세 명세 승인 (`docs/specs/p4_run_ui_save_completion.md`)
+- [ ] P4-6 구현·누적 검증·사람 Act 완주
+- [x] P5 아트 디렉션과 첫 컨셉 배치 승인 초안 작성 (`docs/specs/p5_art_direction.md`)
+- [x] 아트 파이프라인 준비 검증 — env/dry-run·nearest/alpha·임시 reskin·Godot 4.6.3 재임포트·play_test 전체 통과, Scenario 라이브 생성만 키 부재로 SKIP
+- [x] Scenario 인증과 최신 제3자 생성 API 라이브 검증 — FLUX.2 `numOutputs` 요청, `job.result.images` 다운로드 확인
+- [x] P5 A/B/C 스타일 보드 3장 생성·640×1,024 PNG probe·시각 사전 점검 완료 (`assets/art/concepts/p5_styleboards/`). 엔진 포함 art 파이프라인과 Godot 4.6.3 `verify --demo`도 통과
+- [ ] P5 A/B/C 중 사람 방향 선택. 이후 선택안 대표 클로즈업 6~9장은 별도 승인 범위로 진행
 
 ### 3.1 P1-2 현재 작업 기록
 
@@ -294,7 +303,7 @@
 - player deployment는 3~map 정원으로 이관했고 enemy는 full deployment를 유지한다. 초기 비토큰 body 처치 ledger와 rollback을 추가하고 `BattleSnapshot` v8/legacy v1~7 복원을 구현했다.
 - 출전 기물의 생존/처치 counter, D-12 복원 경계, normal/boss/DRAW −1·elite −2 라이프, 승리 completed·패배 미완료 REWARD와 life 0 RUN_FAILED를 구현했다. RunSnapshot v1은 FORMATION·REWARD·RUN_FAILED를 열고 BATTLE 금지를 유지한다.
 - 독립 Python seed KAT·1,000회, Godot 15개 grouped check와 대표 P1~P4 회귀가 통과했다. Godot 4.6.3 `verify --demo`는 대표 러너 9종을 통과했으며 P0 quick 20회·순열 3종이 실제 적용됐다.
-- `verify --full`과 16-seed 전체 route는 데모 일정 합의에 따라 P4-6 단계 종료로 이연했다.
+- 데모 P4 종료는 quick 4런과 표적 milestone을 사용한다. `verify --full`과 16-seed 전체 route는 P4-F19 승인에 따라 정식 릴리즈 검증으로 이연했다.
 
 ### 3.14 P4-4 보상·휴식·합성 구현 기록
 
@@ -353,6 +362,9 @@ python pipeline/tests/run_p4_run_state_snapshot.py --godot pipeline/artifacts/go
 # P4-2 Act·Encounter·결정론적 노드맵 narrow
 python pipeline/tests/run_p4_act_encounter_map_generation.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
 
+# P4-3 편성·전투 결과·라이프 narrow
+python pipeline/tests/run_p4_formation_battle_outcome_life.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
+
 # P1-5 결정론 회귀
 python pipeline/tests/run_p1_batch_sim_graybox.py --mode narrow --jobs 4 --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
 python pipeline/tests/run_p1_batch_sim_graybox.py --mode batch --jobs 4 --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
@@ -403,7 +415,7 @@ python pipeline/scripts/verify.py --full --godot pipeline/artifacts/godot-4.6.3/
 - [x] Godot 4.6.3 headless 실행 확인
 - [x] Python 설치 확인
 - [x] Node/npm 설치 확인
-- [ ] ffmpeg/ffprobe 설치
-- [ ] Scenario 계정과 API 키 준비 — 아트 단계에서만 필요
+- [x] ffmpeg/ffprobe 설치
+- [x] Scenario 계정과 API 키 준비 — 로컬 `.env`에만 보관, 2026-08-25 인증·생성 확인
 - [ ] ElevenLabs API 키 준비 — 사운드 단계에서만 필요
 - [ ] API 키는 `.env`로 관리하고 저장소에 커밋하지 않기

@@ -46,12 +46,13 @@ except Exception:  # certifi 미설치 등 — 기본 컨텍스트로 폴백
 # ===========================================================================
 # 엔드포인트 단일 진실 공급원 (SINGLE SOURCE OF TRUTH)
 # ---------------------------------------------------------------------------
-# ⚠️ TODO(라이브 검증 필요): 아래 경로/응답 스키마는 공개 문서(docs.scenario.com,
-#    help.scenario.com) 조사 기준이다. 키 발급 후 실호출로 반드시 재확인할 것.
-#    - 확인됨: BASE, Basic 인증, /generate/txt2img, /generate/custom/{modelId},
-#              /jobs/{jobId}(status="success"), 학습 4단계(/models ...).
-#    - 미확정: 배경 제거 엔드포인트, /assets/{assetId} 응답에서 다운로드 URL 필드명,
-#              잡 결과에서 이미지/에셋을 꺼내는 정확한 경로.
+# 아래 경로/응답 스키마는 공개 문서(docs.scenario.com)와 라이브 호출을 함께 따른다.
+#    - 2026-08-25 라이브 확인: BASE, Basic 인증, 제3자 모델용
+#      /generate/custom/{modelId}의 numOutputs 바디, /jobs/{jobId}
+#      status="success", job.result.images 직접 URL 다운로드.
+#    - 호환 유지·별도 재검증 필요: 레거시 /generate/txt2img, 잠긴 커스텀
+#      스타일 모델의 numSamples 바디, 학습 4단계(/models ...).
+#    - 미확정: 배경 제거 엔드포인트, /assets/{assetId} 폴백 응답의 URL 필드명.
 #    이 블록 밖에는 하드코딩된 URL 을 두지 않는다. (수정 지점 단일화)
 # ===========================================================================
 _DEFAULT_BASE = "https://api.cloud.scenario.com/v1"
@@ -117,8 +118,8 @@ class Api:
         return url
 
 
-# 잡 상태값 (신형 통합 API 기준). classic /models/{id}/inferences 를 쓰는 배포에서는
-# "succeeded" 를 쓸 수 있어 둘 다 성공으로 취급한다. (라이브 검증 필요)
+# 잡 상태값 (신형 통합 API 기준). 2026-08-25 라이브 호출은 "success"를 반환했다.
+# classic /models/{id}/inferences 배포의 "succeeded" 호환도 유지한다.
 _JOB_SUCCESS = {"success", "succeeded", "done", "complete", "completed"}
 _JOB_FAILURE = {"failure", "failed", "error", "canceled", "cancelled"}
 
@@ -200,14 +201,37 @@ def prepare_generate(
     prompt: str,
     auth: str,
     custom: bool = True,
+    third_party: bool = False,
     num_samples: int = 1,
     width: int = 512,
     height: int = 512,
     guidance: float = 3.5,
     num_inference_steps: int = 28,
     aspect_ratio: str | None = None,
+    seed: int | None = None,
 ) -> PreparedRequest:
-    """생성 요청 구성. custom=True 면 커스텀(잠긴 스타일) 모델 엔드포인트."""
+    """생성 요청 구성.
+
+    ``third_party`` 는 FLUX.2 같은 Scenario 제공 제3자 모델의 현재
+    ``/generate/custom/{modelId}`` 계약을 사용한다. 기존 ``custom`` 경로는
+    잠긴 스타일 모델과의 호환성을 위해 그대로 유지한다.
+    """
+    if third_party:
+        if not custom:
+            raise ValueError("third_party 와 custom=False 는 함께 사용할 수 없습니다.")
+        if aspect_ratio:
+            raise ValueError("third_party 생성은 width/height 를 사용해야 합니다.")
+        body = {
+            "prompt": prompt,
+            "numOutputs": num_samples,
+            "width": width,
+            "height": height,
+            "guidance": guidance,
+            "numInferenceSteps": num_inference_steps,
+        }
+        if seed is not None:
+            body["seed"] = seed
+        return PreparedRequest("POST", Api.generate_custom(model_id), _json_headers(auth), body)
     if custom:
         body: dict = {"prompt": prompt, "numSamples": num_samples}
         if aspect_ratio:
@@ -225,6 +249,8 @@ def prepare_generate(
         "guidance": guidance,
         "numInferenceSteps": num_inference_steps,
     }
+    if seed is not None:
+        body["seed"] = seed
     return PreparedRequest("POST", Api.generate_txt2img(), _json_headers(auth), body)
 
 
@@ -336,7 +362,33 @@ def _download(url: str, dest: Path, *, timeout: float = 120.0) -> None:
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(resp.read())
     except (urllib.error.URLError, TimeoutError) as exc:
-        raise ScenarioApiError(f"이미지 다운로드 실패: {url} ({exc})") from exc
+        parsed = urllib.parse.urlsplit(url)
+        safe_url = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
+        raise ScenarioApiError(f"이미지 다운로드 실패: {safe_url} ({exc})") from exc
+
+
+def extract_image_urls(job: dict) -> list[str]:
+    """Scenario 완료 잡의 현재 결과 스키마에서 이미지 URL만 순서대로 추출."""
+    result = job.get("result")
+    if not isinstance(result, dict):
+        wrapped = job.get("job")
+        result = wrapped.get("result") if isinstance(wrapped, dict) else None
+    if not isinstance(result, dict):
+        return []
+    images = result.get("images")
+    if not isinstance(images, list):
+        return []
+    urls: list[str] = []
+    for image in images:
+        if isinstance(image, str):
+            urls.append(image)
+            continue
+        if not isinstance(image, dict):
+            continue
+        url = image.get("url") or image.get("downloadUrl") or image.get("src")
+        if isinstance(url, str) and url:
+            urls.append(url)
+    return urls
 
 
 def file_to_data_uri(path: Path) -> str:
@@ -396,10 +448,14 @@ def _cmd_generate(args: argparse.Namespace) -> int:
         prompt=args.prompt,
         auth=auth,
         custom=not args.base_model,
+        third_party=args.third_party_model,
         num_samples=args.num_samples,
         width=args.width,
         height=args.height,
+        guidance=args.guidance,
+        num_inference_steps=args.num_inference_steps,
         aspect_ratio=args.aspect_ratio,
+        seed=args.seed,
     )
     if args.dry_run:
         _print_dry_run("generate", prepared)
@@ -412,11 +468,17 @@ def _cmd_generate(args: argparse.Namespace) -> int:
             raise ScenarioApiError(f"응답에서 jobId 를 찾지 못함: {json.dumps(resp)[:300]}")
         print(f"생성 잡 시작: {job_id} — 폴링 중...")
         done = poll_job(job_id, auth, timeout=args.timeout)
-        # TODO(라이브 검증 필요): 잡 결과에서 assetIds/이미지 URL 추출 경로 확정.
+        image_urls = extract_image_urls(done)
         asset_ids = (done.get("metadata") or {}).get("assetIds") or done.get("assetIds") or []
         out_dir = Path(args.out_dir)
         saved: list[str] = []
+        for idx, url in enumerate(image_urls):
+            dest = out_dir / f"{args.name or args.model_id.replace('/', '_')}_{idx:02d}.png"
+            _download(url, dest, timeout=args.timeout)
+            saved.append(str(dest))
         for idx, asset_id in enumerate(asset_ids):
+            if image_urls:
+                break
             meta = send(prepare_asset_get(asset_id, auth), timeout=30.0)
             url = meta.get("url") or meta.get("downloadUrl") or (meta.get("asset") or {}).get("url")
             if not url:
@@ -563,11 +625,19 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(pg)
     pg.add_argument("--model-id", required=True, help="커스텀(잠긴) 모델 ID 또는 base 모델 ID")
     pg.add_argument("--prompt", required=True)
-    pg.add_argument("--base-model", action="store_true",
-                    help="커스텀 대신 base 모델(txt2img) 엔드포인트 사용")
-    pg.add_argument("--num-samples", type=int, default=1)
+    generation_kind = pg.add_mutually_exclusive_group()
+    generation_kind.add_argument("--base-model", action="store_true",
+                                 help="레거시 base 모델(txt2img) 엔드포인트 사용")
+    generation_kind.add_argument(
+        "--third-party-model", action="store_true",
+        help="FLUX.2 등 제3자 모델의 최신 custom 엔드포인트 계약 사용",
+    )
+    pg.add_argument("--num-samples", "--num-outputs", dest="num_samples", type=int, default=1)
     pg.add_argument("--width", type=int, default=512)
     pg.add_argument("--height", type=int, default=512)
+    pg.add_argument("--guidance", type=float, default=3.5)
+    pg.add_argument("--num-inference-steps", type=int, default=28)
+    pg.add_argument("--seed", type=int, default=None)
     pg.add_argument("--aspect-ratio", default=None, help="예: 1:1, 4:3 (커스텀 모델)")
     pg.add_argument("--out-dir", default="assets/art/concepts", help="이미지 저장 디렉토리")
     pg.add_argument("--name", default=None, help="저장 파일 접두사")
