@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P4-1~6 및 P5-DZ 구현 완료 · 병합 통합 검증 진행**. P4 사람 Act/저장/Web 검수와 P5-DZ 사람 플레이 검수가 남아 있다. 아트 트랙은 A 방향·보드·대표 기물·8장 입력 승인을 완료했으나 Scenario 팀 요금제의 training limit 0으로 `art lock` 학습 시작이 차단됐다. P4-W Web 프리뷰는 공개 배포·브라우저 검수 완료 |
+| 현재 단계 | **P4-1~6 및 P5-DZ 구현 완료 · 병합 통합 검증 진행**. P4 사람 Act/저장/Web 검수와 P5-DZ 사람 플레이 검수가 남아 있다. 아트는 A 방향·보드·대표 기물·8장 참조 세트 승인을 완료했고, Flickstone 제출 범위에서 커스텀 학습과 범용 파이프라인 `art lock`을 사용하지 않는 참조 기반 생성 단계다. P4-W Web 프리뷰는 공개 배포·브라우저 검수 완료 |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -36,9 +36,9 @@
 | P0 상태 해시 | 정규 SimSnapshot 바이트의 SHA-256, 내부 32바이트·외부 소문자 64 hex, 게임 판정·RNG 재사용 금지 |
 | 콘텐츠 | 지원하는 트리거·효과 원자의 조합은 데이터로 정의 |
 | 작업 흐름 | `play spec` 승인 → `play build` → `play test` → `verify` → `review` |
-| 승인 지점 | play spec 승인 / art lock / review — **생략 불가** |
+| 승인 지점 | 범용 파이프라인은 play spec 승인 / art lock / review — **생략 불가**. P5 제출 아트는 승인된 프로젝트 예외로 `art lock` 명령 대신 참조 샘플 사람 검수를 사용 |
 | 에셋 정책 | P0·P1은 매니페스트에 등록한 플레이스홀더만 사용 |
-| 아트·사운드 시작 | 전투 감각 승인 완료. `art lock`, `art gen`, SE는 별도 요청·승인 절차로 시작 |
+| 아트·사운드 시작 | 전투 감각 승인 완료. 범용 `art lock`·`art gen` 계약은 유지하지만 P5 제출 아트는 사용하지 않음. SE는 별도 요청·승인 절차로 시작 |
 | CI | 데모 push/PR은 Godot 4.6.3 `verify --demo`(대표 11종, P5-DZ 포함); 수동 `release`는 전체 러너 + 1,000회 + Windows 결정론 |
 
 ## 3. 현재 저장소 상태
@@ -149,9 +149,10 @@
 - [x] A 방향 보드 전용 컨셉 10장 생성·640×1,024 PNG probe·중복/금지 요소 점검 완료 (`assets/art/concepts/p5_map_board_a/`)
 - [x] A 방향 보드 세부 후보 선택 — `p5_map_board_a_refined_02.png` 사용자 선택
 - [x] A 방향 대표 기물 7종 + 바둑돌 대체안 생성·512×512 PNG probe 완료 (`assets/art/concepts/p5_token_refs_a/`)
-- [x] 선택 보드 1장 + 권장 기물 7장, 총 8장 입력 묶음 및 P5-ART03~08 사용자 승인
-- [ ] Scenario `art lock` 학습 재시도 — 모델 `model_J3axGWbQRqMhjkoCrLsKBPdb`, 이미지 8/8 업로드 완료, 현재 `new`, team `parallel-training` limit 0 해제 필요
-- [ ] `art lock` 승인 후 64×64·1배 런타임 에셋 생성, 보드/기물 reskin, 실제 게임 화면 검수
+- [x] 선택 보드 1장 + 권장 기물 7장, 총 8장 참조 묶음 및 P5-ART01~11 사용자 승인
+- [x] Flickstone 제출용 커스텀 학습 제외 결정 — 미학습 모델 `model_J3axGWbQRqMhjkoCrLsKBPdb`는 이력으로만 보존하고 요금제 업그레이드·학습 재시도를 선행 조건에서 제거. 범용 아트 파이프라인 계약은 변경하지 않음
+- [ ] 승인 참조 8장 + P5 고정 모델/프롬프트/출력 규칙으로 보드·토큰 테스트 샘플 생성 및 사람 검수 (`art lock` 명령 미사용)
+- [ ] 샘플 승인 후 P5 범위에서 64×64·1배 런타임 에셋 생성, 보드/기물 연결, 실제 게임 화면 검수. manifest 쓰기는 `manifest.py`만 사용
 - [x] P5-DZ encounter 기반 턴 시작 데미지 존 명세 승인·구현 — 존당 15, 접선 포함 원 접촉, zone ID 순 중첩, 환경 피해 우선, runtime KILL 콘텐츠 제거 (`docs/specs/p5_turn_start_damage_zones.md`)
 - [x] P5-DZ 독립 기하 KAT·Godot 9개 그룹, P2-6 quick 22개 그룹·1,000회 결정성·seed-0 두 프리셋 종결 회귀 통과
 - [x] P5-DZ Godot 4.6.3 `verify --demo` 통합 게이트 완료 — 기본 게이트 4 PASS·lore 1 정책 SKIP·대표 러너 9종 PASS
@@ -348,7 +349,7 @@
 - 기물 원이 폴리곤 내부·경계·접선에 닿으면 자기 `TURN_START`에 존당 정확히 15 피해를 받는다. 여러 존은 zone ID 오름차순으로 개별 적용하며, 생존자만 `ON_TURN_START` 뒤 AIM으로 이동한다.
 - 환경 피해 사망은 일반 파괴·`ON_DEATH_SELF`를 유지하지만 공격자, `ON_HIT_DEAL`, `ON_KILL`, kill tally를 만들지 않는다. `SPAWN_ZONE`도 같은 피해값·수명·rollback 경계를 재사용한다.
 - 원격 P5-DZ 단독 계보의 abilities v6·encounters v2·catalog v8·`BattleSnapshot` v9를 P4-5/6의 catalog v9·`RunSnapshot` v2와 병합했다. 통합 스키마는 catalog/fingerprint v10이며 현재 runtime fingerprint는 `68a8bc7f39ba0bc8d80c4ab097e09fc6c901ecdf7f020f8d3c5f2112f9d0e078`, 335-byte `RunSnapshot` v2 KAT SHA-256은 `f7d9ad1ed82658bf30cabe2d0eeb5227597f359b74afa814a0a4c2c113f346e2`다.
-- 회색상자는 별도 64×64 반복 overlay와 `턴 시작 -15` 표기를 사용한다. 맵 보드 이미지에는 위험 구역이나 기물을 굽지 않으며 실제 아트 교체는 `art lock` 이후 별도 진행한다.
+- 회색상자는 별도 64×64 반복 overlay와 `턴 시작 -15` 표기를 사용한다. 맵 보드 이미지에는 위험 구역이나 기물을 굽지 않으며 실제 아트 교체는 P5 참조 기반 샘플 승인 이후 별도 진행한다.
 - 원격 단독 구현에서 독립 기하 기준값과 Godot P5-DZ 9개 그룹, P2-6 quick 22개 그룹·1,000회 결정성·seed-0 두 종결 전투가 통과했다. 병합 통합 결과는 아래 데모 검증 기록을 정본으로 삼는다. 정식 release의 16×2 exact terminal 골든 갱신과 사람 플레이 검수는 남아 있다.
 - 병합 통합에서 P2-1 23개, P2-6 22개, P4-1 17개, P4-2 8개, P5-DZ 9개 그룹과 P4-6 저장/UI 기본 8개 그룹을 통과했다. production 4런도 세 병렬 케이스와 한 단독 재검증으로 전부 통과했다. 병렬 러너는 PID별 저장소로 격리했고 CPU 경쟁을 고려해 케이스 제한을 600초로 조정했다.
 
