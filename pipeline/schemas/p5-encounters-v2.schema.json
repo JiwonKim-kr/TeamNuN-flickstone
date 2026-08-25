@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flickstone.local/schemas/p5-encounters-v2.schema.json",
+  "$defs": {
+    "ref": {"type": "object", "additionalProperties": false, "required": ["numeric_id", "id"], "properties": {"numeric_id": {"type": "integer", "minimum": 1, "maximum": 4294967295}, "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"}}},
+    "point": {"type": "object", "additionalProperties": false, "required": ["x_raw", "y_raw"], "properties": {"x_raw": {"type": "integer", "minimum": -536870912, "maximum": 536870912}, "y_raw": {"type": "integer", "minimum": -536870912, "maximum": 536870912}}},
+    "damage_zone": {"type": "object", "additionalProperties": false, "required": ["local_id", "turn_start_damage", "duration_turns", "vertices"], "properties": {"local_id": {"type": "integer", "minimum": 1, "maximum": 4294967295}, "turn_start_damage": {"type": "integer", "minimum": 1}, "duration_turns": {"type": "integer", "minimum": 0, "maximum": 1024}, "vertices": {"type": "array", "minItems": 3, "maxItems": 64, "items": {"$ref": "#/$defs/point"}}}}
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "records"],
+  "properties": {"schema_version": {"const": 2}, "records": {"type": "array", "maxItems": 4096, "items": {"type": "object", "additionalProperties": false, "required": ["numeric_id", "id", "node_type_id", "map_ref", "enemy_refs", "reward_profile_numeric_id", "damage_zones"], "properties": {"numeric_id": {"type": "integer", "minimum": 1, "maximum": 4294967295}, "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"}, "node_type_id": {"enum": [1, 2, 6]}, "map_ref": {"$ref": "#/$defs/ref"}, "enemy_refs": {"type": "array", "minItems": 3, "maxItems": 5, "items": {"$ref": "#/$defs/ref"}}, "reward_profile_numeric_id": {"type": "integer", "minimum": 1, "maximum": 4294967295}, "damage_zones": {"type": "array", "maxItems": 32, "items": {"$ref": "#/$defs/damage_zone"}}}}}
+}

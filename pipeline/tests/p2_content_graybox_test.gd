@@ -5,7 +5,7 @@ const CONTENT_DRIVER: Script = preload("res://src/ui/battle/p2_content_battle_dr
 const PREDICTION_QUEUE: Script = preload("res://src/ui/battle/trajectory_prediction_queue.gd")
 const ENEMY_ACTION_DELAY: Script = preload("res://src/ui/battle/enemy_action_delay.gd")
 const RUNTIME_ROOT := "res://src/core/data"
-const EXPECTED_FINGERPRINT := "f556a6e8c162e62ad2df3a90ab006f52aeefecbadc204f1f204307aaf124965f"
+const EXPECTED_FINGERPRINT := "68a8bc7f39ba0bc8d80c4ab097e09fc6c901ecdf7f020f8d3c5f2112f9d0e078"
 const DEFAULT_PRESET: Array[int] = [0, 1, 2]
 const OFF_PRESET: Array[int] = [0, 0, 2]
 const STACKED_PRESET: Array[int] = [1, 1, 2]
@@ -34,7 +34,7 @@ func deployment(catalog: ContentCatalog, preset: Array[int], reversed: bool, sta
 
 
 func build_state(catalog: ContentCatalog, preset: Array[int], seed_hi: int, seed_lo: int, reversed: bool, status: SimStatus) -> BattleState:
-	var state: BattleState = BattleSetupBuilder.build(catalog, 1, deployment(catalog, preset, reversed, status), seed_hi, seed_lo, status)
+	var state: BattleState = BattleSetupBuilder.build(catalog, 1, deployment(catalog, preset, reversed, status), seed_hi, seed_lo, status, 1)
 	if status.is_ok(): CONTENT_DRIVER.resolve_last_transition(state, status)
 	return state
 
@@ -70,9 +70,10 @@ func test_catalog(catalog: ContentCatalog) -> void:
 	var bottle_level: PieceLevelDefinition = bottle.level_definition(1, status)
 	var striker_level: PieceLevelDefinition = striker.level_definition(1, status)
 	var map_definition: MapDefinition = catalog.map_at(0, status)
-	check("P2-6-RUNTIME-PACKAGE-COUNTS-IDS", status.is_ok() and catalog.fingerprint_hex() == EXPECTED_FINGERPRINT and catalog.piece_count() == 3 and catalog.ability_count() == 1 and catalog.status_count() == 2 and catalog.synergy_count() == 2 and catalog.map_count() == 1 and catalog.enemy_count() == 5 and catalog.act_count() == 1 and catalog.encounter_count() == 4 and baduk.string_id() == "baduk_stone" and bottle.string_id() == "bottle_cap" and striker.string_id() == "graybox_striker")
+	var encounter: EncounterDefinition = catalog.encounter_at(0, status)
+	check("P2-6-RUNTIME-PACKAGE-COUNTS-IDS", status.is_ok() and catalog.fingerprint_hex() == EXPECTED_FINGERPRINT and catalog.piece_count() == 3 and catalog.ability_count() == 1 and catalog.status_count() == 2 and catalog.synergy_count() == 2 and catalog.map_count() == 1 and catalog.enemy_count() == 5 and catalog.act_count() == 1 and catalog.encounter_count() == 4 and catalog.relic_count() == 1 and catalog.consumable_count() == 1 and catalog.shop_count() == 1 and catalog.event_count() == 1 and baduk.string_id() == "baduk_stone" and bottle.string_id() == "bottle_cap" and striker.string_id() == "graybox_striker")
 	check("P2-6-PIECE-LEVEL1-VALUES", status.is_ok() and baduk.level_count() == 3 and bottle.level_count() == 3 and striker.level_count() == 1 and bottle_level.max_hp() == 90 and bottle_level.attack() == 24 and bottle_level.mass_raw() == 56 * FixMath.SCALE and striker_level.ability_ref_count() == 1)
-	check("P2-6-MAP-EXACT-KILL-ZONE", status.is_ok() and map_definition.deploy_count() == 3 and map_definition.zone_count() == 1 and map_definition.zone_at(0, status).is_kill_zone() and map_definition.player_slot_at(0, status).position().is_equal(FixVec2.from_ints(160, 832, SimStatus.new())))
+	check("P2-6-MAP-NEUTRAL-ENCOUNTER-DAMAGE-ZONE", status.is_ok() and map_definition.deploy_count() == 3 and map_definition.zone_count() == 0 and encounter.damage_zone_count() == 1 and encounter.damage_zone_at(0, status).turn_start_damage() == 15 and map_definition.player_slot_at(0, status).position().is_equal(FixVec2.from_ints(160, 832, SimStatus.new())))
 
 
 func test_setup_status_enemy(catalog: ContentCatalog) -> void:
@@ -80,7 +81,7 @@ func test_setup_status_enemy(catalog: ContentCatalog) -> void:
 	var state: BattleState = build_state(catalog, DEFAULT_PRESET, 17, 29, false, status)
 	var world: SimWorld = state.world_copy(status)
 	var enemy_baduk: BattleCombatant = state.combatant_by_body_id(4, status)
-	check("P2-6-SETUP-BODY-ZONE-ORDER", status.is_ok() and world.body_count() == 6 and world.zone_count() == 1 and world.zone_at(0, status).is_kill_zone() and world.body_by_id(1, status).position().is_equal(FixVec2.from_ints(160, 832, status)) and world.body_by_id(4, status).position().is_equal(FixVec2.from_ints(160, 192, status)))
+	check("P2-6-SETUP-BODY-DAMAGE-ZONE-ORDER", status.is_ok() and world.body_count() == 6 and world.zone_count() == 1 and not world.zone_at(0, status).is_kill_zone() and state.damage_zone_count() == 1 and world.body_by_id(1, status).position().is_equal(FixVec2.from_ints(160, 832, status)) and world.body_by_id(4, status).position().is_equal(FixVec2.from_ints(160, 192, status)))
 	check("P2-6-OPENING-HASTE-BOTH-FACTIONS", status.is_ok() and state.status_count() == 2 and has_status(state, 3, 1, status) and has_status(state, 6, 1, status) and effective_speed(state, 3, status) == 125 and effective_speed(state, 6, status) == 125)
 	CONTENT_DRIVER.resolve_last_transition(state, status)
 	check("P2-6-OPENING-HASTE-NO-DUPLICATE", status.is_ok() and state.status_count() == 2 and state.status_at(0, status).remaining() == 1 and state.status_at(1, status).remaining() == 1)

@@ -6,6 +6,7 @@ signal run_battle_finished(outcome: RunBattleOutcome)
 
 const PLAYER_TEXTURE := preload("res://assets/art/sprites/p1_graybox/PLACEHOLDER_player_piece.png")
 const ENEMY_TEXTURE := preload("res://assets/art/sprites/p1_graybox/PLACEHOLDER_enemy_piece.png")
+const DAMAGE_ZONE_TEXTURE := preload("res://assets/art/zones/PLACEHOLDER_turn_start_damage.png")
 const CONTENT_DRIVER: Script = preload("res://src/ui/battle/p2_content_battle_driver.gd")
 const PREDICTION_QUEUE: Script = preload("res://src/ui/battle/trajectory_prediction_queue.gd")
 const ENEMY_ACTION_DELAY: Script = preload("res://src/ui/battle/enemy_action_delay.gd")
@@ -29,6 +30,7 @@ const PREVIEW_COUNT := 6
 
 var _catalog: ContentCatalog = ContentCatalog.new()
 var _map_definition: MapDefinition = MapDefinition.new()
+var _encounter_definition: EncounterDefinition = EncounterDefinition.new()
 var _piece_definitions: Array[PieceDefinition] = []
 var _enemy_definitions: Array[EnemyDefinition] = []
 var _selected_piece_indices: Array[int] = []
@@ -48,6 +50,7 @@ var _ai_review_grade_id: int = AiGrade.Value.COMMON
 var _run_mode: bool = false
 var _run_request := RunBattleRequest.new()
 var _run_outcome_emitted: bool = false
+var _damage_notice: String = ""
 
 
 func _ready() -> void:
@@ -72,12 +75,13 @@ func _load_content() -> void:
 		_content_error.fail(ContentStatus.Code.INVALID_DOMAIN, ContentStatus.Operation.LOOKUP)
 		return
 	_map_definition = _catalog.map_at(0, _content_error)
+	_encounter_definition = _catalog.encounter_at(0, _content_error)
 	if not _content_error.is_ok():
 		return
 	for index: int in range(_catalog.piece_count()):
 		_piece_definitions.append(_catalog.piece_at(index, _content_error))
-	for index: int in range(_catalog.enemy_count()):
-		_enemy_definitions.append(_catalog.enemy_at(index, _content_error))
+	for index: int in range(_encounter_definition.enemy_ref_count()):
+		_enemy_definitions.append(_catalog.enemy_by_numeric_id(_encounter_definition.enemy_ref_at(index, _content_error).numeric_id(), _content_error))
 	if not _content_error.is_ok():
 		return
 	for slot_index: int in range(_map_definition.deploy_count()):
@@ -182,7 +186,19 @@ func _advance_noninteractive_phases() -> void:
 	while _error.is_ok() and _state.phase() != BattleState.Phase.AIM and _state.phase() != BattleState.Phase.RESOLVE and _state.phase() != BattleState.Phase.BATTLE_END:
 		match _state.phase():
 			BattleState.Phase.BATTLE_START: _state.complete_battle_start(_error); _resolve_content_transition()
-			BattleState.Phase.TURN_START: _state.complete_turn_start(_error); _resolve_content_transition()
+			BattleState.Phase.TURN_START:
+				_damage_notice = ""
+				var actor_id: int = _state.current_actor_body_id()
+				var before_status := SimStatus.new()
+				var before_hp: int = _state.combatant_by_body_id(actor_id, before_status).current_hp()
+				_state.complete_turn_start(_error)
+				if _error.is_ok() and before_status.is_ok():
+					var after_status := SimStatus.new()
+					var after_hp: int = 0
+					var after: BattleCombatant = _state.combatant_by_body_id(actor_id, after_status)
+					if after_status.is_ok(): after_hp = after.current_hp()
+					if before_hp > after_hp: _damage_notice = " · 데미지 존 -%d" % (before_hp - after_hp)
+				_resolve_content_transition()
 			BattleState.Phase.TURN_END: _state.complete_turn_end(_error); _resolve_content_transition()
 			BattleState.Phase.CHECK: _state.resolve_check(_error); _resolve_content_transition()
 			_: _error.fail(SimStatus.Code.INVALID_PHASE, SimStatus.Operation.BATTLE_DRIVER_ADVANCE, _state.phase(), 0)
@@ -393,6 +409,29 @@ func _build_map_view() -> void:
 		label.add_theme_font_size_override("font_size", 20)
 		label.add_theme_color_override("font_color", _zone_color(zone, 1.0))
 		_map_visuals.add_child(label)
+	for zone_index: int in range(_encounter_definition.damage_zone_count()):
+		var damage_zone: EncounterDamageZoneDefinition = _encounter_definition.damage_zone_at(zone_index, content_status)
+		var points := PackedVector2Array()
+		var uv := PackedVector2Array()
+		var center := Vector2.ZERO
+		for vertex: FixVec2 in damage_zone.vertices_copy():
+			var point := _fix_to_vector(vertex)
+			points.append(point); uv.append(point); center += point
+		center /= float(points.size())
+		var fill := Polygon2D.new()
+		fill.name = "DamageZone%d" % damage_zone.local_id()
+		fill.polygon = points; fill.uv = uv; fill.texture = DAMAGE_ZONE_TEXTURE
+		fill.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+		fill.color = Color(1.0, 1.0, 1.0, 0.72)
+		_map_visuals.add_child(fill)
+		var outline := Line2D.new()
+		outline.width = 5.0; outline.default_color = Color(1.0, 0.28, 0.2, 0.95); outline.points = points; outline.add_point(points[0])
+		_map_visuals.add_child(outline)
+		var label := Label.new()
+		label.text = "턴 시작 -%d" % damage_zone.turn_start_damage()
+		label.position = center - Vector2(70.0, 14.0); label.size = Vector2(140.0, 28.0); label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.add_theme_font_size_override("font_size", 18); label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.55, 1.0))
+		_map_visuals.add_child(label)
 	var walls := Line2D.new()
 	walls.name = "Walls"
 	walls.width = 4.0
@@ -573,7 +612,7 @@ func _sync_view() -> void:
 	elif _state.phase() == BattleState.Phase.BATTLE_END:
 		_status_label.text += " · 결과 %s" % BattleResult.Value.keys()[_state.battle_result()]
 	var preview := _preview_text(status)
-	_details_label.text = "편성 %s\n시너지 %s%s" % [_selection_text(), _synergy_text(), " · CTB " + preview if not preview.is_empty() else ""]
+	_details_label.text = "편성 %s\n시너지 %s%s%s" % [_selection_text(), _synergy_text(), " · CTB " + preview if not preview.is_empty() else "", _damage_notice]
 	if not status.is_ok() and _error.is_ok():
 		_error = status
 
@@ -598,10 +637,11 @@ func _restart() -> void:
 	_clear_aim()
 	_enemy_action_delay.reset()
 	_turns = 0
+	_damage_notice = ""
 	_error = SimStatus.new()
 	var deployment: Array[BattleDeploymentEntry] = _build_deployment(_error)
 	if _error.is_ok():
-		_state = BattleSetupBuilder.build(_catalog, _map_definition.numeric_id(), deployment, SEED_HI, SEED_LO, _error)
+		_state = BattleSetupBuilder.build(_catalog, _map_definition.numeric_id(), deployment, SEED_HI, SEED_LO, _error, _encounter_definition.numeric_id())
 	if _error.is_ok():
 		_resolve_content_transition()
 		_advance_noninteractive_phases()

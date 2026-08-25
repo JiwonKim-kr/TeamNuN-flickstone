@@ -45,6 +45,7 @@ static func _known_cause(cause_id: int) -> bool:
 		or cause_id == SimEvent.CauseId.KILL_BOUNDARY
 		or cause_id == SimEvent.CauseId.KILL_ZONE
 		or cause_id == SimEvent.CauseId.DAMAGE
+		or cause_id == SimEvent.CauseId.TURN_START_DAMAGE_ZONE
 	)
 
 

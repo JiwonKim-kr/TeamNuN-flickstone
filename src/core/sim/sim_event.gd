@@ -31,6 +31,7 @@ enum CauseId {
 	KILL_BOUNDARY = 1,
 	KILL_ZONE = 2,
 	DAMAGE = 3,
+	TURN_START_DAMAGE_ZONE = 4,
 }
 
 var _tick: int = 0
@@ -65,6 +66,7 @@ static func _is_known_cause(cause_id: int) -> bool:
 		or cause_id == CauseId.KILL_BOUNDARY
 		or cause_id == CauseId.KILL_ZONE
 		or cause_id == CauseId.DAMAGE
+		or cause_id == CauseId.TURN_START_DAMAGE_ZONE
 	)
 
 

@@ -201,7 +201,10 @@ func automatic_choice(state: RunState, status: SimStatus) -> Array[int]:
 	return result
 
 func quick_run(catalog: ContentCatalog, seed_lo: int, route: Array[int], status: SimStatus) -> PackedByteArray:
-	if not bool(run_manager.call("start_new_development_run", 0, seed_lo, status, RunSaveStatus.new())): return PackedByteArray()
+	var start_save_status := RunSaveStatus.new()
+	if not bool(run_manager.call("start_new_development_run", 0, seed_lo, status, start_save_status)):
+		print("[INFO] quick start failed seed=%d sim=%d/%d save=%d/%d" % [seed_lo, status.code(), status.operation(), start_save_status.code(), start_save_status.operation()])
+		return PackedByteArray()
 	var command_count: int = 0
 	while status.is_ok() and command_count < 64:
 		command_count += 1
@@ -241,6 +244,8 @@ func test_quick_run(catalog: ContentCatalog, seed_lo: int, route_id: int) -> voi
 	var route: Array[int] = route_a if route_id == 0 else route_b
 	var status := SimStatus.new()
 	var bytes: PackedByteArray = quick_run(catalog, seed_lo, route, status)
+	if not status.is_ok() or bytes.is_empty():
+		print("[INFO] quick result seed=%d route=%d bytes=%d code=%d op=%d detail=%d/%d" % [seed_lo, route_id, bytes.size(), status.code(), status.operation(), status.detail_a(), status.detail_b()])
 	check("P4-6-PRODUCTION-QUICK-RUN-%d-%d" % [seed_lo, route_id], status.is_ok() and not bytes.is_empty())
 
 func quick_arguments() -> Array[int]:
@@ -263,12 +268,15 @@ func _init() -> void:
 
 func _run_tests() -> void:
 	var db: Node = DATA_DB_SCRIPT.new(); db.name = "DataDB"; root.add_child(db)
-	save_manager = SAVE_MANAGER_SCRIPT.new(); save_manager.name = "SaveManager"; root.add_child(save_manager)
+	save_manager = SAVE_MANAGER_SCRIPT.new(); save_manager.name = "SaveManager"
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(test_root))
+	save_manager.call("set_storage_root_for_tests", test_root)
+	root.add_child(save_manager)
 	run_manager = RUN_MANAGER_SCRIPT.new(); run_manager.name = "RunManager"; root.add_child(run_manager)
 	await process_frame
 	var content_status := ContentStatus.new(); var loaded: bool = bool(db.call("reload_catalog", "res://src/core/data", content_status)); var catalog: ContentCatalog = db.call("catalog_copy", content_status) as ContentCatalog
 	check("P4-6-AUTOLOADS-AVAILABLE", save_manager != null and run_manager != null)
-	check("P4-6-RUNTIME-CATALOG-V9-LOAD", loaded and content_status.is_ok())
+	check("P4-6-RUNTIME-CATALOG-V10-LOAD", loaded and content_status.is_ok())
 	if loaded and content_status.is_ok():
 		var quick: Array[int] = quick_arguments()
 		if quick[0] > 0 and quick[1] >= 0:

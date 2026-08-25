@@ -240,6 +240,45 @@ static func unit_ratio_raw(
 	return _unit_ratio_raw(numerator, denominator, status)
 
 
+static func _wide_dot(left: FixVec2, right: FixVec2, status: SimStatus) -> int:
+	var x: int = FixMath.multiply_int(left.x_raw(), right.x_raw(), status)
+	var y: int = FixMath.multiply_int(left.y_raw(), right.y_raw(), status)
+	return FixMath.add_raw(x, y, status)
+
+
+static func distance_to_segment_raw(
+		point: FixVec2, start: FixVec2, finish: FixVec2, status: SimStatus
+) -> int:
+	if not status.is_ok() or point == null or start == null or finish == null:
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_ARGUMENT, SimStatus.Operation.POLYGON_CIRCLE_QUERY)
+		return 0
+	var edge: FixVec2 = finish.sub(start, status)
+	var from_start: FixVec2 = point.sub(start, status)
+	var length_squared: int = _wide_dot(edge, edge, status)
+	var projection: int = _wide_dot(from_start, edge, status)
+	if not status.is_ok(): return 0
+	var closest: FixVec2
+	if projection <= 0: closest = start
+	elif projection >= length_squared: closest = finish
+	else:
+		var t_raw: int = _unit_ratio_raw(projection, length_squared, status)
+		closest = start.add(edge.scaled(t_raw, status), status)
+	return point.sub(closest, status).length_raw(status)
+
+
+func overlaps_circle(center: FixVec2, radius_raw: int, status: SimStatus) -> bool:
+	if not status.is_ok(): return false
+	if not _initialized or center == null or not SimLimits.is_radius_valid(radius_raw):
+		status.fail(SimStatus.Code.INVALID_ARGUMENT, SimStatus.Operation.POLYGON_CIRCLE_QUERY, radius_raw, 0)
+		return false
+	if classify_point(center, status) != PointClass.OUTSIDE: return status.is_ok()
+	for index: int in range(_vertices.size()):
+		if distance_to_segment_raw(center, _vertices[index], _vertices[(index + 1) % _vertices.size()], status) <= radius_raw:
+			return status.is_ok()
+		if not status.is_ok(): return false
+	return false
+
+
 func classify_point(point: FixVec2, status: SimStatus) -> int:
 	if not status.is_ok():
 		return PointClass.OUTSIDE

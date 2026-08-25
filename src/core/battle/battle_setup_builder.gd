@@ -19,12 +19,16 @@ static func _append_bindings(owner_body_id: int, level: PieceLevelDefinition, bi
 	if not content_status.is_ok() and status.is_ok(): status.fail(SimStatus.Code.INVALID_DEPLOYMENT, SimStatus.Operation.BATTLE_SETUP_BUILD, owner_body_id, 0)
 
 
-static func build(catalog: ContentCatalog, map_numeric_id: int, deployment: Array[BattleDeploymentEntry], seed_hi: int, seed_lo: int, status: SimStatus) -> BattleState:
+static func build(catalog: ContentCatalog, map_numeric_id: int, deployment: Array[BattleDeploymentEntry], seed_hi: int, seed_lo: int, status: SimStatus, encounter_numeric_id: int = 0) -> BattleState:
 	if not status.is_ok(): return BattleState.new()
 	if catalog == null or not catalog.is_initialized(): return _fail(status)
 	var content_status := ContentStatus.new()
 	var map_definition: MapDefinition = catalog.map_by_numeric_id(map_numeric_id, content_status)
 	if not content_status.is_ok(): return _fail(status)
+	var encounter: EncounterDefinition = EncounterDefinition.new()
+	if encounter_numeric_id > 0:
+		encounter = catalog.encounter_by_numeric_id(encounter_numeric_id, content_status)
+		if not content_status.is_ok() or encounter.map_ref().numeric_id() != map_numeric_id: return _fail(status, encounter_numeric_id, map_numeric_id)
 	var normalized: Array[BattleDeploymentEntry] = []
 	for entry: BattleDeploymentEntry in deployment:
 		if entry == null or not entry.is_initialized(): return _fail(status)
@@ -52,7 +56,11 @@ static func build(catalog: ContentCatalog, map_numeric_id: int, deployment: Arra
 	var zone_keys: Array[int] = []; var zone_templates: Array[SimZone] = []
 	for index: int in range(map_definition.zone_count()):
 		var zone: MapZoneDefinition = map_definition.zone_at(index, content_status)
-		zone_keys.append(zone.local_id()); zone_templates.append(zone.sim_template(status))
+		zone_keys.append(zone_keys.size() + 1); zone_templates.append(zone.sim_template(status))
+	if encounter.is_initialized():
+		for index: int in range(encounter.damage_zone_count()):
+			var damage_zone: EncounterDamageZoneDefinition = encounter.damage_zone_at(index, content_status)
+			zone_keys.append(zone_keys.size() + 1); zone_templates.append(damage_zone.sim_template(status))
 	world.add_initial_zones(zone_keys, zone_templates, status)
 	if not status.is_ok() or not content_status.is_ok(): return BattleState.new()
 
@@ -93,5 +101,11 @@ static func build(catalog: ContentCatalog, map_numeric_id: int, deployment: Arra
 		if not status.is_ok(): return BattleState.new()
 	var state: BattleState = BattleState.create_with_combatants(world, participants, combatants, status)
 	if not status.is_ok() or not state.attach_content(catalog, identities, bindings, status): return BattleState.new()
+	if encounter.is_initialized():
+		for index: int in range(encounter.damage_zone_count()):
+			var damage_zone: EncounterDamageZoneDefinition = encounter.damage_zone_at(index, content_status)
+			var assigned_zone_id: int = map_definition.zone_count() + index + 1
+			state.register_initial_damage_zone(assigned_zone_id, damage_zone.turn_start_damage(), damage_zone.duration_turns(), status)
+			if not status.is_ok(): return BattleState.new()
 	if not state.complete_battle_start(status): return BattleState.new()
 	return state

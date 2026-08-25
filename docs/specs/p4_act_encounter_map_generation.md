@@ -738,7 +738,7 @@ HANDOFF.md
 
 2026-08-25 승인 범위 구현과 데모 검증을 완료했다.
 
-- catalog/fingerprint v7과 document kind 8~11, namespace 9~12를 append했다. runtime fingerprint는 `ed6dd1319f158a539ffe4bc89bce965ea1061586b1e462a7e211bb8f0f561e3e`다.
+- catalog/fingerprint v7과 document kind 8~11, namespace 9~12를 append했다. P4-2 당시 runtime fingerprint는 `ed6dd1319f158a539ffe4bc89bce965ea1061586b1e462a7e211bb8f0f561e3e`다. 현재 값은 P5-DZ 이관 기록을 따른다.
 - immutable Act/Encounter 계층, strict builder/독립 Python loader, canonical encoder, `DataDB` typed lookup을 구현했다. relic/consumable records와 namespace는 P4-2 계약대로 비어 있다.
 - runtime에는 5층 `development_act_1`, encounter 4개, 기존 piece를 재사용하는 ELITE/BOSS enemy 2개를 추가했다. graph는 node 1~7과 edge `1→[2,3], 2→[4], 3→[5], 4→[6], 5→[6], 6→[7], 7→[]`를 만든다.
 - `RunMapGenerator`는 node별 type/content substream과 무난수 edge 구성을 사용한다. 단일 option/pool은 RNG를 그리지 않으며 weighted 합 `UINT32_SPACE` 경계가 통과한다.

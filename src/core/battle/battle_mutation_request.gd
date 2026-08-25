@@ -16,6 +16,7 @@ var body_id: int = 0
 var zone_template: SimZone
 var zone_duration_turns: int = 0
 var zone_applied_turn_index: int = 0
+var zone_turn_start_damage: int = 0
 
 func copy() -> BattleMutationRequest:
 	var result := BattleMutationRequest.new()
@@ -32,4 +33,5 @@ func copy() -> BattleMutationRequest:
 	result.zone_template = null if zone_template == null else zone_template.copy()
 	result.zone_duration_turns = zone_duration_turns
 	result.zone_applied_turn_index = zone_applied_turn_index
+	result.zone_turn_start_damage = zone_turn_start_damage
 	return result

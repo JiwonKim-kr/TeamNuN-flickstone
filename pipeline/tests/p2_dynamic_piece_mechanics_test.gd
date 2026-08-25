@@ -2,7 +2,7 @@ extends SceneTree
 
 const DATA_DB_SCRIPT: Script = preload("res://src/core/autoload/data_db.gd")
 const FIXTURE_ROOT: String = "res://pipeline/tests/fixtures/p2_dynamic_piece"
-const EXPECTED_FINGERPRINT: String = "fbad4099c9bc7a263d3aea68148cb13da87454b26502d5fcd0c2d82ebb5e3e4a"
+const EXPECTED_FINGERPRINT: String = "f3ab8b5b192ee5644686a6bdb4708196d6f044b1753855035c76da769ba82bd4"
 
 var failures: int = 0
 
@@ -235,7 +235,7 @@ func test_determinism_1000(catalog: ContentCatalog) -> void:
 func _init() -> void:
 	var db: Node = DATA_DB_SCRIPT.new(); root.add_child(db)
 	var content_status := ContentStatus.new(); var loaded: bool = bool(db.call("reload_catalog", FIXTURE_ROOT, content_status)); var catalog: ContentCatalog = db.call("catalog_copy", content_status) as ContentCatalog
-	check("P2-4-SCHEMA-CATALOG-V4", loaded and content_status.is_ok() and catalog.piece_count() == 6 and catalog.ability_count() == 12 and catalog.fingerprint_hex() == EXPECTED_FINGERPRINT)
+	check("P2-4-SCHEMA-CATALOG-V10", loaded and content_status.is_ok() and catalog.piece_count() == 6 and catalog.ability_count() == 12 and catalog.fingerprint_hex() == EXPECTED_FINGERPRINT)
 	test_spawn_and_binding(catalog)
 	test_projectile_and_expiry(catalog)
 	test_turn_expiry(catalog)

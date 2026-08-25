@@ -401,7 +401,8 @@ def section_demo_ci_profile() -> None:
           ) is not None)
     discovered = {runner.name for runner in verify_mod.discover_runners(TESTS_DIR)}
     configured = set(verify_mod.DEMO_RUNNER_NAMES)
-    check("demo 대표 회귀 10종 고정", len(configured) == 10)
+    check("demo 대표 회귀 11종 고정", len(configured) == 11)
+    check("demo P5-DZ 회귀 포함", "run_p5_turn_start_damage_zones.py" in configured)
     check("demo 구성 러너 전부 존재", configured <= discovered)
 
 

@@ -50,10 +50,10 @@ func test_selection_request(catalog: ContentCatalog) -> RunBattleRequest:
 	check("P4-3-FORMATION-SAVE-BATTLE-SAVE-GATE", not capture_status.is_ok() and restored_status.is_ok() and repeated.battle_seed_hi() == request.battle_seed_hi() and repeated.request_sequence() == request.request_sequence())
 	return request
 
-func test_bridge_and_v8(catalog: ContentCatalog, request: RunBattleRequest) -> void:
+func test_bridge_and_v9(catalog: ContentCatalog, request: RunBattleRequest) -> void:
 	var status := SimStatus.new(); var battle: BattleState = RunBattleBridge.build_state(request, catalog, status)
 	var initial_bytes: PackedByteArray = BattleSnapshot.capture(battle, status).encode(status); var initial_sim: PackedByteArray = SimSnapshot.capture(battle.world_copy(status), status).encode(status)
-	var initial_sim_length_offset: int = initial_bytes.size() - initial_sim.size() - 4; var initial_kill_count_offset: int = initial_sim_length_offset - 4
+	var initial_sim_length_offset: int = initial_bytes.size() - initial_sim.size() - 4; var initial_damage_count_offset: int = initial_sim_length_offset - 4 - battle.damage_zone_count() * 12; var initial_kill_count_offset: int = initial_damage_count_offset - 4 - battle.kill_tally_count() * 8
 	var legacy_v7: PackedByteArray = initial_bytes.slice(0, initial_kill_count_offset); legacy_v7.append_array(initial_bytes.slice(initial_sim_length_offset, initial_bytes.size())); legacy_v7[9] = 7; legacy_v7[10] = 0
 	var legacy_status := SimStatus.new(); var legacy_state: BattleState = BattleSnapshot.decode(legacy_v7, legacy_status).restore_state_with_catalog(catalog, legacy_status); var legacy_recap: PackedByteArray = BattleSnapshot.capture(legacy_state, legacy_status).encode(legacy_status)
 	var report: P1BattleReport = P1BattleDriver.run(battle, status)
@@ -65,8 +65,8 @@ func test_bridge_and_v8(catalog: ContentCatalog, request: RunBattleRequest) -> v
 		var left: BattleKillTally = battle.kill_tally_at(index, status); var right: BattleKillTally = restored.kill_tally_at(index, status)
 		tally_equal = tally_equal and left.body_id() == right.body_id() and left.kill_count() == right.kill_count()
 	check("P4-3-BRIDGE-TERMINAL-OUTCOME", status.is_ok() and report.result == outcome.battle_result() and outcome.player_fact_count() == request.player_count())
-	check("P4-3-BATTLE-SNAPSHOT-V8-KILL-TALLY", status.is_ok() and bytes[9] == BattleSnapshot.SCHEMA_VERSION and bytes[10] == 0 and battle.kill_tally_count() > 0 and tally_equal)
-	check("P4-3-LEGACY-V7-RECAPTURE-V8", legacy_status.is_ok() and legacy_state.kill_tally_count() == 0 and legacy_recap[9] == 8 and legacy_recap[10] == 0)
+	check("P4-3-BATTLE-SNAPSHOT-V9-KILL-TALLY", status.is_ok() and bytes[9] == BattleSnapshot.SCHEMA_VERSION and bytes[10] == 0 and battle.kill_tally_count() > 0 and tally_equal and restored.damage_zone_count() == battle.damage_zone_count())
+	check("P4-3-LEGACY-V7-RECAPTURE-V9", legacy_status.is_ok() and legacy_state.kill_tally_count() == 0 and legacy_state.damage_zone_count() == 0 and legacy_recap[9] == 9 and legacy_recap[10] == 0)
 	var malformed: PackedByteArray = initial_bytes.duplicate(); write_u32(malformed, initial_kill_count_offset, battle.piece_origin_count() + 1)
 	var malformed_status := SimStatus.new(); BattleSnapshot.decode(malformed, malformed_status)
 	check("P4-3-KILL-TALLY-MALFORMED-REJECT", not malformed_status.is_ok())
@@ -103,7 +103,7 @@ func _init() -> void:
 	check("P4-3-RUNTIME-CATALOG-LOAD", loaded and content_status.is_ok())
 	if loaded and content_status.is_ok():
 		var request: RunBattleRequest = test_selection_request(catalog)
-		if request.is_initialized(): test_bridge_and_v8(catalog, request)
+		if request.is_initialized(): test_bridge_and_v9(catalog, request)
 		test_outcome_life_counters(catalog); test_request_determinism(catalog)
 	print("P4_FORMATION_BATTLE_OUTCOME_LIFE_RESULT: %s" % ("PASS" if failures == 0 else "FAIL"))
 	quit(0 if failures == 0 else 1)

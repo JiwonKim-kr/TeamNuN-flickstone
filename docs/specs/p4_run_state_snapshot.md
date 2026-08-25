@@ -693,3 +693,5 @@ docs/specs/p4_run_loop.md
 ### P4-2 이관 기록
 
 2026-08-25 P4-2 승인 구현에서 provisional graph 주입 seam을 제거했다. `RunState.create`는 catalog·act·seed로 graph를 생성하고, restore/validate는 저장 graph와 재생성 graph를 exact 비교한다. catalog v7 fingerprint와 개발 Act graph를 반영한 `RunSnapshot` v1 KAT는 331 bytes, SHA-256 `73ea51d49acb0fc2b1f2b1d696241dcf724937653e42d1249d63d66f9ff34797`이며 snapshot schema와 run scalar/roster 계약은 바뀌지 않았다.
+
+2026-08-25 P5-DZ catalog/fingerprint v8 이관에서도 `RunSnapshot` v1 구조와 331-byte 길이는 유지되었다. 새 콘텐츠 지문을 반영한 현재 SHA-256은 `8c8671cd39afe6defc986644d56122315cd6191d03793416620d2fbf95f87c04`다.

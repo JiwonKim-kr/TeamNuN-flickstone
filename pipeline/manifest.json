@@ -70,6 +70,25 @@
           "action": "registered"
         }
       ]
+    },
+    {
+      "id": "art:zones/turn_start_damage",
+      "track": "art",
+      "status": "placeholder",
+      "spec": "P5-DZ 턴 시작 데미지 존: 64x64 RGBA 반복 타일, 위험 방향 문양, 읽을 수 있는 단어 없음",
+      "requested_by": [
+        {
+          "kind": "scene_node",
+          "path": "scenes/p2_content_graybox.tscn::Battlefield/MapVisuals"
+        }
+      ],
+      "file": "assets/art/zones/PLACEHOLDER_turn_start_damage.png",
+      "history": [
+        {
+          "at": "2026-08-25T06:09:25.519583+00:00",
+          "action": "registered"
+        }
+      ]
     }
   ]
 }

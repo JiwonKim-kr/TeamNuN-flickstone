@@ -37,7 +37,9 @@ def main(argv: list[str] | None = None) -> int:
         return godot_test_support.run_godot(
             godot, project, "--script", TEST_SCRIPT, "--",
             f"--quick-seed={seed}", f"--quick-route={route}",
-            log_name=f"godot-p4-run-quick-{seed}-{route}.log", timeout=360,
+            # Four production simulations share the host CPU. The slowest
+            # approved route is about five minutes when run alone.
+            log_name=f"godot-p4-run-quick-{seed}-{route}.log", timeout=600,
         )
 
     cases = [(seed, route) for seed in (1, 2) for route in (0, 1)]

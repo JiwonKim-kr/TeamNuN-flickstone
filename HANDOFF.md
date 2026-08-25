@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P4-1~6 구현·데모 자동 검증 완료 · P4 사람 Act/저장/Web 검수 대기**. 병행 P5 트랙은 A/B/C 스타일 보드 생성·probe 완료 후 사람 방향 선택 대기이며, P4-W Web 프리뷰는 공개 배포·브라우저 검수 완료 |
+| 현재 단계 | **P4-1~6 및 P5-DZ 구현 완료 · 병합 통합 검증 진행**. P4 사람 Act/저장/Web 검수와 P5-DZ 사람 플레이 검수가 남아 있다. 병행 아트 트랙은 보드/기물/데미지 존 overlay 분리 방향과 A/B/C 스타일 선택을 기다리며, P4-W Web 프리뷰는 공개 배포·브라우저 검수 완료 |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -39,7 +39,7 @@
 | 승인 지점 | play spec 승인 / art lock / review — **생략 불가** |
 | 에셋 정책 | P0·P1은 매니페스트에 등록한 플레이스홀더만 사용 |
 | 아트·사운드 시작 | 전투 감각 승인 완료. `art lock`, `art gen`, SE는 별도 요청·승인 절차로 시작 |
-| CI | 데모 push/PR은 Godot 4.6.3 `verify --demo`(대표 10종); 수동 `release`는 전체 러너 + 1,000회 + Windows 결정론 |
+| CI | 데모 push/PR은 Godot 4.6.3 `verify --demo`(대표 11종, P5-DZ 포함); 수동 `release`는 전체 러너 + 1,000회 + Windows 결정론 |
 
 ## 3. 현재 저장소 상태
 
@@ -146,6 +146,11 @@
 - [x] Scenario 인증과 최신 제3자 생성 API 라이브 검증 — FLUX.2 `numOutputs` 요청, `job.result.images` 다운로드 확인
 - [x] P5 A/B/C 스타일 보드 3장 생성·640×1,024 PNG probe·시각 사전 점검 완료 (`assets/art/concepts/p5_styleboards/`). 엔진 포함 art 파이프라인과 Godot 4.6.3 `verify --demo`도 통과
 - [ ] P5 A/B/C 중 사람 방향 선택. 이후 선택안 대표 클로즈업 6~9장은 별도 승인 범위로 진행
+- [x] P5-DZ encounter 기반 턴 시작 데미지 존 명세 승인·구현 — 존당 15, 접선 포함 원 접촉, zone ID 순 중첩, 환경 피해 우선, runtime KILL 콘텐츠 제거 (`docs/specs/p5_turn_start_damage_zones.md`)
+- [x] P5-DZ 독립 기하 KAT·Godot 9개 그룹, P2-6 quick 22개 그룹·1,000회 결정성·seed-0 두 프리셋 종결 회귀 통과
+- [x] P5-DZ Godot 4.6.3 `verify --demo` 통합 게이트 완료 — 기본 게이트 4 PASS·lore 1 정책 SKIP·대표 러너 9종 PASS
+- [ ] P5-DZ 사람 플레이 검수 — 중앙 존 가독성, 자기 턴 시작 −15 인지, 중첩/죽음 흐름 체감 확인
+- [ ] 정식 release 전에 P5-DZ 기준 P2-6 terminal 16×2 exact 골든 전체 재생성·승인. 현재 데모 quick은 두 프리셋 seed-0 gameplay 기준만 이관
 
 ### 3.1 P1-2 현재 작업 기록
 
@@ -290,7 +295,7 @@
 
 ### 3.12 P4-2 Act·Encounter·노드맵 구현 기록
 
-- document kind 8~11과 namespace 9~12, catalog/fingerprint v7을 append했다. 현재 runtime fingerprint는 `ed6dd1319f158a539ffe4bc89bce965ea1061586b1e462a7e211bb8f0f561e3e`다.
+- document kind 8~11과 namespace 9~12, catalog/fingerprint v7을 append했다. P4-2 당시 runtime fingerprint는 `ed6dd1319f158a539ffe4bc89bce965ea1061586b1e462a7e211bb8f0f561e3e`이며 현재 값은 아래 P5-DZ 기록을 따른다.
 - immutable Act/Encounter 계층과 strict JSON/canonical encoder/DataDB lookup을 구현했다. relic/consumable은 P4-5 전까지 빈 schema·namespace로 유지한다.
 - `development_act_1`은 5층 폭 `1/2/2/1/1`, encounter 4개, ELITE/BOSS enemy 2개를 사용한다. 같은 catalog·act·seed는 exact node/type/content/edge를 생성한다.
 - `RunState.create`의 임의 graph 입력을 제거하고 restore/validate가 graph를 재생성해 exact 비교한다. 이관된 RunSnapshot v1 KAT는 331 bytes, SHA-256 `73ea51d49acb0fc2b1f2b1d696241dcf724937653e42d1249d63d66f9ff34797`다.
@@ -326,12 +331,22 @@
 - `RUN_COMPLETE`, 단일 `continue_run.bin`의 temp/backup 검증 교체, 저장 성공 뒤에만 활성 상태를 바꾸는 `RunManager`를 구현했다.
 - 기존 P2/P3 전투를 standalone/run mode로 분리하고 encounter의 실제 AI 등급과 terminal outcome을 런에 연결했다. 숨겨진 전투 씬은 process/input을 중단한다.
 - `main.tscn`을 640×1,024 런 graybox로 전환했다. native screenshot은 640×1,024 비단색 렌더와 시작/이어하기 화면의 무겹침을 확인했다.
-- catalog v9 fingerprint `f556a6e8c162e62ad2df3a90ab006f52aeefecbadc204f1f204307aaf124965f`로 P2/P3/P4 fixture를 이관했다.
+- P4 단독 catalog v9 fingerprint는 `f556a6e8c162e62ad2df3a90ab006f52aeefecbadc204f1f204307aaf124965f`였으며, P5-DZ 병합 뒤 통합 catalog v10으로 이관했다.
 - 표적 8개 그룹과 production core/P3 AI 기반 quick 4런이 통과했다. 누적 검사에서 P3 AI 안전 재시도의 256단위 각도 이탈과 revenge boon의 잘못된 적용 phase를 발견해 수정했다.
 - Godot 활성 P2/P3/P4 narrow·quick 4런, import/smoke/manifest/native render가 통과했다. 대표 러너 10종 통합 집계도 통과했으며 `--full`·16-seed 전수는 정식 릴리즈 부채로 유지한다.
 - P4 종료 전 남은 gate는 두 대표 경로, 저장/재시작, Pages Web 렌더에 대한 사람 검수다.
 
-### 3.17 다음 작업 실행 명령
+### 3.17 P5-DZ 턴 시작 데미지 존 구현·병합 기록
+
+- 맵은 경계·슬롯만 소유하고 네 development encounter가 같은 중앙 사각형 데미지 존을 각각 소유한다. KILL 엔진과 기존 회귀는 유지하되 현재 runtime map의 KILL 존은 제거했다.
+- 기물 원이 폴리곤 내부·경계·접선에 닿으면 자기 `TURN_START`에 존당 정확히 15 피해를 받는다. 여러 존은 zone ID 오름차순으로 개별 적용하며, 생존자만 `ON_TURN_START` 뒤 AIM으로 이동한다.
+- 환경 피해 사망은 일반 파괴·`ON_DEATH_SELF`를 유지하지만 공격자, `ON_HIT_DEAL`, `ON_KILL`, kill tally를 만들지 않는다. `SPAWN_ZONE`도 같은 피해값·수명·rollback 경계를 재사용한다.
+- 원격 P5-DZ 단독 계보의 abilities v6·encounters v2·catalog v8·`BattleSnapshot` v9를 P4-5/6의 catalog v9·`RunSnapshot` v2와 병합했다. 통합 스키마는 catalog/fingerprint v10이며 현재 runtime fingerprint는 `68a8bc7f39ba0bc8d80c4ab097e09fc6c901ecdf7f020f8d3c5f2112f9d0e078`, 335-byte `RunSnapshot` v2 KAT SHA-256은 `f7d9ad1ed82658bf30cabe2d0eeb5227597f359b74afa814a0a4c2c113f346e2`다.
+- 회색상자는 별도 64×64 반복 overlay와 `턴 시작 -15` 표기를 사용한다. 맵 보드 이미지에는 위험 구역이나 기물을 굽지 않으며 실제 아트 교체는 `art lock` 이후 별도 진행한다.
+- 원격 단독 구현에서 독립 기하 기준값과 Godot P5-DZ 9개 그룹, P2-6 quick 22개 그룹·1,000회 결정성·seed-0 두 종결 전투가 통과했다. 병합 통합 결과는 아래 데모 검증 기록을 정본으로 삼는다. 정식 release의 16×2 exact terminal 골든 갱신과 사람 플레이 검수는 남아 있다.
+- 병합 통합에서 P2-1 23개, P2-6 22개, P4-1 17개, P4-2 8개, P5-DZ 9개 그룹과 P4-6 저장/UI 기본 8개 그룹을 통과했다. production 4런도 세 병렬 케이스와 한 단독 재검증으로 전부 통과했다. 병렬 러너는 PID별 저장소로 격리했고 CPU 경쟁을 고려해 케이스 제한을 600초로 조정했다.
+
+### 3.18 다음 작업 실행 명령
 
 Windows PowerShell에서 먼저 `$env:PYTHONUTF8='1'`을 설정한다.
 

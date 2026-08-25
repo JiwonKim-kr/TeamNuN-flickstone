@@ -170,6 +170,8 @@ enum FieldId {
 	COUNT = 116,
 	COST = 117,
 	OPTION_ID = 118,
+	DAMAGE_ZONES = 119,
+	TURN_START_DAMAGE = 120,
 }
 
 var _code: int = Code.OK

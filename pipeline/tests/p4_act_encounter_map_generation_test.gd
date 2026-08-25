@@ -1,7 +1,7 @@
 extends SceneTree
 
 const DATA_DB_SCRIPT: Script = preload("res://src/core/autoload/data_db.gd")
-const EXPECTED_FINGERPRINT: String = "f556a6e8c162e62ad2df3a90ab006f52aeefecbadc204f1f204307aaf124965f"
+const EXPECTED_FINGERPRINT: String = "68a8bc7f39ba0bc8d80c4ab097e09fc6c901ecdf7f020f8d3c5f2112f9d0e078"
 const EXPECTED_GRAPH: String = "1:1:0:1:1>2,3|2:2:0:3:1>4|3:2:1:4:1>5|4:3:0:1:1>6|5:3:1:2:3>6|6:4:0:5:0>7|7:5:0:6:4>"
 
 var failures: int = 0
@@ -34,7 +34,7 @@ func test_catalog(catalog: ContentCatalog) -> void:
 	var act: ActDefinition = catalog.act_by_numeric_id(1, status)
 	var elite: EncounterDefinition = catalog.encounter_by_string_id("development_elite_pair", status)
 	var boss: EncounterDefinition = catalog.encounter_by_numeric_id(4, status)
-	check("P4-2-CATALOG-V9-COUNTS", status.is_ok() and catalog.catalog_schema_version() == 9 and catalog.registry_entry_count() == 28 and catalog.act_count() == 1 and catalog.encounter_count() == 4 and catalog.enemy_count() == 5 and catalog.relic_count() == 1 and catalog.consumable_count() == 1 and catalog.shop_count() == 1 and catalog.event_count() == 1)
+	check("P4-2-CATALOG-V10-COUNTS", status.is_ok() and catalog.catalog_schema_version() == 10 and catalog.registry_entry_count() == 28 and catalog.act_count() == 1 and catalog.encounter_count() == 4 and catalog.enemy_count() == 5 and catalog.relic_count() == 1 and catalog.consumable_count() == 1 and catalog.shop_count() == 1 and catalog.event_count() == 1)
 	check("P4-2-ACT-ENCOUNTER-TYPED", status.is_ok() and act.is_initialized() and act.is_development() and act.floor_count() == 5 and elite.node_type_id() == RunNodeType.Value.ELITE_BATTLE and elite.enemy_ref_count() == 3 and boss.node_type_id() == RunNodeType.Value.BOSS and boss.reward_profile_numeric_id() == 3)
 	var copy: ActDefinition = act.copy()
 	check("P4-2-CATALOG-DEEP-COPY", copy.is_initialized() and copy.numeric_id() == act.numeric_id() and copy.floor_count() == act.floor_count())
