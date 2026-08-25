@@ -57,6 +57,7 @@ DEMO_RUNNER_NAMES = (
     "run_p2_content_graybox.py",
     "run_p3_ai_shot_selection.py",
     "run_p4_formation_battle_outcome_life.py",
+    "run_p4_run_ui_save_completion.py",
     "run_placeholder_pipeline.py",
     "run_play_pipeline.py",
     "run_web_export.py",

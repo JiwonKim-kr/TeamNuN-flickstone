@@ -19,6 +19,8 @@ config/features=PackedStringArray("4.6")
 [autoload]
 
 DataDB="*res://src/core/autoload/data_db.gd"
+SaveManager="*res://src/core/autoload/save_manager.gd"
+RunManager="*res://src/core/autoload/run_manager.gd"
 
 [debug]
 

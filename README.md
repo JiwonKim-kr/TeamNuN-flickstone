@@ -68,7 +68,7 @@ python pipeline/scripts/verify.py --demo --skip-godot
 
 Godot 4.6.x 실행 파일을 설정한 뒤에는 `--skip-godot` 없이 전체 게이트를 실행합니다.
 
-데모 기간의 push/PR CI는 기본 게이트와 대표 회귀 9종을 `--demo`로 실행하고 P0 결정론을 quick 값(20회·순열 3회)으로 줄입니다. 문서 전용 변경은 자동 검증을 생략하며, 정식 릴리스 전에는 Actions에서 수동 `release` 프로필(전체 25종·1,000회·Windows 교차 검증)을 통과시켜야 합니다.
+데모 기간의 push/PR CI는 기본 게이트와 대표 회귀 10종을 `--demo`로 실행하고 P0 결정론을 quick 값(20회·순열 3회)으로 줄입니다. 문서 전용 변경은 자동 검증을 생략하며, 정식 릴리스 전에는 Actions에서 수동 `release` 프로필(전체 러너·1,000회·Windows 교차 검증)을 통과시켜야 합니다.
 
 ## Web 프리뷰
 

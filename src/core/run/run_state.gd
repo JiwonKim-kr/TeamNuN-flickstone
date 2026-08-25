@@ -188,6 +188,9 @@ func _validate_structure(status: SimStatus) -> bool:
 	elif _phase_id == RunPhase.Value.ACT_COMPLETE:
 		if not is_battle_node or current_node.node_type_id() != RunNodeType.Value.BOSS or not completed_current or not _deployment_instance_ids.is_empty() or _pending_choice.kind_id() != RunPendingKind.Value.NONE or _next_battle_status_numeric_id != 0 or _life == 0:
 			status.fail(SimStatus.Code.INVALID_RUN_STATE, SimStatus.Operation.RUN_STATE_VALIDATE, _phase_id, _current_node_id); return false
+	elif _phase_id == RunPhase.Value.RUN_COMPLETE:
+		if not is_battle_node or current_node.node_type_id() != RunNodeType.Value.BOSS or not completed_current or not _deployment_instance_ids.is_empty() or _pending_choice.kind_id() != RunPendingKind.Value.NONE or _next_battle_status_numeric_id != 0 or _life == 0:
+			status.fail(SimStatus.Code.INVALID_RUN_COMPLETION, SimStatus.Operation.RUN_STATE_VALIDATE, _phase_id, _current_node_id); return false
 	elif _phase_id == RunPhase.Value.RUN_FAILED:
 		if not is_battle_node or completed_current or not _deployment_instance_ids.is_empty() or _pending_choice.kind_id() != RunPendingKind.Value.NONE or _next_battle_status_numeric_id != 0 or _life != 0:
 			status.fail(SimStatus.Code.INVALID_RUN_STATE, SimStatus.Operation.RUN_STATE_VALIDATE, _phase_id, _life); return false
@@ -857,6 +860,24 @@ func resolve_rest(catalog: ContentCatalog, choice_id: int, first_instance_id: in
 	candidate._finish_to_map_choice(true, status)
 	if not status.is_ok() or not candidate._validate_structure(status) or not candidate._validate_catalog_phase(catalog, status): return false
 	_assign_from(candidate); return true
+
+func complete_development_run(catalog: ContentCatalog, status: SimStatus) -> bool:
+	if not status.is_ok(): return false
+	if not _initialized or _phase_id != RunPhase.Value.ACT_COMPLETE or catalog == null or not catalog.is_initialized() or _content_fingerprint != catalog.fingerprint_bytes() or not validate(catalog, status):
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_RUN_COMPLETION, SimStatus.Operation.RUN_COMPLETE, _phase_id, _act_numeric_id)
+		return false
+	var content_status := ContentStatus.new()
+	var act: ActDefinition = catalog.act_by_numeric_id(_act_numeric_id, content_status)
+	var node: RunNode = _graph.node_by_id(_current_node_id, status)
+	if not content_status.is_ok() or not act.is_initialized() or not act.is_development() or not status.is_ok() or node.floor_index() != _graph.floor_count() or node.node_type_id() != RunNodeType.Value.BOSS or not _current_node_is_completed():
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_RUN_COMPLETION, SimStatus.Operation.RUN_COMPLETE, _act_numeric_id, _current_node_id)
+		return false
+	var candidate: RunState = copy(status)
+	if not status.is_ok(): return false
+	candidate._phase_id = RunPhase.Value.RUN_COMPLETE
+	if not candidate._validate_structure(status) or not candidate._validate_catalog_phase(catalog, status): return false
+	_assign_from(candidate)
+	return true
 
 func is_initialized() -> bool: return _initialized
 func content_fingerprint_bytes() -> PackedByteArray: return _content_fingerprint.duplicate()

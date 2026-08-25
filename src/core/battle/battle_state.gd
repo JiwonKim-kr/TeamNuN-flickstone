@@ -1473,7 +1473,9 @@ func attach_content(catalog: ContentCatalog, identities: Array[BattlePieceIdenti
 func apply_run_opening_status(player_body_ids: Array[int], status_numeric_id: int, status: SimStatus) -> bool:
 	if not status.is_ok(): return false
 	if status_numeric_id == 0: return true
-	if not _initialized or not _require_phase(Phase.BATTLE_START, SimStatus.Operation.RUN_BOON_APPLY, status) or not _content_catalog.is_initialized() or player_body_ids.is_empty():
+	# BattleSetupBuilder resolves BATTLE_START before returning the playable
+	# state, so run-opening boons attach at the resulting TURN_START boundary.
+	if not _initialized or not _require_phase(Phase.TURN_START, SimStatus.Operation.RUN_BOON_APPLY, status) or not _content_catalog.is_initialized() or player_body_ids.is_empty():
 		if status.is_ok(): status.fail(SimStatus.Code.INVALID_RUN_BOON, SimStatus.Operation.RUN_BOON_APPLY, status_numeric_id, player_body_ids.size())
 		return false
 	var content_status := ContentStatus.new(); var definition: StatusDefinition = _content_catalog.status_by_numeric_id(status_numeric_id, content_status)

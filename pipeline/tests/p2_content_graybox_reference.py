@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "pipeline" / "scripts"))
 from content_catalog import ContentError, load_catalog  # noqa: E402
 
 RUNTIME = ROOT / "src" / "core" / "data"
-EXPECTED_FINGERPRINT = "ed6dd1319f158a539ffe4bc89bce965ea1061586b1e462a7e211bb8f0f561e3e"
+EXPECTED_FINGERPRINT = "f556a6e8c162e62ad2df3a90ab006f52aeefecbadc204f1f204307aaf124965f"
 
 
 def mutate(file_name: str, callback) -> tuple[bool, str]:
@@ -73,11 +73,11 @@ def main() -> int:
     assert catalog.fingerprint.hex() == EXPECTED_FINGERPRINT
     assert [piece.string_id for piece in catalog.pieces] == ["baduk_stone", "bottle_cap", "graybox_striker"]
     assert [ability.string_id for ability in catalog.abilities] == ["graybox_opening_haste"]
-    assert [status.string_id for status in catalog.statuses] == ["graybox_haste"]
+    assert [status.string_id for status in catalog.statuses] == ["graybox_haste", "development_revenge"]
     assert [synergy.string_id for synergy in catalog.synergies] == ["destruction", "steel"]
     assert [item.string_id for item in catalog.enemies] == ["enemy_baduk_stone", "enemy_bottle_cap", "enemy_graybox_striker", "graybox_elite_baduk_stone", "graybox_boss_graybox_striker"]
     assert [item.string_id for item in catalog.maps] == ["graybox_pit_arena"]
-    assert all(len(piece.levels) == 1 for piece in catalog.pieces)
+    assert [len(piece.levels) for piece in catalog.pieces] == [3, 3, 1]
 
     with tempfile.TemporaryDirectory(prefix="flickstone-p2-graybox-order-") as temporary:
         reordered = Path(temporary) / "data"
@@ -113,7 +113,7 @@ def main() -> int:
     assert destruction.count_cap == 5 and destruction.tiers[0].modifiers[0].value == 1000
     assert steel.count_cap == 8 and [item.value for item in steel.tiers[0].modifiers] == [2, 327680]
 
-    print("[PASS] P2-6-PY-RUNTIME exact package IDs, records, and level-one boundary")
+    print("[PASS] P2-6-PY-RUNTIME exact package IDs and P4-approved roster levels")
     print("[PASS] P2-6-PY-CANONICAL reordered registry/records preserve fingerprint")
     print("[PASS] P2-6-PY-NEGATIVE-BOUNDARY references, overrides, KILL slots, and max-radius edge")
     print("P2_CONTENT_GRAYBOX_REFERENCE_RESULT: PASS")

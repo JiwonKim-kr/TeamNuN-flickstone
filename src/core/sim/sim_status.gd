@@ -90,6 +90,7 @@ enum Code {
 	INVALID_RUN_SHOP = 77,
 	INVALID_RUN_EVENT = 78,
 	INVALID_RUN_EFFECT = 79,
+	INVALID_RUN_COMPLETION = 80,
 }
 
 enum Operation {
@@ -266,6 +267,7 @@ enum Operation {
 	RUN_EVENT_CHOOSE = 170,
 	RUN_EVENT_RESOLVE = 171,
 	RUN_CONSUMABLE_USE = 172,
+	RUN_COMPLETE = 173,
 }
 
 var _code: int = Code.OK

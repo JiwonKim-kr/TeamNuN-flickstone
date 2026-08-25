@@ -1,0 +1,121 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://src/ui/run/run_graybox.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/p2_content_graybox.tscn" id="2"]
+
+[sub_resource type="StyleBoxFlat" id="panel"]
+bg_color = Color(0.055, 0.067, 0.09, 0.98)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.25, 0.32, 0.42, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[node name="RunGraybox" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.025, 0.03, 0.045, 1)
+mouse_filter = 2
+
+[node name="Header" type="PanelContainer" parent="."]
+layout_mode = 0
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 624.0
+offset_bottom = 112.0
+theme_override_styles/panel = SubResource("panel")
+
+[node name="Margin" type="MarginContainer" parent="Header"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 10
+
+[node name="Label" type="Label" parent="Header/Margin"]
+layout_mode = 2
+text = "Flickstone P4-6"
+autowrap_mode = 2
+
+[node name="Content" type="ScrollContainer" parent="."]
+layout_mode = 0
+offset_left = 16.0
+offset_top = 128.0
+offset_right = 624.0
+offset_bottom = 928.0
+horizontal_scroll_mode = 0
+
+[node name="Body" type="VBoxContainer" parent="Content"]
+custom_minimum_size = Vector2(608, 0)
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Footer" type="PanelContainer" parent="."]
+layout_mode = 0
+offset_left = 16.0
+offset_top = 944.0
+offset_right = 624.0
+offset_bottom = 1008.0
+theme_override_styles/panel = SubResource("panel")
+
+[node name="Margin" type="MarginContainer" parent="Footer"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 8
+
+[node name="Label" type="Label" parent="Footer/Margin"]
+layout_mode = 2
+text = "단일 continue 저장"
+autowrap_mode = 2
+
+[node name="Battle" parent="." instance=ExtResource("2")]
+visible = false
+
+[node name="SaveOverlay" type="PanelContainer" parent="."]
+visible = false
+layout_mode = 0
+offset_left = 80.0
+offset_top = 360.0
+offset_right = 560.0
+offset_bottom = 650.0
+theme_override_styles/panel = SubResource("panel")
+
+[node name="Margin" type="MarginContainer" parent="SaveOverlay"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="Rows" type="VBoxContainer" parent="SaveOverlay/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Error" type="Label" parent="SaveOverlay/Margin/Rows"]
+layout_mode = 2
+text = "저장 실패"
+autowrap_mode = 2
+
+[node name="Retry" type="Button" parent="SaveOverlay/Margin/Rows"]
+custom_minimum_size = Vector2(0, 58)
+layout_mode = 2
+text = "저장 재시도"

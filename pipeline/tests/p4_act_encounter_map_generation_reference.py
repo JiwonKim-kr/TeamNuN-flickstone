@@ -16,7 +16,7 @@ from content_catalog import ActDefinition, Catalog, load_catalog  # noqa: E402
 from p0_rng_reference import Xoshiro128StarStar, derive_state  # noqa: E402
 
 RUNTIME = ROOT / "src" / "core" / "data"
-EXPECTED_FINGERPRINT = "ed6dd1319f158a539ffe4bc89bce965ea1061586b1e462a7e211bb8f0f561e3e"
+EXPECTED_FINGERPRINT = "f556a6e8c162e62ad2df3a90ab006f52aeefecbadc204f1f204307aaf124965f"
 EXPECTED_GRAPH = (
     (1, 1, 0, 1, 1, (2, 3)),
     (2, 2, 0, 3, 1, (4,)),
@@ -95,6 +95,7 @@ def main() -> int:
     catalog: Catalog = load_catalog(RUNTIME)
     assert catalog.fingerprint.hex() == EXPECTED_FINGERPRINT
     assert (len(catalog.acts), len(catalog.encounters), len(catalog.enemies)) == (1, 4, 5)
+    assert (len(catalog.relics), len(catalog.consumables), len(catalog.shops), len(catalog.events)) == (1, 1, 1, 1)
     graph = generate_graph(catalog.acts[0], 17, 29)
     if not EXPECTED_GRAPH:
         print("P4_MAP_REFERENCE_GRAPH=" + json.dumps(graph, separators=(",", ":")))
@@ -118,8 +119,8 @@ def main() -> int:
         ("relics.json", lambda value: value["records"].append({"numeric_id": 1})),
     )
     assert all(not _mutate(file_name, callback) for file_name, callback in invalid_mutations)
-    print("[PASS] P4-2-PY-CATALOG v7 Act/Encounter normalized content")
-    print("[PASS] P4-2-PY-NEGATIVE exact keys, indices, refs, coverage, and empty future docs")
+    print("[PASS] P4-2-PY-CATALOG v9 Act/Encounter and run-item normalized content")
+    print("[PASS] P4-2-PY-NEGATIVE exact keys, indices, refs, and coverage")
     print("[PASS] P4-2-PY-GRAPH independent exact node/content/edge KAT")
     print("[PASS] P4-2-PY-DETERMINISM 1000 repeats and seed separation")
     print("P4_ACT_ENCOUNTER_MAP_GENERATION_REFERENCE_RESULT: PASS")

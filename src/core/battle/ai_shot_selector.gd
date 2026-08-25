@@ -63,6 +63,10 @@ static func _signed_error(random: BattleRandom, limit: int, quantum: int, status
 	var steps: int = limit / quantum
 	return (random.next_index(steps * 2 + 1, status) - steps) * quantum
 
+static func _halve_angle_error(value: int, status: SimStatus) -> int:
+	var halved: int = FixMath.trunc_div_int(value, 2, status)
+	return FixMath.trunc_div_int(halved, LaunchLimits.ANGLE_STEP, status) * LaunchLimits.ANGLE_STEP
+
 static func command_for(state: BattleState, grade_id: int, status: SimStatus) -> LaunchCommand:
 	if not status.is_ok() or state == null or state.phase() != BattleState.Phase.AIM or not AiGrade.is_known(grade_id):
 		if status.is_ok(): status.fail(SimStatus.Code.INVALID_ARGUMENT, SimStatus.Operation.BATTLE_SHOT_SUPPLY, grade_id, 0)
@@ -79,5 +83,5 @@ static func command_for(state: BattleState, grade_id: int, status: SimStatus) ->
 		var perturbed := LaunchCommand.create((best.command.angle() + angle_delta) & 0xFFFF, clampi(best.command.power_step() + power_delta, LaunchLimits.MIN_POWER_STEP, LaunchLimits.POWER_STEPS), status)
 		var evaluation := AiShotEvaluator.evaluate(state, perturbed, status)
 		if evaluation.is_safe() or safe_best == null: return perturbed
-		angle_delta = FixMath.trunc_div_int(angle_delta, 2, status); power_delta = FixMath.trunc_div_int(power_delta, 2, status)
+		angle_delta = _halve_angle_error(angle_delta, status); power_delta = FixMath.trunc_div_int(power_delta, 2, status)
 	return safe_best.command.copy() if safe_best != null else best.command.copy()

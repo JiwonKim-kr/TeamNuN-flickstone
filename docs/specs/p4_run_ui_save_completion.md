@@ -10,6 +10,7 @@
 | 검증 정책 | 데모 P4 종료는 quick 4런과 표적 milestone 사례를 사용하고 16-seed 전수는 정식 릴리즈로 이연 |
 | 승인 | 2026-08-25 · 사용자 P4-F01~20 및 전체 명세 승인 |
 | 구현 권한 | **있음. 승인된 P4-6 범위 구현 가능** |
+| 구현 상태 | **구현·데모 자동 검증 완료 · 사람 Act/저장/Web 검수 대기** |
 
 ## 목적
 
@@ -446,3 +447,11 @@ UI가 커지면 `src/ui/run/` 아래 panel script 또는 `scenes/run/` 아래 su
 ## 승인 기록
 
 2026-08-25 사용자는 P4-F01~20과 전체 상세 명세를 승인했다. P4-F19에 따라 기존 P4-R17의 데모 단계 종료 검증량은 quick 4런과 표적 milestone로 이관하고, 16 seeds×모든 route profile 및 `verify --full`은 정식 릴리즈 검증 부채로 남긴다.
+
+## 구현 기록
+
+2026-08-25 `RUN_COMPLETE`, `RunSaveStatus`, 단일 슬롯 `SaveManager`, 저장 성공 뒤 active state를 교체하는 `RunManager`, 기존 전투의 run mode, 640×1,024 런 graybox와 main 진입점을 구현했다. catalog v9 이관 뒤 현재 fingerprint는 `f556a6e8c162e62ad2df3a90ab006f52aeefecbadc204f1f204307aaf124965f`다.
+
+표적 저장/복원·손상 진단·교체·manager route 검사와 production core/P3 AI 기반 2 seeds×2 routes quick 4런이 통과했다. 누적 검증 중 P3 안전 재시도의 각도 양자화 이탈과 P4 revenge boon 적용 phase 불일치를 발견해 각각 승인 계약 안에서 수정했다. Godot 4.6.3 import·main smoke·manifest와 640×1,024 native screenshot도 통과했다. 데모 대표 러너 10종은 통합 `--skip-godot` 집계와 영향 Godot narrow를 조합해 모두 통과했으며, 중복 장시간 `--full`과 16-seed 전수는 실행하지 않았다.
+
+자동 검증만으로 P4를 닫지 않는다. 두 대표 경로, 저장/재시작, Pages Web 렌더는 P4-F20에 따라 사람 검수 대기다.

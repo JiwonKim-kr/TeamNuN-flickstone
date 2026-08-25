@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P4-1~3 구현·자동 검증 완료 · P4-4~5 구현 완료·누적 검증 대기 · P4-6 상세 명세 승인·구현 대기**. 병행 P5 트랙은 A/B/C 스타일 보드 생성·probe 완료 후 사람 방향 선택 대기이며, P4-W Web 프리뷰는 공개 배포·브라우저 검수 완료 |
+| 현재 단계 | **P4-1~6 구현·데모 자동 검증 완료 · P4 사람 Act/저장/Web 검수 대기**. 병행 P5 트랙은 A/B/C 스타일 보드 생성·probe 완료 후 사람 방향 선택 대기이며, P4-W Web 프리뷰는 공개 배포·브라우저 검수 완료 |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -39,7 +39,7 @@
 | 승인 지점 | play spec 승인 / art lock / review — **생략 불가** |
 | 에셋 정책 | P0·P1은 매니페스트에 등록한 플레이스홀더만 사용 |
 | 아트·사운드 시작 | 전투 감각 승인 완료. `art lock`, `art gen`, SE는 별도 요청·승인 절차로 시작 |
-| CI | 데모 push/PR은 Godot 4.6.3 `verify --demo`(대표 9종); 수동 `release`는 전체 25종 + 1,000회 + Windows 결정론 |
+| CI | 데모 push/PR은 Godot 4.6.3 `verify --demo`(대표 10종); 수동 `release`는 전체 러너 + 1,000회 + Windows 결정론 |
 
 ## 3. 현재 저장소 상태
 
@@ -137,9 +137,10 @@
 - [x] P4-1 RunState·RunSnapshot v1 승인·구현·데모 검증 완료 (`docs/specs/p4_run_state_snapshot.md`)
 - [x] P4-2 catalog v7·Act/Encounter typed data·결정론적 7-node map generation·snapshot exact 이관 완료 (`docs/specs/p4_act_encounter_map_generation.md`)
 - [x] P4-3 편성·불변 battle request/outcome·라이프·D-12 복원·BattleSnapshot v8 구현 및 데모 검증 완료 (`docs/specs/p4_formation_battle_outcome_life.md`)
-- [x] P4-4 영입·골드·휴식·합성과 P4-5 유물·소모품·상점·이벤트 구현 완료. 누적 검증은 P4-6에서 수행
+- [x] P4-4 영입·골드·휴식·합성과 P4-5 유물·소모품·상점·이벤트 구현·P4-6 누적 검증 완료
 - [x] P4-6 런 완료·단일 저장·런 UI·자동 4런 상세 명세 승인 (`docs/specs/p4_run_ui_save_completion.md`)
-- [ ] P4-6 구현·누적 검증·사람 Act 완주
+- [x] P4-6 구현·데모 누적 검증 완료
+- [ ] P4-6 사람 Act 완주·저장 재시작·Pages Web 렌더 검수
 - [x] P5 아트 디렉션과 첫 컨셉 배치 승인 초안 작성 (`docs/specs/p5_art_direction.md`)
 - [x] 아트 파이프라인 준비 검증 — env/dry-run·nearest/alpha·임시 reskin·Godot 4.6.3 재임포트·play_test 전체 통과, Scenario 라이브 생성만 키 부재로 SKIP
 - [x] Scenario 인증과 최신 제3자 생성 API 라이브 검증 — FLUX.2 `numOutputs` 요청, `job.result.images` 다운로드 확인
@@ -320,7 +321,17 @@
 - RunSnapshot v2 layout을 유지하면서 non-empty inventory와 SHOP/EVENT capture·restore 의미 검증을 열었다. production Python parser runtime 로드와 최소 Godot 4.6.3 import/headless 시작은 통과했다.
 - P4-5 runner·canonical cross-KAT·대표 회귀·quick 4런·`verify --demo`는 승인된 일정 정책에 따라 P4-6 누적 검증으로 이연했다.
 
-### 3.16 다음 작업 실행 명령
+### 3.16 P4-6 런 UI·저장·완주 구현 기록
+
+- `RUN_COMPLETE`, 단일 `continue_run.bin`의 temp/backup 검증 교체, 저장 성공 뒤에만 활성 상태를 바꾸는 `RunManager`를 구현했다.
+- 기존 P2/P3 전투를 standalone/run mode로 분리하고 encounter의 실제 AI 등급과 terminal outcome을 런에 연결했다. 숨겨진 전투 씬은 process/input을 중단한다.
+- `main.tscn`을 640×1,024 런 graybox로 전환했다. native screenshot은 640×1,024 비단색 렌더와 시작/이어하기 화면의 무겹침을 확인했다.
+- catalog v9 fingerprint `f556a6e8c162e62ad2df3a90ab006f52aeefecbadc204f1f204307aaf124965f`로 P2/P3/P4 fixture를 이관했다.
+- 표적 8개 그룹과 production core/P3 AI 기반 quick 4런이 통과했다. 누적 검사에서 P3 AI 안전 재시도의 256단위 각도 이탈과 revenge boon의 잘못된 적용 phase를 발견해 수정했다.
+- Godot 활성 P2/P3/P4 narrow·quick 4런, import/smoke/manifest/native render가 통과했다. 대표 러너 10종 통합 집계도 통과했으며 `--full`·16-seed 전수는 정식 릴리즈 부채로 유지한다.
+- P4 종료 전 남은 gate는 두 대표 경로, 저장/재시작, Pages Web 렌더에 대한 사람 검수다.
+
+### 3.17 다음 작업 실행 명령
 
 Windows PowerShell에서 먼저 `$env:PYTHONUTF8='1'`을 설정한다.
 
@@ -365,6 +376,9 @@ python pipeline/tests/run_p4_act_encounter_map_generation.py --godot pipeline/ar
 # P4-3 편성·전투 결과·라이프 narrow
 python pipeline/tests/run_p4_formation_battle_outcome_life.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
 
+# P4-6 저장·런 UI·production quick 4런
+python pipeline/tests/run_p4_run_ui_save_completion.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
+
 # P1-5 결정론 회귀
 python pipeline/tests/run_p1_batch_sim_graybox.py --mode narrow --jobs 4 --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
 python pipeline/tests/run_p1_batch_sim_graybox.py --mode batch --jobs 4 --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
@@ -374,7 +388,7 @@ python pipeline/tests/run_p1_batch_sim_graybox.py --mode exhaustive --jobs 4 --g
 python pipeline/scripts/verify.py --full --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
 ```
 
-단위 작업에서는 영향받은 narrow 뒤 quick 통합을 사용하고, 데모 기간 push/PR CI는 기본 게이트와 대표 회귀 8종인 `verify --demo`를 실행한다. P0 골든 갱신과 정식 릴리스 전에는 quick 환경변수를 제거하며, Actions의 수동 `release` 프로필로 Ubuntu 전체 25종·1,000회 정밀 게이트와 Windows 교차 결정론을 모두 통과시킨다.
+단위 작업에서는 영향받은 narrow 뒤 quick 통합을 사용하고, 데모 기간 push/PR CI는 기본 게이트와 대표 회귀 10종인 `verify --demo`를 실행한다. P0 골든 갱신과 정식 릴리스 전에는 quick 환경변수를 제거하며, Actions의 수동 `release` 프로필로 전체 러너·1,000회 정밀 게이트와 Windows 교차 결정론을 모두 통과시킨다.
 
 ## 4. 구현 우선순위
 

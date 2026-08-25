@@ -2,6 +2,8 @@ class_name P2ContentGraybox
 extends Node2D
 ## Data-driven P2-6 playable graybox. Core state remains authoritative.
 
+signal run_battle_finished(outcome: RunBattleOutcome)
+
 const PLAYER_TEXTURE := preload("res://assets/art/sprites/p1_graybox/PLACEHOLDER_player_piece.png")
 const ENEMY_TEXTURE := preload("res://assets/art/sprites/p1_graybox/PLACEHOLDER_enemy_piece.png")
 const CONTENT_DRIVER: Script = preload("res://src/ui/battle/p2_content_battle_driver.gd")
@@ -43,6 +45,9 @@ var _prediction_cache: Dictionary = {}
 var _aim_power_step: int = 0
 var _enemy_action_delay: EnemyActionDelay = ENEMY_ACTION_DELAY.new()
 var _ai_review_grade_id: int = AiGrade.Value.COMMON
+var _run_mode: bool = false
+var _run_request := RunBattleRequest.new()
+var _run_outcome_emitted: bool = false
 
 
 func _ready() -> void:
@@ -80,6 +85,8 @@ func _load_content() -> void:
 
 
 func _process(_delta: float) -> void:
+	if not visible:
+		return
 	_poll_prediction()
 	if not _content_error.is_ok() or not _error.is_ok() or _state == null:
 		_sync_view()
@@ -96,10 +103,13 @@ func _process(_delta: float) -> void:
 			if Time.get_ticks_usec() - frame_started >= RESOLVE_FRAME_BUDGET_USEC:
 				break
 	_advance_noninteractive_phases()
+	_emit_run_outcome_if_ready()
 	_sync_view()
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not visible:
+		return
 	if event.is_action_pressed("ui_cancel"):
 		_input.cancel_aim()
 		get_viewport().set_input_as_handled()
@@ -107,19 +117,19 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
 			KEY_R:
-				_restart()
+				if not _run_mode: _restart()
 				return
 			KEY_1, KEY_2, KEY_3:
-				_cycle_player_slot(int(event.keycode - KEY_1))
+				if not _run_mode: _cycle_player_slot(int(event.keycode - KEY_1))
 				return
 			KEY_F1, KEY_7:
-				select_ai_review_grade(AiGrade.Value.COMMON)
+				if not _run_mode: select_ai_review_grade(AiGrade.Value.COMMON)
 				return
 			KEY_F2, KEY_8:
-				select_ai_review_grade(AiGrade.Value.ELITE)
+				if not _run_mode: select_ai_review_grade(AiGrade.Value.ELITE)
 				return
 			KEY_F3, KEY_9:
-				select_ai_review_grade(AiGrade.Value.BOSS)
+				if not _run_mode: select_ai_review_grade(AiGrade.Value.BOSS)
 				return
 	if not event is InputEventMouse or not _content_error.is_ok() or not _error.is_ok():
 		return
@@ -182,9 +192,8 @@ func _advance_noninteractive_phases() -> void:
 			if not _enemy_action_delay.is_ready(_state.current_actor_body_id(), Time.get_ticks_msec()):
 				return
 			_enemy_action_delay.consume()
-			var command: LaunchCommand = AiShotSelector.command_for(
-				_state, _ai_review_grade_id, _error
-			)
+			var grade_id: int = _run_enemy_grade(_state.current_actor_body_id(), _error) if _run_mode else _ai_review_grade_id
+			var command: LaunchCommand = AiShotSelector.command_for(_state, grade_id, _error)
 			if _error.is_ok():
 				LaunchVelocitySolver.commit(_state, command, _error)
 				_resolve_content_transition()
@@ -450,6 +459,15 @@ func _ensure_piece_view(body_id: int, faction: int) -> Node2D:
 
 
 func _selection_text() -> String:
+	if _run_mode and _run_request.is_initialized():
+		var run_ids: PackedStringArray = PackedStringArray()
+		var status := SimStatus.new()
+		for index: int in range(_run_request.player_count()):
+			var entry: RunBattlePlayerEntry = _run_request.player_at(index, status)
+			var content_status := ContentStatus.new()
+			var piece: PieceDefinition = _catalog.piece_by_numeric_id(entry.piece_numeric_id(), content_status)
+			run_ids.append("#%d %s L%d" % [entry.run_instance_id(), piece.string_id(), entry.level()])
+		return " / ".join(run_ids)
 	var ids: PackedStringArray = PackedStringArray()
 	for selected_index: int in _selected_piece_indices:
 		ids.append(_piece_definitions[selected_index].string_id())
@@ -492,7 +510,7 @@ func ai_review_grade_name() -> String:
 
 
 func select_ai_review_grade(grade_id: int) -> bool:
-	if not AiGrade.is_known(grade_id):
+	if _run_mode or not AiGrade.is_known(grade_id):
 		return false
 	_ai_review_grade_id = grade_id
 	_restart()
@@ -534,7 +552,10 @@ func _sync_view() -> void:
 			(_piece_nodes[body_id] as Node2D).queue_free()
 			_piece_nodes.erase(body_id)
 	var phase_name: String = BattleState.Phase.keys()[_state.phase()]
-	_status_label.text = "P3 AI 검수 %s · 턴 %d · %s · actor #%d · 생존 %d/6 · fp %s" % [ai_review_grade_name(), _turns, phase_name, _state.current_actor_body_id(), world.body_count(), _catalog.fingerprint_hex().left(8)]
+	if _run_mode:
+		_status_label.text = "런 전투 · node #%d · 턴 %d · %s · actor #%d · 생존 %d/%d · fp %s" % [_run_request.node_id(), _turns, phase_name, _state.current_actor_body_id(), world.body_count(), _run_request.player_count() + _run_request.enemy_count(), _catalog.fingerprint_hex().left(8)]
+	else:
+		_status_label.text = "P3 AI 검수 %s · 턴 %d · %s · actor #%d · 생존 %d/6 · fp %s" % [ai_review_grade_name(), _turns, phase_name, _state.current_actor_body_id(), world.body_count(), _catalog.fingerprint_hex().left(8)]
 	if _input.is_dragging():
 		_status_label.text += " · POWER %d/%d" % [_aim_power_step, LaunchLimits.POWER_STEPS]
 	if _state.phase() == BattleState.Phase.RESOLVE:
@@ -571,7 +592,7 @@ func _cycle_player_slot(slot_index: int) -> void:
 
 
 func _restart() -> void:
-	if not _content_error.is_ok() or _selected_piece_indices.is_empty():
+	if _run_mode or not _content_error.is_ok() or _selected_piece_indices.is_empty():
 		return
 	_clear_piece_nodes()
 	_clear_aim()
@@ -585,3 +606,60 @@ func _restart() -> void:
 		_resolve_content_transition()
 		_advance_noninteractive_phases()
 	_sync_view()
+
+func start_run_battle(request: RunBattleRequest, catalog: ContentCatalog, status: SimStatus) -> bool:
+	if not status.is_ok() or request == null or not request.is_initialized() or catalog == null or not catalog.is_initialized() or request.content_fingerprint_bytes() != catalog.fingerprint_bytes():
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_RUN_BATTLE_REQUEST, SimStatus.Operation.RUN_BATTLE_BUILD)
+		return false
+	_clear_piece_nodes()
+	_clear_aim()
+	_enemy_action_delay.reset()
+	_run_mode = true
+	_run_request = request.copy()
+	_run_outcome_emitted = false
+	_turns = 0
+	_error = status
+	_content_error = ContentStatus.new()
+	_catalog = catalog.copy()
+	_map_definition = _catalog.map_by_numeric_id(request.map_numeric_id(), _content_error)
+	_piece_definitions.clear()
+	_enemy_definitions.clear()
+	_selected_piece_indices.clear()
+	for index: int in range(_catalog.piece_count()): _piece_definitions.append(_catalog.piece_at(index, _content_error))
+	if not _content_error.is_ok():
+		status.fail(SimStatus.Code.INVALID_RUN_BATTLE_REQUEST, SimStatus.Operation.RUN_BATTLE_BUILD, request.map_numeric_id(), _content_error.code())
+		return false
+	_state = RunBattleBridge.build_state(request, _catalog, status)
+	if not status.is_ok() or _state == null or not _state.is_initialized(): return false
+	_help_label.text = "기물 중심에서 멀리 당길수록 강하게 발사 · Esc: 조준 취소"
+	_build_map_view()
+	_resolve_content_transition()
+	_advance_noninteractive_phases()
+	_sync_view()
+	return status.is_ok()
+
+func leave_run_mode() -> void:
+	_run_mode = false
+	_run_request = RunBattleRequest.new()
+	_run_outcome_emitted = false
+	_help_label.text = "기물 중심에서 멀리 당길수록 강하게 발사 · 1/2/3: 기물 순환 · AI등급 F1/F2/F3 또는 7/8/9 · R: 재시작 · Esc: 취소"
+
+func _run_enemy_grade(body_id: int, status: SimStatus) -> int:
+	for index: int in range(_run_request.enemy_count()):
+		var entry: RunBattleEnemyEntry = _run_request.enemy_at(index, status)
+		if entry.expected_body_id() != body_id: continue
+		var content_status := ContentStatus.new()
+		var enemy: EnemyDefinition = _catalog.enemy_by_numeric_id(entry.enemy_numeric_id(), content_status)
+		if not content_status.is_ok() or not AiGrade.is_known(enemy.ai_grade_id()):
+			status.fail(SimStatus.Code.INVALID_RUN_BATTLE_REQUEST, SimStatus.Operation.RUN_BATTLE_BUILD, body_id, entry.enemy_numeric_id())
+			return AiGrade.Value.COMMON
+		return enemy.ai_grade_id()
+	status.fail(SimStatus.Code.INVALID_RUN_BATTLE_REQUEST, SimStatus.Operation.RUN_BATTLE_BUILD, body_id, 0)
+	return AiGrade.Value.COMMON
+
+func _emit_run_outcome_if_ready() -> void:
+	if not _run_mode or _run_outcome_emitted or _state == null or not _error.is_ok() or _state.phase() != BattleState.Phase.BATTLE_END: return
+	var outcome: RunBattleOutcome = RunBattleBridge.outcome_from(_run_request, _state, _error)
+	if not _error.is_ok() or not outcome.is_initialized(): return
+	_run_outcome_emitted = true
+	run_battle_finished.emit(outcome)
