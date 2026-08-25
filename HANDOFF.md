@@ -151,8 +151,9 @@
 - [x] A 방향 대표 기물 7종 + 바둑돌 대체안 생성·512×512 PNG probe 완료 (`assets/art/concepts/p5_token_refs_a/`)
 - [x] 선택 보드 1장 + 권장 기물 7장, 총 8장 참조 묶음 및 P5-ART01~11 사용자 승인
 - [x] Flickstone 제출용 커스텀 학습 제외 결정 — 미학습 모델 `model_J3axGWbQRqMhjkoCrLsKBPdb`는 이력으로만 보존하고 요금제 업그레이드·학습 재시도를 선행 조건에서 제거. 범용 아트 파이프라인 계약은 변경하지 않음
-- [ ] 승인 참조 8장 + P5 고정 모델/프롬프트/출력 규칙으로 보드·토큰 테스트 샘플 생성 및 사람 검수 (`art lock` 명령 미사용)
+- [x] 승인 참조 8장 + P5 고정 모델/프롬프트/출력 규칙으로 무학습 바둑돌·대표 기물 6종 생성 원본, 64×64 RGBA 검수본, 선택 보드 1배 합성 생성 (`assets/art/concepts/p5_no_training_samples/`, `art lock` 명령 미사용)
 - [ ] 샘플 승인 후 P5 범위에서 64×64·1배 런타임 에셋 생성, 보드/기물 연결, 실제 게임 화면 검수. manifest 쓰기는 `manifest.py`만 사용
+- [ ] 대표 7종 사람 검수 — 특히 원시인 유인원 인상, 탱탱볼 마법 구슬 오인, 전체 크기·대비 확인
 - [x] P5-DZ encounter 기반 턴 시작 데미지 존 명세 승인·구현 — 존당 15, 접선 포함 원 접촉, zone ID 순 중첩, 환경 피해 우선, runtime KILL 콘텐츠 제거 (`docs/specs/p5_turn_start_damage_zones.md`)
 - [x] P5-DZ 독립 기하 KAT·Godot 9개 그룹, P2-6 quick 22개 그룹·1,000회 결정성·seed-0 두 프리셋 종결 회귀 통과
 - [x] P5-DZ Godot 4.6.3 `verify --demo` 통합 게이트 완료 — 기본 게이트 4 PASS·lore 1 정책 SKIP·대표 러너 9종 PASS

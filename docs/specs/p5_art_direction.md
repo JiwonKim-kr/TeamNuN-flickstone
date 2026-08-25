@@ -144,6 +144,18 @@ Flickstone 제출용 예외 경로는 다음과 같다.
 
 따라서 외부 학습 권한 차단은 해소됐지만 샘플 사람 검수 지점은 유지된다. 범용 아트 파이프라인의 `art lock`·`art gen` 계약과 `manifest.style_guide` 의미는 변경하지 않으며, 이번 제출 경로에서는 `manifest.style_guide`를 `null`로 유지한다. 컨셉 원본을 그대로 64×64로 축소해 런타임 에셋으로 우회하지 않는다.
 
+## 2026-08-25 무학습 64×64 대표 샘플
+
+사용자가 선택 보드 `p5_map_board_a_refined_02.png`의 형태를 제출 기준으로 재확인했다. 내장 범용 이미지 생성 도구에 승인 참조를 직접 제공해 바둑돌과 나머지 대표 기물 6종을 각각 독립 생성하고, 기물별 중심 크롭 뒤 60×60 nearest + 2px 투명 패딩으로 64×64 검수본을 만들었다.
+
+- 위치: `assets/art/concepts/p5_no_training_samples/`
+- 일곱 기물 생성 원본·64×64 검수본: 전부 RGBA·alpha probe 통과
+- 보드 1배 합성: `all_tokens_test_00_board_preview.png`
+- 보드 원본, runtime sprite, scene, manifest는 변경하지 않음
+- 현재 사람 검수 후보: 원시인의 유인원 인상, 탱탱볼의 마법 구슬 오인 가능성, 전체 64px 크기·대비
+
+이 검수 승인 전에는 런타임 에셋으로 승격하지 않는다.
+
 ## 환경 준비
 
 저장소 아트 파이프라인은 Scenario 경유 생성 계약을 사용한다. 실제 생성 전 로컬 `.env`에 `SCENARIO_API_KEY`와 `SCENARIO_API_SECRET`이 필요하며 값은 문서·로그·커밋에 남기지 않는다. 키가 준비되지 않았으면 `scenario_client.py --dry-run`으로 요청·프롬프트만 검증한다.

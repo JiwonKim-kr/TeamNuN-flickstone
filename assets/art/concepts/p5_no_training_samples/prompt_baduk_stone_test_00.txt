@@ -1,0 +1,11 @@
+Use case: stylized-concept
+Asset type: production candidate for a top-down game piece sprite
+Input images: Image 1 is the exact black baduk-stone subject reference; Image 2 is the approved board material, palette, and lighting reference; Images 3 and 4 are supporting token-style references for pixel density, rim treatment, and top-down presentation.
+Primary request: create one intact black baduk stone as a self-contained circular game token, suitable for later nearest-neighbor reduction to a crisp 64x64 runtime sprite.
+Subject: a simple glossy black ceramic baduk stone with a low domed top, unmistakably a real Go stone; no symbol or engraving.
+Style/medium: polished high-resolution pixel art matching the references, deliberately clustered pixels and crisp stepped edges, not smooth vector art and not photorealistic.
+Composition/framing: exact orthographic top-down view, one token centered, generous even transparent padding, circular silhouette fully contained, no part touching the canvas edge.
+Lighting/mood: fixed upper-left highlight, short compact lower-right contact shadow, dark tactile otherworld board-game mood.
+Color palette: neutral black and charcoal with a small cool white highlight; no team-color cyan or orange baked into the piece.
+Materials/textures: glossy intact ceramic, subtle handcrafted microtexture; no crack.
+Constraints: genuinely transparent background; preserve alpha; exactly one token; no pedestal outside the circular footprint; no text; no letters; no numbers; no logo; no watermark; no yin-yang; no cracks; no facial features; no extra objects; no environment; no colored faction ring.
