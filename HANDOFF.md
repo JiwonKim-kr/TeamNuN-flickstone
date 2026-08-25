@@ -268,17 +268,27 @@
 - 독립 Python schema/fingerprint/등급 계약, Godot P3 narrow, P2-6 1,000회·16×2 terminal/snapshot 골든 이관, Godot 4.6.3 quick `verify --full`이 통과했다. 로컬 headless 선택은 최초 약 302~336ms, 최종 검수 모드 narrow에서 132ms로 500ms 상한 이내였다.
 - 회색상자에 `F1/F2/F3` 또는 `7/8/9`로 COMMON/ELITE/BOSS를 같은 시드·배치에서 바꾸는 검수 모드를 추가했다. 사용자가 세 등급을 비교해 전체 체감이 괜찮고 ELITE/BOSS가 꽤 어렵다고 승인했으며, 이로써 P3 완료 조건을 충족했다.
 
-### 3.11 다음 작업 실행 명령
+### 3.11 P4-1 RunState·RunSnapshot 구현 기록
+
+- P4-S01~13 승인에 따라 엔진 독립 `src/core/run/` 계층을 추가했다. 중복 roster piece는 initial key 정렬로 연속 instance ID를 받고, level과 `BATTLES_SURVIVED`/`KILLS` run counter만 전투 밖에서 보존한다.
+- 수동 5층 graph는 floor·slot·연속 node ID·다음 floor edge·전체 도달성·단일 최종 boss·content ID 조합을 검증한다. act/encounter 실제 catalog ref와 seed 기반 생성은 P4-2가 소유한다.
+- `RunSnapshot` v1은 `FLICKRUN\0`, little-endian, exact EOF, 16 MiB ceiling을 사용하며 graph·pending choice·relic·consumable의 future typed 슬롯을 선점했다. P4-1 restore는 현재 catalog fingerprint, non-token piece/level, `MAP_CHOICE`, 빈 future section만 허용한다.
+- 독립 Python/Godot 전체 KAT는 339 bytes, SHA-256 `e2120285dd7abfe00d085413b4a4f4244591f7e98c03fa3e1626d58e8996dd64`다. Godot narrow 17개 grouped check, 1,000회 create/copy/codec/restore, 24개 initial input permutation이 통과했다.
+- P0 quick SHA/snapshot, P1 BattleSnapshot, P2 content fingerprint, P3 AI 대표 narrow와 Godot 4.6.3 quick `verify --demo` 기본 게이트·대표 러너 8종이 통과했다. P4-1은 headless core 단계라 실제 4런·UI·스크린샷 검수를 요구하지 않는다.
+
+### 3.12 다음 작업 실행 명령
 
 Windows PowerShell에서 먼저 `$env:PYTHONUTF8='1'`을 설정한다.
 
 ```powershell
-# MVP 단위 작업용 quick 통합 — P0 반복만 20회·순열 3회로 축소
+# MVP 단위 작업용 quick 통합 — P0 20회·순열 3회, P2 콘텐츠 quick
+$env:FLICKSTONE_CI_PROFILE='demo'
 $env:P0_ALLOW_QUICK='1'
 $env:P0_REPEAT_COUNT='20'
 $env:P0_PERMUTATION_COUNT='3'
+$env:FLICKSTONE_P2_CONTENT_PROFILE='quick'
 python pipeline/scripts/verify.py --demo --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
-Remove-Item Env:P0_ALLOW_QUICK,Env:P0_REPEAT_COUNT,Env:P0_PERMUTATION_COUNT
+Remove-Item Env:FLICKSTONE_CI_PROFILE,Env:P0_ALLOW_QUICK,Env:P0_REPEAT_COUNT,Env:P0_PERMUTATION_COUNT,Env:FLICKSTONE_P2_CONTENT_PROFILE
 
 # 빠른 씬/manifest 확인
 python pipeline/scripts/play_test.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
@@ -301,6 +311,9 @@ python pipeline/tests/run_p2_content_graybox.py --profile milestone --godot pipe
 
 # P3 하이브리드 적 AI narrow
 python pipeline/tests/run_p3_ai_shot_selection.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
+
+# P4-1 RunState·RunSnapshot narrow
+python pipeline/tests/run_p4_run_state_snapshot.py --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
 
 # P1-5 결정론 회귀
 python pipeline/tests/run_p1_batch_sim_graybox.py --mode narrow --jobs 4 --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64_console.exe
