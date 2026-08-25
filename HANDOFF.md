@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P4-1~6 및 P5-DZ 구현 완료 · 병합 통합 검증 진행**. P4 사람 Act/저장/Web 검수와 P5-DZ 사람 플레이 검수가 남아 있다. 아트 트랙은 A 방향·보드 기준안·대표 기물 7종과 8장 잠금 입력 묶음 승인을 완료해 `art lock` 학습·테스트 샘플 준비 중이다. P4-W Web 프리뷰는 공개 배포·브라우저 검수 완료 |
+| 현재 단계 | **P4-1~6 및 P5-DZ 구현 완료 · 병합 통합 검증 진행**. P4 사람 Act/저장/Web 검수와 P5-DZ 사람 플레이 검수가 남아 있다. 아트 트랙은 A 방향·보드·대표 기물·8장 입력 승인을 완료했으나 Scenario 팀 요금제의 training limit 0으로 `art lock` 학습 시작이 차단됐다. P4-W Web 프리뷰는 공개 배포·브라우저 검수 완료 |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -149,7 +149,8 @@
 - [x] A 방향 보드 전용 컨셉 10장 생성·640×1,024 PNG probe·중복/금지 요소 점검 완료 (`assets/art/concepts/p5_map_board_a/`)
 - [x] A 방향 보드 세부 후보 선택 — `p5_map_board_a_refined_02.png` 사용자 선택
 - [x] A 방향 대표 기물 7종 + 바둑돌 대체안 생성·512×512 PNG probe 완료 (`assets/art/concepts/p5_token_refs_a/`)
-- [ ] 선택 보드 1장 + 권장 기물 7장, 총 8장 입력 묶음 사람 승인 후 별도 `art lock` 진행
+- [x] 선택 보드 1장 + 권장 기물 7장, 총 8장 입력 묶음 및 P5-ART03~08 사용자 승인
+- [ ] Scenario `art lock` 학습 재시도 — 모델 `model_J3axGWbQRqMhjkoCrLsKBPdb`, 이미지 8/8 업로드 완료, 현재 `new`, team `parallel-training` limit 0 해제 필요
 - [ ] `art lock` 승인 후 64×64·1배 런타임 에셋 생성, 보드/기물 reskin, 실제 게임 화면 검수
 - [x] P5-DZ encounter 기반 턴 시작 데미지 존 명세 승인·구현 — 존당 15, 접선 포함 원 접촉, zone ID 순 중첩, 환경 피해 우선, runtime KILL 콘텐츠 제거 (`docs/specs/p5_turn_start_damage_zones.md`)
 - [x] P5-DZ 독립 기하 KAT·Godot 9개 그룹, P2-6 quick 22개 그룹·1,000회 결정성·seed-0 두 프리셋 종결 회귀 통과
