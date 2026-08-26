@@ -395,6 +395,7 @@
 - [x] 같은 조준 session에서 완료된 prediction은 더 최신 command가 pending이어도 현재 표시보다 새 generation이면 화면에 반영한다.
 - [x] exact cache hit을 표시한 뒤 더 오래된 worker 결과가 도착해도 최신 경로를 덮어쓰지 못한다.
 - [x] `pipeline/tests/run_p5_piece_visual_cycle.py` 17개 검사를 통과했다. 연속 입력 window 고정, 같은-session 결과 표시, 오래된 결과 overwrite 방지를 포함한다.
+- [x] `pipeline/tests/run_p1_launch_aim_prediction.py`가 공용 core boundary·독립 Python KAT와 Godot 조준/예측 17개 검사를 통과했다.
 - [x] 승인 근거를 `docs/specs/p5_caveman_ai_runtime.md` P5-CA20과 `AGENTS.md`에 반영했다.
 
 #### 팀원이 먼저 할 사람 검수
@@ -435,7 +436,7 @@ python pipeline/tests/run_p2_content_catalog.py `
   --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64.exe
 ```
 
-- [ ] 위 필수 narrow 재실행
+- [x] 위 필수 AI·공용 조준 narrow 재실행
 - [ ] 사람 검수 통과
 - [ ] `verify --demo` quick 통합
 - [ ] formal release 전 `verify --full`과 수동 release profile
