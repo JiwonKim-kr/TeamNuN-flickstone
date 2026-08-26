@@ -58,6 +58,7 @@ DEMO_RUNNER_NAMES = (
     "run_p3_ai_shot_selection.py",
     "run_p4_formation_battle_outcome_life.py",
     "run_p4_run_ui_save_completion.py",
+    "run_p5_first_play_five_minute_flow.py",
     "run_p5_turn_start_damage_zones.py",
     "run_placeholder_pipeline.py",
     "run_play_pipeline.py",

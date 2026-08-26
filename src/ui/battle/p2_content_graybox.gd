@@ -3,6 +3,9 @@ extends Node2D
 ## Data-driven P2-6 playable graybox. Core state remains authoritative.
 
 signal run_battle_finished(outcome: RunBattleOutcome)
+signal showcase_battle_finished(result_id: int)
+signal player_turn_started(piece_numeric_id: int)
+signal turn_start_zone_damage_applied()
 
 const PLAYER_TEXTURE := preload("res://assets/art/sprites/p1_graybox/PLACEHOLDER_player_piece.png")
 const ENEMY_TEXTURE := preload("res://assets/art/sprites/p1_graybox/PLACEHOLDER_enemy_piece.png")
@@ -57,6 +60,10 @@ var _ai_review_grade_id: int = AiGrade.Value.COMMON
 var _run_mode: bool = false
 var _run_request := RunBattleRequest.new()
 var _run_outcome_emitted: bool = false
+var _showcase_mode: bool = false
+var _showcase_outcome_emitted: bool = false
+var _battle_seed_hi: int = SEED_HI
+var _battle_seed_lo: int = SEED_LO
 var _damage_notice: String = ""
 var _piece_visuals: Dictionary = {}
 var _board_visuals: Dictionary = {}
@@ -126,6 +133,7 @@ func _process(_delta: float) -> void:
 				break
 	_advance_noninteractive_phases()
 	_emit_run_outcome_if_ready()
+	_emit_showcase_outcome_if_ready()
 	_sync_view()
 
 
@@ -139,19 +147,19 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
 			KEY_R:
-				if not _run_mode: _restart()
+				if not _run_mode and not _showcase_mode: _restart()
 				return
 			KEY_1, KEY_2, KEY_3:
-				if not _run_mode: _cycle_player_slot(int(event.keycode - KEY_1))
+				if not _run_mode and not _showcase_mode: _cycle_player_slot(int(event.keycode - KEY_1))
 				return
 			KEY_F1, KEY_7:
-				if not _run_mode: select_ai_review_grade(AiGrade.Value.COMMON)
+				if not _run_mode and not _showcase_mode: select_ai_review_grade(AiGrade.Value.COMMON)
 				return
 			KEY_F2, KEY_8:
-				if not _run_mode: select_ai_review_grade(AiGrade.Value.ELITE)
+				if not _run_mode and not _showcase_mode: select_ai_review_grade(AiGrade.Value.ELITE)
 				return
 			KEY_F3, KEY_9:
-				if not _run_mode: select_ai_review_grade(AiGrade.Value.BOSS)
+				if not _run_mode and not _showcase_mode: select_ai_review_grade(AiGrade.Value.BOSS)
 				return
 	if not event is InputEventMouse or not _content_error.is_ok() or not _error.is_ok():
 		return
@@ -209,13 +217,22 @@ func _advance_noninteractive_phases() -> void:
 				var actor_id: int = _state.current_actor_body_id()
 				var before_status := SimStatus.new()
 				var before_hp: int = _state.combatant_by_body_id(actor_id, before_status).current_hp()
+				var before_participant: BattleParticipant = _state.participant_by_body_id(actor_id, before_status)
+				var before_identity: BattlePieceIdentity = _identity_for_body(actor_id, before_status)
+				var zone_damage_applied: bool = false
 				_state.complete_turn_start(_error)
 				if _error.is_ok() and before_status.is_ok():
 					var after_status := SimStatus.new()
 					var after_hp: int = 0
 					var after: BattleCombatant = _state.combatant_by_body_id(actor_id, after_status)
-					if after_status.is_ok(): after_hp = after.current_hp()
-					if before_hp > after_hp: _damage_notice = " · 데미지 존 -%d" % (before_hp - after_hp)
+					if after_status.is_ok():
+						after_hp = after.current_hp()
+						if before_hp > after_hp:
+							zone_damage_applied = true
+							_damage_notice = " · 데미지 존 -%d" % (before_hp - after_hp)
+							if _showcase_mode: turn_start_zone_damage_applied.emit()
+					if _showcase_mode and not zone_damage_applied and before_participant.faction() == BattleParticipant.Faction.PLAYER:
+						player_turn_started.emit(before_identity.piece_numeric_id())
 				_resolve_content_transition()
 			BattleState.Phase.TURN_END: _state.complete_turn_end(_error); _resolve_content_transition()
 			BattleState.Phase.CHECK: _state.resolve_check(_error); _resolve_content_transition()
@@ -806,7 +823,7 @@ func ai_review_grade_name() -> String:
 
 
 func select_ai_review_grade(grade_id: int) -> bool:
-	if _run_mode or not AiGrade.is_known(grade_id):
+	if _run_mode or _showcase_mode or not AiGrade.is_known(grade_id):
 		return false
 	_ai_review_grade_id = grade_id
 	_restart()
@@ -851,6 +868,8 @@ func _sync_view() -> void:
 	var phase_name: String = BattleState.Phase.keys()[_state.phase()]
 	if _run_mode:
 		_status_label.text = "런 전투 · node #%d · 턴 %d · %s · actor #%d · 생존 %d/%d · fp %s" % [_run_request.node_id(), _turns, phase_name, _state.current_actor_body_id(), world.body_count(), _run_request.player_count() + _run_request.enemy_count(), _catalog.fingerprint_hex().left(8)]
+	elif _showcase_mode:
+		_status_label.text = "5분 전투 체험 · 턴 %d · %s · actor #%d · 생존 %d/6 · fp %s" % [_turns, phase_name, _state.current_actor_body_id(), world.body_count(), _catalog.fingerprint_hex().left(8)]
 	else:
 		_status_label.text = "P3 AI 검수 %s · 턴 %d · %s · actor #%d · 생존 %d/6 · fp %s" % [ai_review_grade_name(), _turns, phase_name, _state.current_actor_body_id(), world.body_count(), _catalog.fingerprint_hex().left(8)]
 	if _input.is_dragging():
@@ -898,10 +917,11 @@ func _restart() -> void:
 	_enemy_action_delay.reset()
 	_turns = 0
 	_damage_notice = ""
+	_showcase_outcome_emitted = false
 	_error = SimStatus.new()
 	var deployment: Array[BattleDeploymentEntry] = _build_deployment(_error)
 	if _error.is_ok():
-		_state = BattleSetupBuilder.build(_catalog, _map_definition.numeric_id(), deployment, SEED_HI, SEED_LO, _error, _encounter_definition.numeric_id())
+		_state = BattleSetupBuilder.build(_catalog, _map_definition.numeric_id(), deployment, _battle_seed_hi, _battle_seed_lo, _error, _encounter_definition.numeric_id())
 	if _error.is_ok():
 		_resolve_content_transition()
 		_advance_noninteractive_phases()
@@ -915,6 +935,7 @@ func start_run_battle(request: RunBattleRequest, catalog: ContentCatalog, status
 	_clear_aim()
 	_enemy_action_delay.reset()
 	_run_mode = true
+	_showcase_mode = false
 	_run_request = request.copy()
 	_run_outcome_emitted = false
 	_turns = 0
@@ -937,6 +958,65 @@ func start_run_battle(request: RunBattleRequest, catalog: ContentCatalog, status
 	_advance_noninteractive_phases()
 	_sync_view()
 	return status.is_ok()
+
+func start_showcase_battle(
+	map_numeric_id: int,
+	encounter_numeric_id: int,
+	piece_numeric_ids: Array[int],
+	seed_hi: int,
+	seed_lo: int,
+	catalog: ContentCatalog,
+	status: SimStatus
+) -> bool:
+	if not status.is_ok() or catalog == null or not catalog.is_initialized():
+		if status.is_ok(): status.fail(SimStatus.Code.INVALID_DEPLOYMENT, SimStatus.Operation.BATTLE_SETUP_BUILD)
+		return false
+	_clear_piece_nodes()
+	_clear_aim()
+	_enemy_action_delay.reset()
+	_run_mode = false
+	_run_request = RunBattleRequest.new()
+	_run_outcome_emitted = false
+	_showcase_mode = true
+	_showcase_outcome_emitted = false
+	_battle_seed_hi = seed_hi
+	_battle_seed_lo = seed_lo
+	_content_error = ContentStatus.new()
+	_catalog = catalog.copy()
+	_map_definition = _catalog.map_by_numeric_id(map_numeric_id, _content_error)
+	_encounter_definition = _catalog.encounter_by_numeric_id(encounter_numeric_id, _content_error)
+	_piece_definitions.clear()
+	_enemy_definitions.clear()
+	_selected_piece_indices.clear()
+	for index: int in range(_catalog.piece_count()):
+		_piece_definitions.append(_catalog.piece_at(index, _content_error))
+	for enemy_index: int in range(_encounter_definition.enemy_ref_count()):
+		var enemy_ref: ContentIdRef = _encounter_definition.enemy_ref_at(enemy_index, _content_error)
+		_enemy_definitions.append(_catalog.enemy_by_numeric_id(enemy_ref.numeric_id(), _content_error))
+	if not _content_error.is_ok() or piece_numeric_ids.size() != _map_definition.deploy_count():
+		status.fail(SimStatus.Code.INVALID_DEPLOYMENT, SimStatus.Operation.BATTLE_SETUP_BUILD, map_numeric_id, encounter_numeric_id)
+		return false
+	for numeric_id: int in piece_numeric_ids:
+		var selected_index: int = -1
+		for definition_index: int in range(_piece_definitions.size()):
+			if _piece_definitions[definition_index].numeric_id() == numeric_id:
+				selected_index = definition_index
+				break
+		if selected_index < 0:
+			status.fail(SimStatus.Code.INVALID_DEPLOYMENT, SimStatus.Operation.BATTLE_SETUP_BUILD, numeric_id, 0)
+			return false
+		_selected_piece_indices.append(selected_index)
+	_help_label.text = "기물을 누르고 반대 방향으로 당긴 뒤 놓기 · 멀수록 강함 · H 또는 ?: 도움말"
+	_build_map_view()
+	_restart()
+	return _error.is_ok()
+
+func leave_showcase_mode() -> void:
+	_showcase_mode = false
+	_showcase_outcome_emitted = false
+	_battle_seed_hi = SEED_HI
+	_battle_seed_lo = SEED_LO
+	_help_label.text = "기물 중심에서 멀리 당길수록 강하게 발사 · 1/2/3: 기물 순환 · AI등급 F1/F2/F3 또는 7/8/9 · R: 재시작 · Esc: 취소"
 
 func leave_run_mode() -> void:
 	_run_mode = false
@@ -963,3 +1043,8 @@ func _emit_run_outcome_if_ready() -> void:
 	if not _error.is_ok() or not outcome.is_initialized(): return
 	_run_outcome_emitted = true
 	run_battle_finished.emit(outcome)
+
+func _emit_showcase_outcome_if_ready() -> void:
+	if not _showcase_mode or _showcase_outcome_emitted or _state == null or not _error.is_ok() or _state.phase() != BattleState.Phase.BATTLE_END: return
+	_showcase_outcome_emitted = true
+	showcase_battle_finished.emit(_state.battle_result())

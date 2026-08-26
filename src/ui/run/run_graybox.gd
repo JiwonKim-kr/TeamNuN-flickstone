@@ -1,6 +1,13 @@
 class_name RunGraybox
 extends Control
 
+const SHOWCASE_CONFIG_PATH := "res://src/ui/run/submission_showcase.json"
+const SHOWCASE_HINTS := {
+	4: "탱탱볼 · 강한 반사로 벽과 기물 사이의 연쇄 충돌을 노려보세요.",
+	5: "원시인 · 벽이나 아군에 닿기 전 적중하면 피해가 2배입니다.",
+	6: "AI · 조준 중 각도·힘·첫 충돌 대상이 함께 계산됩니다.",
+}
+
 @onready var _header: PanelContainer = $Header
 @onready var _header_label: Label = $Header/Margin/Label
 @onready var _scroll: ScrollContainer = $Content
@@ -11,11 +18,30 @@ extends Control
 @onready var _save_overlay: PanelContainer = $SaveOverlay
 @onready var _save_error_label: Label = $SaveOverlay/Margin/Rows/Error
 @onready var _retry_button: Button = $SaveOverlay/Margin/Rows/Retry
+@onready var _showcase_intro: PanelContainer = $ShowcaseIntro
+@onready var _showcase_intro_error: Label = $ShowcaseIntro/Margin/Rows/Error
+@onready var _showcase_start_button: Button = $ShowcaseIntro/Margin/Rows/Start
+@onready var _showcase_intro_back: Button = $ShowcaseIntro/Margin/Rows/Back
+@onready var _showcase_help_button: Button = $ShowcaseHelpButton
+@onready var _showcase_help: PanelContainer = $ShowcaseHelp
+@onready var _showcase_help_close: Button = $ShowcaseHelp/Margin/Rows/Close
+@onready var _showcase_hint: PanelContainer = $ShowcaseHint
+@onready var _showcase_hint_label: Label = $ShowcaseHint/Margin/Label
+@onready var _showcase_hint_timer: Timer = $ShowcaseHintTimer
+@onready var _showcase_end: PanelContainer = $ShowcaseEnd
+@onready var _showcase_result: Label = $ShowcaseEnd/Margin/Rows/Result
+@onready var _showcase_retry: Button = $ShowcaseEnd/Margin/Rows/Retry
+@onready var _showcase_full_run: Button = $ShowcaseEnd/Margin/Rows/FullRun
 
 var _catalog := ContentCatalog.new()
 var _seed_input: LineEdit = null
 var _formation_ids: Array[int] = []
 var _pending_battle_outcome := RunBattleOutcome.new()
+var _showcase_config := SubmissionShowcaseConfig.new()
+var _showcase_status := ContentStatus.new()
+var _showcase_active: bool = false
+var _showcase_seen_piece_hints: Dictionary = {}
+var _showcase_zone_hint_seen: bool = false
 
 func _ready() -> void:
 	_catalog = RunManager.catalog_copy()
@@ -23,8 +49,24 @@ func _ready() -> void:
 	RunManager.battle_requested.connect(_on_battle_requested)
 	RunManager.persistence_failed.connect(_on_persistence_failed)
 	_battle.run_battle_finished.connect(_on_battle_finished)
+	_battle.showcase_battle_finished.connect(_on_showcase_battle_finished)
+	_battle.player_turn_started.connect(_on_showcase_player_turn_started)
+	_battle.turn_start_zone_damage_applied.connect(_on_showcase_zone_damage)
 	_retry_button.pressed.connect(_retry_outcome_save)
+	_showcase_start_button.pressed.connect(_start_showcase_battle)
+	_showcase_intro_back.pressed.connect(_close_showcase_intro)
+	_showcase_help_button.pressed.connect(_open_showcase_help)
+	_showcase_help_close.pressed.connect(_close_showcase_help)
+	_showcase_hint_timer.timeout.connect(_hide_showcase_hint)
+	_showcase_retry.pressed.connect(_retry_showcase)
+	_showcase_full_run.pressed.connect(_leave_showcase)
+	_showcase_config = SubmissionShowcaseConfig.load_file(SHOWCASE_CONFIG_PATH, _catalog, _showcase_status)
 	_refresh()
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _showcase_active and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_H:
+		_open_showcase_help()
+		get_viewport().set_input_as_handled()
 
 func _clear_body() -> void:
 	for child: Node in _body.get_children(): child.queue_free()
@@ -66,6 +108,7 @@ func _node_type_name(type_id: int) -> String:
 	return "알 수 없음"
 
 func _refresh() -> void:
+	if _showcase_active: return
 	_clear_body()
 	_save_overlay.visible = false
 	if not RunManager.has_active_run():
@@ -98,7 +141,11 @@ func _show_start() -> void:
 	_footer.visible = true
 	_battle.visible = false
 	_header_label.text = "Flickstone · P4-6 개발 런"
-	_title("새 런 / 이어하기")
+	_title("Flickstone 전투를 바로 체험하세요")
+	_button("5분 전투 체험", _open_showcase_intro, _showcase_status.is_ok() and _showcase_config.is_initialized())
+	if not _showcase_status.is_ok():
+		_text("체험 설정 오류 · code %d / op %d" % [_showcase_status.code(), _showcase_status.operation()])
+	_title("전체 개발 런")
 	_text("16자리 hex seed로 5층 개발 Act를 시작합니다.", true)
 	_seed_input = LineEdit.new()
 	_seed_input.text = "0000000000000001"
@@ -113,7 +160,105 @@ func _show_start() -> void:
 		_text("이어할 저장이 없습니다.", true)
 	elif probe == SaveManager.ProbeResult.INVALID:
 		_text("저장 진단: code %d / op %d / snapshot %d/%d" % [probe_status.code(), probe_status.operation(), probe_status.sim_code(), probe_status.sim_operation()])
-	_footer_label.text = "컨셉 P5와 독립된 런타임 graybox"
+	_footer_label.text = "제출용 직접 체험 · 전체 5층 런 · 단일 continue 저장"
+
+func _open_showcase_intro() -> void:
+	if not _showcase_status.is_ok() or not _showcase_config.is_initialized(): return
+	_showcase_intro_error.visible = false
+	_set_main_ui_visible(false)
+	_showcase_intro.visible = true
+
+func _close_showcase_intro() -> void:
+	_showcase_intro.visible = false
+	_set_main_ui_visible(true)
+
+func _set_main_ui_visible(value: bool) -> void:
+	_header.visible = value
+	_scroll.visible = value
+	_footer.visible = value
+
+func _start_showcase_battle() -> void:
+	_showcase_intro_error.visible = false
+	_showcase_seen_piece_hints.clear()
+	_showcase_zone_hint_seen = false
+	_showcase_end.visible = false
+	_showcase_help.visible = false
+	_showcase_hint.visible = false
+	_showcase_intro.visible = false
+	_showcase_active = true
+	_set_main_ui_visible(false)
+	_battle.visible = true
+	_showcase_help_button.visible = true
+	var status := SimStatus.new()
+	if not _battle.start_showcase_battle(
+		_showcase_config.map_numeric_id(),
+		_showcase_config.encounter_numeric_id(),
+		_showcase_config.piece_numeric_ids(),
+		_showcase_config.seed_hi(),
+		_showcase_config.seed_lo(),
+		_catalog,
+		status
+	):
+		_showcase_active = false
+		_battle.visible = false
+		_showcase_help_button.visible = false
+		_showcase_intro_error.text = "전투 시작 오류 · %d/%d" % [status.code(), status.operation()]
+		_showcase_intro_error.visible = true
+		_showcase_intro.visible = true
+
+func _show_showcase_hint(text: String) -> void:
+	if not _showcase_active or _showcase_end.visible: return
+	_showcase_hint_label.text = text
+	_showcase_hint.visible = true
+	_showcase_hint_timer.start()
+
+func _hide_showcase_hint() -> void:
+	_showcase_hint.visible = false
+
+func _on_showcase_player_turn_started(piece_numeric_id: int) -> void:
+	if not _showcase_active or _showcase_seen_piece_hints.has(piece_numeric_id): return
+	_showcase_seen_piece_hints[piece_numeric_id] = true
+	if SHOWCASE_HINTS.has(piece_numeric_id): _show_showcase_hint(String(SHOWCASE_HINTS[piece_numeric_id]))
+
+func _on_showcase_zone_damage() -> void:
+	if not _showcase_active or _showcase_zone_hint_seen: return
+	_showcase_zone_hint_seen = true
+	_show_showcase_hint("피해 구역 · 겹친 구역마다 턴 시작 피해를 각각 받습니다.")
+
+func _open_showcase_help() -> void:
+	if not _showcase_active or _showcase_end.visible: return
+	_showcase_hint.visible = false
+	_showcase_help.visible = true
+
+func _close_showcase_help() -> void:
+	_showcase_help.visible = false
+
+func _on_showcase_battle_finished(result_id: int) -> void:
+	if not _showcase_active: return
+	_showcase_hint_timer.stop()
+	_showcase_hint.visible = false
+	_showcase_help.visible = false
+	_showcase_help_button.visible = false
+	var result_text := "무승부"
+	if result_id == BattleResult.Value.PLAYER_VICTORY: result_text = "승리! 세 기물의 차이를 확인했습니다."
+	elif result_id == BattleResult.Value.PLAYER_DEFEAT: result_text = "패배 · 다른 각도와 충돌 순서로 다시 도전해보세요."
+	_showcase_result.text = result_text
+	_showcase_end.visible = true
+
+func _retry_showcase() -> void:
+	_battle.leave_showcase_mode()
+	_start_showcase_battle()
+
+func _leave_showcase() -> void:
+	_showcase_intro.visible = false
+	_showcase_help.visible = false
+	_showcase_hint.visible = false
+	_showcase_end.visible = false
+	_showcase_help_button.visible = false
+	_battle.visible = false
+	_battle.leave_showcase_mode()
+	_showcase_active = false
+	_refresh()
 
 func _valid_seed(value: String) -> bool:
 	if value.length() != 16: return false

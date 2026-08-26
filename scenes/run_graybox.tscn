@@ -90,6 +90,164 @@ autowrap_mode = 2
 [node name="Battle" parent="." instance=ExtResource("2")]
 visible = false
 
+[node name="ShowcaseHelpButton" type="Button" parent="."]
+visible = false
+layout_mode = 0
+offset_left = 560.0
+offset_top = 138.0
+offset_right = 616.0
+offset_bottom = 194.0
+text = "?"
+
+[node name="ShowcaseHint" type="PanelContainer" parent="."]
+visible = false
+mouse_filter = 2
+layout_mode = 0
+offset_left = 32.0
+offset_top = 202.0
+offset_right = 608.0
+offset_bottom = 278.0
+theme_override_styles/panel = SubResource("panel")
+
+[node name="Margin" type="MarginContainer" parent="ShowcaseHint"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 10
+
+[node name="Label" type="Label" parent="ShowcaseHint/Margin"]
+layout_mode = 2
+text = "체험 도움말"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="ShowcaseHintTimer" type="Timer" parent="."]
+wait_time = 4.0
+one_shot = true
+
+[node name="ShowcaseIntro" type="PanelContainer" parent="."]
+visible = false
+layout_mode = 0
+offset_left = 56.0
+offset_top = 248.0
+offset_right = 584.0
+offset_bottom = 680.0
+theme_override_styles/panel = SubResource("panel")
+
+[node name="Margin" type="MarginContainer" parent="ShowcaseIntro"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 24
+
+[node name="Rows" type="VBoxContainer" parent="ShowcaseIntro/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="Title" type="Label" parent="ShowcaseIntro/Margin/Rows"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "5분 전투 체험"
+horizontal_alignment = 1
+
+[node name="Guide" type="Label" parent="ShowcaseIntro/Margin/Rows"]
+layout_mode = 2
+text = "기물을 누르고 반대 방향으로 당긴 뒤 놓으세요.\n\n멀리 당길수록 강하게 발사됩니다.\n\n모든 기물이 멈추면 다음 턴으로 넘어갑니다."
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="Error" type="Label" parent="ShowcaseIntro/Margin/Rows"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.45, 0.4, 1)
+autowrap_mode = 2
+
+[node name="Start" type="Button" parent="ShowcaseIntro/Margin/Rows"]
+custom_minimum_size = Vector2(0, 58)
+layout_mode = 2
+text = "전투 시작"
+
+[node name="Back" type="Button" parent="ShowcaseIntro/Margin/Rows"]
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
+text = "돌아가기"
+
+[node name="ShowcaseHelp" type="PanelContainer" parent="."]
+visible = false
+layout_mode = 0
+offset_left = 48.0
+offset_top = 230.0
+offset_right = 592.0
+offset_bottom = 720.0
+theme_override_styles/panel = SubResource("panel")
+
+[node name="Margin" type="MarginContainer" parent="ShowcaseHelp"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 24
+
+[node name="Rows" type="VBoxContainer" parent="ShowcaseHelp/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Title" type="Label" parent="ShowcaseHelp/Margin/Rows"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+text = "전투 도움말"
+horizontal_alignment = 1
+
+[node name="Guide" type="Label" parent="ShowcaseHelp/Margin/Rows"]
+layout_mode = 2
+text = "조작 · 기물을 누르고 반대 방향으로 당긴 뒤 놓기\n힘 · 멀리 당길수록 강하게 발사\n턴 · 모든 기물이 멈추면 다음 기물 행동\n\n탱탱볼 · 강한 반사\n원시인 · 벽·아군 접촉 전 피해 2배\nAI · 각도·힘·첫 충돌 계산\n피해 구역 · 겹친 구역마다 턴 시작 피해"
+autowrap_mode = 2
+
+[node name="Close" type="Button" parent="ShowcaseHelp/Margin/Rows"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+text = "계속하기"
+
+[node name="ShowcaseEnd" type="PanelContainer" parent="."]
+visible = false
+layout_mode = 0
+offset_left = 64.0
+offset_top = 310.0
+offset_right = 576.0
+offset_bottom = 650.0
+theme_override_styles/panel = SubResource("panel")
+
+[node name="Margin" type="MarginContainer" parent="ShowcaseEnd"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 24
+
+[node name="Rows" type="VBoxContainer" parent="ShowcaseEnd/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="Result" type="Label" parent="ShowcaseEnd/Margin/Rows"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "전투 종료"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="Retry" type="Button" parent="ShowcaseEnd/Margin/Rows"]
+custom_minimum_size = Vector2(0, 58)
+layout_mode = 2
+text = "다시 체험"
+
+[node name="FullRun" type="Button" parent="ShowcaseEnd/Margin/Rows"]
+custom_minimum_size = Vector2(0, 54)
+layout_mode = 2
+text = "전체 런 시작 화면으로"
+
 [node name="SaveOverlay" type="PanelContainer" parent="."]
 visible = false
 layout_mode = 0

@@ -15,7 +15,7 @@
 | 엔진 | **Godot 4.6.x / GDScript** |
 | 플랫폼 | **PC(Steam) 우선**. 웹은 개발 프리뷰 |
 | 게임 설계 정본 | `docs/design/game_design.md` |
-| 현재 단계 | **P4-1~6, P5-DZ, P5-BR, P5-CA 구현 완료 · P5 제출 템포 조정/리스킨 진행**. 선택 중립 보드와 바둑돌·병뚜껑·탱탱볼·원시인·AI, 데미지 존이 실제 전투에 연결됐고 정식 5종 공격력을 1차 상향했다. 체스·원소 정식 콘텐츠, P4/P5 사람 플레이 검수와 장시간 검증 부채가 남아 있다. Flickstone 제출 범위에서는 커스텀 학습과 범용 파이프라인 `art lock`을 사용하지 않는다. P4-W Web 프리뷰는 공개 배포·브라우저 검수 완료 |
+| 현재 단계 | **P4-1~6, P5-DZ, P5-BR, P5-CA, P5-FP 구현 완료 · 제출 첫 플레이 검수 진행**. 공개 첫 화면에 고정 seed의 5분 전투 체험이 추가되어 탱탱볼·원시인·AI를 첫 전투에서 보장한다. 선택 중립 보드와 정식 5종, 데미지 존, 1차 공격력 조정도 실제 전투에 연결됐다. 체스·원소 정식 콘텐츠, 5분 사람 플레이/Web 재배포 검수와 장시간 검증 부채가 남아 있다. Flickstone 제출 범위에서는 커스텀 학습과 범용 파이프라인 `art lock`을 사용하지 않는다. 기존 P4-W Web 프리뷰는 공개 배포·브라우저 검수 완료 |
 | 물리 | Godot 내장 물리 미사용. 고정소수점 기반 자체 결정론 시뮬레이션 |
 | 고정소수점 | `int64` + 소수부 16비트 (`FIX_SCALE=65,536`, Q47.16), 위치 안전 범위 ±8,192 |
 | 물리 안전 범위 | 속도 ≤ 4,096, 초기 발사 ≤ 2,048, 무게 1~256, 임펄스 ≤ 2,097,152. 범위 밖 데이터는 로드·테스트 실패 |
@@ -157,6 +157,11 @@
 - [x] 탱탱볼 최종 검수·정식 콘텐츠·런타임 연결 — 기존 소용돌이 후보는 마법 구슬 오인으로 제외·보존, `bouncy_ball_refined_00_64.png`를 적용하고 플레이 검수에서 탄성을 2배→4배로 재조정
 - [x] 선택 중립 보드와 바둑돌·병뚜껑 런타임 연결 — strict map/piece visual catalog, manifest approved 3건, Godot 실제 전투 렌더에서 경계·오버레이·진영 링 확인
 - [x] P5 원시인·AI 정식 콘텐츠 — P5-CA01~18 승인·구현, 실제 접촉 순서·연속 적중·비행동자 제외·snapshot/copy 회귀까지 Godot narrow 통과
+- [x] P5 제출용 첫 플레이 P5-FP01~10 승인·구현 — 첫 화면 `5분 전투 체험`, 탱탱볼·원시인·AI 고정 편성, strict UI config, 상황별 도움말, 재도전·전체 런 전환
+- [x] P5-FP narrow 16개, 기존 기물 표시 17개, import/smoke/manifest, 오케스트레이션 파이프라인 통과
+- [ ] P5-FP 시점 `verify --demo` 통합 부채 — P5-FP와 base gate는 PASS. 최초 5 FAIL 중 12종 목록 오케스트레이션 기대값은 수정·재통과했고, 기존 P2 terminal golden, P4 legacy snapshot, P5-DZ legacy snapshot 불일치와 P4 production 600초 timeout 네 건이 남음
+- [ ] P5-FP 사람 5분 검수 — 30초 내 첫 발사, 세 기물 차이, 피해 구역 이해, 5분 내 처치 또는 명확한 우세 확인
+- [ ] P5-FP Web 재배포·브라우저 검수 — direct entry, reload, 한글 안내, pointer launch, 종료 CTA
 - [x] P5-DZ encounter 기반 턴 시작 데미지 존 명세 승인·구현 — 존당 15, 접선 포함 원 접촉, zone ID 순 중첩, 환경 피해 우선, runtime KILL 콘텐츠 제거 (`docs/specs/p5_turn_start_damage_zones.md`)
 - [x] P5-DZ 독립 기하 KAT·Godot 9개 그룹, P2-6 quick 22개 그룹·1,000회 결정성·seed-0 두 프리셋 종결 회귀 통과
 - [x] P5-DZ Godot 4.6.3 `verify --demo` 통합 게이트 완료 — 기본 게이트 4 PASS·lore 1 정책 SKIP·대표 러너 9종 PASS

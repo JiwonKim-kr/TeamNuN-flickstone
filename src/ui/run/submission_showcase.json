@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "map_ref": {"numeric_id": 1, "id": "graybox_pit_arena"},
+  "encounter_ref": {"numeric_id": 1, "id": "development_normal_mixed"},
+  "piece_refs": [
+    {"numeric_id": 4, "id": "bouncy_ball"},
+    {"numeric_id": 5, "id": "caveman"},
+    {"numeric_id": 6, "id": "ai_core"}
+  ],
+  "seed": "0000000000000001"
+}
