@@ -53,7 +53,34 @@ func _ready() -> void:
 	check("P5-AI-TRAJECTORY-RETAINED-WHILE-PENDING", trajectory.points == PackedVector2Array([Vector2(10.0, 10.0), Vector2(20.0, 20.0)]))
 	var queue: TrajectoryPredictionQueue = PREDICTION_QUEUE.new()
 	queue.submit(command, 1_000)
-	check("P5-AI-TRAJECTORY-DEFAULT-DEBOUNCE-16MS", not queue.can_start(16_999, false, true) and queue.can_start(17_000, false, true))
+	var later_command: LaunchCommand = LaunchCommand.create(256, 160, command_status)
+	queue.submit(later_command, 8_000)
+	check("P5-AI-TRAJECTORY-DEFAULT-DEBOUNCE-16MS", not queue.can_start(16_999, false, true) and queue.can_start(17_000, false, true) and queue.take_pending().is_equal(later_command))
+	var prediction_status := SimStatus.new()
+	var prediction_points: Array[TrajectoryPoint] = [
+		TrajectoryPoint.create(0, 0, FixVec2.from_raw(0, 0), TrajectoryPoint.Marker.NONE, 0, prediction_status),
+		TrajectoryPoint.create(4, 0, FixVec2.from_raw(100 * FixMath.SCALE, 100 * FixMath.SCALE), TrajectoryPoint.Marker.NONE, 0, prediction_status),
+	]
+	var prediction: TrajectoryPrediction = TrajectoryPrediction.create(3, 4, false, prediction_points, prediction_status)
+	var scene_queue: TrajectoryPredictionQueue = scene.get("_prediction_queue") as TrajectoryPredictionQueue
+	var input: AimInputAdapter = scene.get_node("AimInputAdapter") as AimInputAdapter
+	input.set("_dragging", true)
+	var result: Dictionary = {
+		"session": scene_queue.session(),
+		"generation": scene_queue.generation(),
+		"cache_key": 77,
+		"prediction": prediction,
+		"code": SimStatus.Code.OK,
+	}
+	scene.call("_accept_prediction_result", result)
+	check("P5-AI-TRAJECTORY-SAME-SESSION-RESULT-DISPLAYS", prediction_status.is_ok() and trajectory.points == PackedVector2Array([Vector2.ZERO, Vector2(100.0, 100.0)]))
+	result["generation"] = scene_queue.generation() - 1
+	result["prediction"] = TrajectoryPrediction.create(3, 4, false, [
+		TrajectoryPoint.create(0, 0, FixVec2.from_raw(0, 0), TrajectoryPoint.Marker.NONE, 0, prediction_status),
+		TrajectoryPoint.create(4, 0, FixVec2.from_raw(200 * FixMath.SCALE, 0), TrajectoryPoint.Marker.NONE, 0, prediction_status),
+	], prediction_status)
+	scene.call("_accept_prediction_result", result)
+	check("P5-AI-TRAJECTORY-OLDER-RESULT-CANNOT-OVERWRITE", trajectory.points == PackedVector2Array([Vector2.ZERO, Vector2(100.0, 100.0)]))
 	scene.free()
 	if failures == 0:
 		print("P5_PIECE_VISUAL_CYCLE_RESULT: PASS")

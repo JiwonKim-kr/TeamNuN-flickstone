@@ -63,6 +63,7 @@ var _board_visuals: Dictionary = {}
 var _ability_presentations: Dictionary = {}
 var _aim_command: LaunchCommand = LaunchCommand.new()
 var _aim_first_target_body_id: int = 0
+var _displayed_prediction_generation: int = -1
 
 
 func _ready() -> void:
@@ -273,6 +274,7 @@ func _on_prediction_requested(command: LaunchCommand) -> void:
 	if _prediction_cache.has(cache_key):
 		_prediction_queue.take_pending()
 		_show_prediction(_prediction_cache[cache_key] as TrajectoryPrediction)
+		_displayed_prediction_generation = _prediction_queue.generation()
 	# Keep the latest completed trajectory visible while the worker computes the
 	# new angle. The immediate aim guide still identifies the current command.
 
@@ -327,22 +329,31 @@ func _poll_prediction() -> void:
 	if _prediction_thread != null and not _prediction_thread.is_alive():
 		var result: Variant = _prediction_thread.wait_to_finish()
 		_prediction_thread = null
-		if (
-			result is Dictionary
-			and int(result.get("session", -1)) == _prediction_queue.session()
-			and int(result.get("code", SimStatus.Code.INVALID_SIM_STATE)) == SimStatus.Code.OK
-		):
-			var prediction: TrajectoryPrediction = result.get("prediction") as TrajectoryPrediction
-			_prediction_cache[int(result.get("cache_key", -1))] = prediction
-			if (
-				int(result.get("generation", -1)) == _prediction_queue.generation()
-				and _input.is_dragging()
-			):
-				_show_prediction(prediction)
+		_accept_prediction_result(result)
 	if _prediction_queue.can_start(
 		Time.get_ticks_usec(), _prediction_thread != null, _input.is_dragging()
 	):
 		_start_pending_prediction()
+
+
+func _accept_prediction_result(result: Variant) -> void:
+	if (
+		not result is Dictionary
+		or int(result.get("session", -1)) != _prediction_queue.session()
+		or int(result.get("code", SimStatus.Code.INVALID_SIM_STATE)) != SimStatus.Code.OK
+	):
+		return
+	var prediction: TrajectoryPrediction = result.get("prediction") as TrajectoryPrediction
+	if prediction == null or not prediction.is_initialized():
+		return
+	var generation: int = int(result.get("generation", -1))
+	_prediction_cache[int(result.get("cache_key", -1))] = prediction
+	# A completed same-session result is the best path currently available even
+	# when a newer pointer command is pending. Never let it overwrite an exact
+	# cache hit (or another result) already displayed from a newer generation.
+	if _input.is_dragging() and generation >= _displayed_prediction_generation:
+		_show_prediction(prediction)
+		_displayed_prediction_generation = generation
 
 
 func _prediction_cache_key(command: LaunchCommand) -> int:
@@ -383,6 +394,7 @@ func _clear_aim() -> void:
 	_aim_power_step = 0
 	_aim_command = LaunchCommand.new()
 	_aim_first_target_body_id = 0
+	_displayed_prediction_generation = -1
 	_trajectory.clear()
 	_trajectory_line.clear_points()
 	_aim_line.clear_points()

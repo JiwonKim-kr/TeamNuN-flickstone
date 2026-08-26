@@ -53,6 +53,7 @@
 | P5-CA17 | 승인 64px 샘플을 `assets/art/sprites/p5/caveman.png`, `ai_core.png`로 승격하고 기존 진영 링·행동자 화살표를 재사용한다 | 이미 끝난 사람 아트 검수 반영 | ✅ 승인 · 2026-08-26 |
 | P5-CA18 | 이번 단계 검증은 영향 narrow, import/smoke/manifest, 실제 전투 렌더까지 수행하고 알려진 P2/P4 장시간 타임아웃은 별도 부채로 유지한다 | 구현 진행과 장시간 검증을 분리하라는 최신 지시 반영 | ✅ 승인 · 2026-08-26 |
 | P5-CA19 | 궤적 계산 debounce를 50ms에서 16ms로 줄이고 새 계산 중에는 마지막 완성 궤적을 유지한다. AI 계산 모드는 6px 청록색 anti-aliased 선으로 강조한다 | 특정 방향에서만 늦게 나타나거나 계산 중 선이 사라져 끊겨 보이는 플레이 검수 문제 해소 | ✅ 승인 · 2026-08-26 |
+| P5-CA20 | 연속 입력은 첫 pending 시각의 16ms 창을 유지하며 최신 command로 합친다. 같은 조준 session에서 완성된 결과는 더 최신 입력이 pending이어도 현재 표시 결과보다 새 generation이면 표시하고, 정확한 cache hit보다 오래된 결과는 덮어쓰지 못한다 | 커서를 계속 움직이면 trailing debounce와 generation 폐기로 경로가 갱신되지 않던 2차 플레이 검수 문제 해소 | ✅ 승인 · 2026-08-26 |
 
 ## 원시인 clean-launch 계약
 
@@ -83,6 +84,7 @@ turn end/interrupt -> mask 폐기
 - 첫 충돌은 기존 `TrajectoryPoint.Marker.COLLISION`의 첫 `target_body_id`를 읽는다. 추가 시뮬레이션이나 RNG를 실행하지 않는다.
 - 표시 데이터는 파생 UI이며 snapshot·state hash·전투 판정에 들어가지 않는다.
 - P5-CA19 이후 AI 계산 선은 같은 권위 prediction 값을 사용하되 6px 청록색으로 표시한다. 입력 직후의 현재 방향은 공용 aim guide가 즉시 표시하며 새 prediction 완료 전에는 직전 완성 경로를 유지한다.
+- P5-CA20 이후 연속 커서 이동은 계산 시작을 계속 뒤로 미루지 않는다. UI는 같은 조준 session의 가장 최근 완성 경로를 순차적으로 갱신하고, 현재 command의 정확한 cache hit는 더 오래된 worker 결과로부터 보호한다.
 
 ## 데이터·마이그레이션
 

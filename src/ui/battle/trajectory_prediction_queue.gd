@@ -17,16 +17,20 @@ func _init(debounce_usec: int = DEFAULT_DEBOUNCE_USEC) -> void:
 
 func submit(command: LaunchCommand, now_usec: int) -> int:
 	_generation += 1
-	_pending_command = null
-	_ready_at_usec = 0
 	if (
 		command == null
 		or not command.is_initialized()
 		or not LaunchLimits.valid_launch_power_step(command.power_step())
 	):
+		_pending_command = null
+		_ready_at_usec = 0
 		return _generation
 	_pending_command = command.copy()
-	_ready_at_usec = maxi(0, now_usec) + _debounce_usec
+	# Coalesce continuous pointer updates into the latest command without moving
+	# the original window. A trailing debounce would starve prediction until the
+	# cursor happened to remain inside one quantized command long enough.
+	if _ready_at_usec == 0:
+		_ready_at_usec = maxi(0, now_usec) + _debounce_usec
 	return _generation
 
 

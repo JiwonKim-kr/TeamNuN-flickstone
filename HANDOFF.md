@@ -379,12 +379,70 @@
 
 ### 3.20 AI 경로·탱탱볼 탄성 플레이 피드백
 
-- P5-CA19로 prediction 입력 대기를 50ms→16ms로 줄이고, 새 각도를 계산하는 동안 직전 완성 경로를 유지한다. AI 계산 모드는 6px 청록색 anti-aliased 선을 사용하며 즉시 갱신되는 공용 aim guide는 그대로 남긴다.
+- P5-CA19~20으로 prediction 입력 대기를 50ms→16ms로 줄이고, 첫 pending 시각을 유지한 채 연속 입력을 최신 command로 합쳐 커서 이동이 계산 시작을 무한히 미루지 않게 했다. 같은 조준 session의 완성 결과는 더 최신 입력이 pending이어도 현재 표시보다 새 generation이면 갱신하고, 오래된 worker는 더 최신 exact cache hit를 덮어쓰지 못한다. AI 계산 모드는 6px 청록색 anti-aliased 선을 사용하며 즉시 갱신되는 공용 aim guide는 그대로 남긴다.
 - P5-BR15로 탱탱볼 전 레벨 탄성을 2배→4배(raw 262,144)로 올렸다. 기본 반발 19/20에서 유효 반발은 79/80이며 기물 쌍은 기존처럼 최대 배율만 사용해 중첩하지 않는다.
 - 원시인 수치·clean-launch 능력·표시는 변경하지 않았다.
 - 현재 runtime fingerprint는 `aa7758ad0ccbb5ef73fe66f162b004243b3410a536c559e7ff584139267e7ee1`, RunSnapshot v2 KAT SHA-256은 `ebd81a0efc40ca9476bb5ac09a7bb56333d15bda862b936177fba75772c12b43`다.
 
-### 3.21 다음 작업 실행 명령
+### 3.21 팀원 인계 — AI 경로 예측 2차 검수와 후속 작업
+
+기준 체크포인트 `75b058a`는 `origin/main`에 push됐다. 그 다음 변경은 P5-CA20의 연속 입력 starvation 해소다.
+
+#### 이번 변경에서 완료한 것
+
+- [x] trailing debounce를 고정 16ms coalescing window로 변경했다. 커서가 계속 움직여도 첫 pending 시각은 밀리지 않고, 창이 열리면 가장 최신 command를 계산한다.
+- [x] worker가 계산 중일 때 들어온 최신 command는 pending 1개로 합치며, 현재 worker 종료 직후 이미 준비 시간이 지났다면 바로 다음 계산을 시작한다.
+- [x] 같은 조준 session에서 완료된 prediction은 더 최신 command가 pending이어도 현재 표시보다 새 generation이면 화면에 반영한다.
+- [x] exact cache hit을 표시한 뒤 더 오래된 worker 결과가 도착해도 최신 경로를 덮어쓰지 못한다.
+- [x] `pipeline/tests/run_p5_piece_visual_cycle.py` 17개 검사를 통과했다. 연속 입력 window 고정, 같은-session 결과 표시, 오래된 결과 overwrite 방지를 포함한다.
+- [x] 승인 근거를 `docs/specs/p5_caveman_ai_runtime.md` P5-CA20과 `AGENTS.md`에 반영했다.
+
+#### 팀원이 먼저 할 사람 검수
+
+- [ ] 독립 전투 씬에서 숫자 `3`을 세 번 눌러 세 번째 슬롯을 AI로 바꾸고 AI가 행동자가 될 때까지 진행한다.
+- [ ] AI 중심에서 조준을 시작한 뒤 커서를 원형으로 계속 움직인다. **기존 경로 위를 다시 지나지 않아도** 청록 경로가 주기적으로 갱신돼야 한다.
+- [ ] 커서를 멈추지 않은 채 각도와 파워를 함께 바꾼다. 경로가 계산 시간만큼 뒤따를 수는 있지만 빈 상태로 사라지거나 한 방향에 고정되면 실패다.
+- [ ] 커서를 멈춘 뒤 마지막 command의 경로와 HUD 각도·힘·첫 충돌 대상이 수렴하는지 확인한다.
+- [ ] 이미 본 각도·파워로 되돌아가 exact cache hit이 즉시 표시되는지 확인하고, 직후 오래된 경로로 되돌아가지 않는지 확인한다.
+
+실행 명령:
+
+```powershell
+Start-Process -FilePath 'pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64.exe' `
+  -ArgumentList '--path',(Get-Location).Path,'res://scenes/p2_content_graybox.tscn'
+```
+
+#### 사람 검수 결과별 다음 행동
+
+- **통과**: 체크사항을 이 문서에 `[x]`로 바꾸고 제출용 첫 플레이 설명·5분 전투 흐름 폴리시로 이동한다.
+- **경로가 계속 늦지만 주기적으로 갱신됨**: 먼저 worker 1회 계산 시간을 계측한다. 권위 `TrajectoryPredictor`의 tick·point 한도는 임의로 낮추지 말고, UI 표시 주기나 저비용 중간 preview가 필요하면 별도 승인안을 작성한다.
+- **경로가 다시 멈춤**: `TrajectoryPredictionQueue`의 `session/generation/ready_at`과 `_displayed_prediction_generation`을 로그가 아닌 테스트 가능한 값으로 재현한다. 콘텐츠 ID 문자열 분기나 AI 전용 코어 시뮬레이션 경로를 만들지 않는다.
+- **마지막 command와 경로가 불일치**: 같은-session의 중간 결과 표시 정책을 유지할지, 마지막 입력 정지 후 exact 결과만 강조할지 사람 재승인을 받는다. 전투 판정·snapshot·state hash에는 UI prediction을 넣지 않는다.
+
+#### 자동 검증 체크리스트
+
+```powershell
+$env:PYTHONUTF8='1'
+
+# 필수 narrow
+python pipeline/tests/run_p5_piece_visual_cycle.py `
+  --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64.exe
+
+# 영향 회귀
+python pipeline/tests/run_p1_launch_aim_prediction.py `
+  --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64.exe
+python pipeline/tests/run_p2_content_catalog.py `
+  --godot pipeline/artifacts/godot-4.6.3/Godot_v4.6.3-stable_win64.exe
+```
+
+- [ ] 위 필수 narrow 재실행
+- [ ] 사람 검수 통과
+- [ ] `verify --demo` quick 통합
+- [ ] formal release 전 `verify --full`과 수동 release profile
+
+알려진 부채: P2 terminal 병렬 러너와 P4 four-run UI 러너는 기존 Windows 300s/600s timeout 이력이 있다. 이 문제는 AI 경로 수정 실패로 오인하지 말고 별도 검증 부채로 기록한다.
+
+### 3.22 다음 작업 실행 명령
 
 Windows PowerShell에서 먼저 `$env:PYTHONUTF8='1'`을 설정한다.
 
