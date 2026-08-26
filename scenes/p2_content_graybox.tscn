@@ -1,8 +1,14 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://src/ui/battle/p2_content_graybox.gd" id="1"]
 [ext_resource type="Script" path="res://src/ui/battle/aim_input_adapter.gd" id="2"]
 [ext_resource type="Texture2D" path="res://assets/art/ui/p1_graybox/PLACEHOLDER_aim_marker.png" id="3"]
+[ext_resource type="Script" path="res://src/tools/se_emitter.gd" id="4_se_emitter"]
+[ext_resource type="AudioStreamOggVorbis" path="res://assets/audio/se/combat_impact.ogg" id="5_se_stream"]
+[ext_resource type="Script" path="res://src/tools/se_emitter.gd" id="6_se_emitter"]
+[ext_resource type="AudioStreamOggVorbis" path="res://assets/audio/se/bouncy_ball_rebound.ogg" id="7_se_stream"]
+[ext_resource type="Script" path="res://src/tools/se_emitter.gd" id="8_se_emitter"]
+[ext_resource type="AudioStreamOggVorbis" path="res://assets/audio/se/caveman_clean_hit.ogg" id="9_se_stream"]
 
 [sub_resource type="StyleBoxFlat" id="hud_panel"]
 bg_color = Color(0.055, 0.067, 0.09, 0.96)
@@ -77,3 +83,21 @@ autowrap_mode = 2
 
 [node name="AimInputAdapter" type="Node" parent="."]
 script = ExtResource("2")
+
+[node name="SeCombatImpact" type="AudioStreamPlayer" parent="."]
+script = ExtResource("4_se_emitter")
+stream = ExtResource("5_se_stream")
+target_path = NodePath("..")
+signal_name = &"combat_impact_requested"
+
+[node name="SePiecesBouncyBallRebound" type="AudioStreamPlayer" parent="."]
+script = ExtResource("6_se_emitter")
+stream = ExtResource("7_se_stream")
+target_path = NodePath("..")
+signal_name = &"bouncy_ball_rebound_requested"
+
+[node name="SePiecesCavemanCleanHit" type="AudioStreamPlayer" parent="."]
+script = ExtResource("8_se_emitter")
+stream = ExtResource("9_se_stream")
+target_path = NodePath("..")
+signal_name = &"caveman_clean_hit_requested"

@@ -322,6 +322,7 @@ def build_entry(
     requested_by: list[dict],
     file: str | None = None,
     lore_refs: list[str] | None = None,
+    params: dict | None = None,
 ) -> dict:
     entry: dict = {
         "id": entry_id,
@@ -334,6 +335,8 @@ def build_entry(
     }
     if lore_refs:
         entry["lore_refs"] = lore_refs
+    if params is not None:
+        entry["params"] = params
     return entry
 
 
@@ -375,6 +378,13 @@ def _cmd_add(args: argparse.Namespace) -> int:
         print(f"오류: {exc}", file=sys.stderr)
         return 2
 
+    params = None
+    if args.params_file:
+        params = json.loads(Path(args.params_file).read_text(encoding="utf-8"))
+        if not isinstance(params, dict):
+            print("오류: --params-file JSON 최상위는 객체여야 합니다.", file=sys.stderr)
+            return 2
+
     entry = build_entry(
         entry_id=args.id,
         track=args.track,
@@ -383,6 +393,7 @@ def _cmd_add(args: argparse.Namespace) -> int:
         requested_by=requested_by,
         file=args.file,
         lore_refs=args.lore_ref or [],
+        params=params,
     )
     manifest.setdefault("entries", []).append(entry)
 
@@ -415,6 +426,14 @@ def _cmd_update_status(args: argparse.Namespace) -> int:
     target.setdefault("history", []).append(hist)
     if args.file is not None:
         target["file"] = args.file
+    if args.spec is not None:
+        target["spec"] = args.spec
+    if args.params_file:
+        params = json.loads(Path(args.params_file).read_text(encoding="utf-8"))
+        if not isinstance(params, dict):
+            print("오류: --params-file JSON 최상위는 객체여야 합니다.", file=sys.stderr)
+            return 2
+        target["params"] = params
 
     try:
         save_manifest(manifest, args.manifest, schema)
@@ -547,6 +566,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     pa.add_argument("--file", default=None, help="플레이스홀더/실제 파일 경로")
     pa.add_argument("--lore-ref", action="append", metavar="PATH", help="참조 lore/canon 경로. 반복 가능.")
+    pa.add_argument(
+        "--params-file",
+        default=None,
+        metavar="JSON_PATH",
+        help="entry params 객체를 담은 JSON 파일(재생성 파라미터 등)",
+    )
     pa.set_defaults(func=_cmd_add)
 
     pr = sub.add_parser("add-requested-by", help="기존 entry 에 소비 지점 추가")
@@ -569,6 +594,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     pu.add_argument("--feedback", default=None, help="반려/검수 피드백 (history 에 기록)")
     pu.add_argument("--file", default=None, help="반영 파일 경로 갱신")
+    pu.add_argument("--spec", default=None, help="에셋 요구 명세 갱신")
+    pu.add_argument(
+        "--params-file",
+        default=None,
+        metavar="JSON_PATH",
+        help="entry params 객체를 담은 JSON 파일(재생성 파라미터 등)",
+    )
     pu.set_defaults(func=_cmd_update_status)
 
     ps = sub.add_parser("set-style-guide", help="art lock 승인 결과(스타일 가이드 경로) 잠금")

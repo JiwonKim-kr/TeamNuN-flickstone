@@ -6,6 +6,9 @@ signal run_battle_finished(outcome: RunBattleOutcome)
 signal showcase_battle_finished(result_id: int)
 signal player_turn_started(piece_numeric_id: int)
 signal turn_start_zone_damage_applied()
+signal combat_impact_requested()
+signal bouncy_ball_rebound_requested()
+signal caveman_clean_hit_requested()
 
 const PLAYER_TEXTURE := preload("res://assets/art/sprites/p1_graybox/PLACEHOLDER_player_piece.png")
 const ENEMY_TEXTURE := preload("res://assets/art/sprites/p1_graybox/PLACEHOLDER_enemy_piece.png")
@@ -16,6 +19,7 @@ const ABILITY_PRESENTATIONS_PATH := "res://src/ui/battle/ability_presentations.j
 const CONTENT_DRIVER: Script = preload("res://src/ui/battle/p2_content_battle_driver.gd")
 const PREDICTION_QUEUE: Script = preload("res://src/ui/battle/trajectory_prediction_queue.gd")
 const ENEMY_ACTION_DELAY: Script = preload("res://src/ui/battle/enemy_action_delay.gd")
+const COMBAT_AUDIO_CUE_ROUTER: Script = preload("res://src/ui/battle/combat_audio_cue_router.gd")
 const PIECE_SCALE := Vector2(4.0 / 3.0, 4.0 / 3.0)
 const RESOLVE_STEPS_PER_FRAME := 12
 const RESOLVE_FRAME_BUDGET_USEC := 12000
@@ -71,6 +75,7 @@ var _ability_presentations: Dictionary = {}
 var _aim_command: LaunchCommand = LaunchCommand.new()
 var _aim_first_target_body_id: int = 0
 var _displayed_prediction_generation: int = -1
+var _combat_audio_cue_router: RefCounted = COMBAT_AUDIO_CUE_ROUTER.new()
 
 
 func _ready() -> void:
@@ -246,6 +251,7 @@ func _advance_noninteractive_phases() -> void:
 			var grade_id: int = _run_enemy_grade(_state.current_actor_body_id(), _error) if _run_mode else _ai_review_grade_id
 			var command: LaunchCommand = AiShotSelector.command_for(_state, grade_id, _error)
 			if _error.is_ok():
+				_combat_audio_cue_router.reset_launch()
 				LaunchVelocitySolver.commit(_state, command, _error)
 				_resolve_content_transition()
 				_turns += 1
@@ -257,7 +263,14 @@ func _advance_noninteractive_phases() -> void:
 
 func _resolve_content_transition() -> void:
 	if _error.is_ok() and _state != null:
-		CONTENT_DRIVER.resolve_last_transition(_state, _error)
+		var records: Array[BattleTriggerRecord] = CONTENT_DRIVER.resolve_last_transition(_state, _error)
+		if not _error.is_ok(): return
+		var cues: Array[int] = _combat_audio_cue_router.route(_state, _catalog, records, Time.get_ticks_msec(), _error)
+		for cue: int in cues:
+			match cue:
+				COMBAT_AUDIO_CUE_ROUTER.Cue.IMPACT: combat_impact_requested.emit()
+				COMBAT_AUDIO_CUE_ROUTER.Cue.BOUNCY_REBOUND: bouncy_ball_rebound_requested.emit()
+				COMBAT_AUDIO_CUE_ROUTER.Cue.CLEAN_HIT: caveman_clean_hit_requested.emit()
 
 
 func _on_prediction_requested(command: LaunchCommand) -> void:
@@ -398,6 +411,7 @@ func _show_prediction(prediction: TrajectoryPrediction) -> void:
 
 func _on_launch_requested(command: LaunchCommand) -> void:
 	_clear_aim()
+	_combat_audio_cue_router.reset_launch()
 	LaunchVelocitySolver.commit(_state, command, _error)
 	if _error.is_ok():
 		_resolve_content_transition()
@@ -919,6 +933,7 @@ func _restart() -> void:
 	_damage_notice = ""
 	_showcase_outcome_emitted = false
 	_error = SimStatus.new()
+	_combat_audio_cue_router.reset_battle()
 	var deployment: Array[BattleDeploymentEntry] = _build_deployment(_error)
 	if _error.is_ok():
 		_state = BattleSetupBuilder.build(_catalog, _map_definition.numeric_id(), deployment, _battle_seed_hi, _battle_seed_lo, _error, _encounter_definition.numeric_id())
@@ -952,6 +967,7 @@ func start_run_battle(request: RunBattleRequest, catalog: ContentCatalog, status
 		return false
 	_state = RunBattleBridge.build_state(request, _catalog, status)
 	if not status.is_ok() or _state == null or not _state.is_initialized(): return false
+	_combat_audio_cue_router.reset_battle()
 	_help_label.text = "기물 중심에서 멀리 당길수록 강하게 발사 · Esc: 조준 취소"
 	_build_map_view()
 	_resolve_content_transition()

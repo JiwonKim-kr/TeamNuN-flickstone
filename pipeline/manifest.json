@@ -212,6 +212,203 @@
           "action": "approved"
         }
       ]
+    },
+    {
+      "id": "se:combat/impact",
+      "track": "se",
+      "status": "approved",
+      "spec": "P5-CS 공용 피해 충돌음 v2; dull low-pass thud; OGG mono 44100Hz -16 LUFS",
+      "requested_by": [
+        {
+          "kind": "doc",
+          "path": "docs/specs/p5_combat_sound_effects.md"
+        },
+        {
+          "kind": "code_event",
+          "path": "src/ui/battle/p2_content_graybox.gd::_resolve_content_transition"
+        }
+      ],
+      "file": "assets/audio/se/combat_impact.ogg",
+      "history": [
+        {
+          "at": "2026-08-26T08:39:48.142635+00:00",
+          "action": "generated"
+        },
+        {
+          "at": "2026-08-26T08:44:11.341142+00:00",
+          "action": "rejected",
+          "feedback": "2026-08-26 청음 반려: 전체적으로 쨍함. 고역을 줄인 둔탁한 충돌음 필요"
+        },
+        {
+          "at": "2026-08-26T08:47:07.313558+00:00",
+          "action": "generated",
+          "feedback": "v2 청음 후보: 저역 노이즈와 강한 로우패스로 둔탁하게 재생성"
+        },
+        {
+          "at": "2026-08-26T08:52:57.942712+00:00",
+          "action": "generated"
+        },
+        {
+          "at": "2026-08-26T08:53:05.276098+00:00",
+          "action": "approved"
+        }
+      ],
+      "params": {
+        "backend": "jsfxr",
+        "signal": "combat_impact_requested",
+        "jsfxr": {
+          "seed": 5101,
+          "preset": "explosion",
+          "params": {
+            "wave_type": 3,
+            "p_env_sustain": 0.3,
+            "p_env_decay": 0.4,
+            "p_env_punch": 0.42,
+            "p_base_freq": 0.16,
+            "p_freq_ramp": -0.1,
+            "p_vib_strength": 0.0,
+            "p_vib_speed": 0.0,
+            "p_arp_mod": 0.0,
+            "p_arp_speed": 0.0,
+            "p_repeat_speed": 0.0,
+            "p_lpf_freq": 0.2,
+            "p_lpf_resonance": 0.15,
+            "p_hpf_freq": 0.0
+          },
+          "sound_vol": 0.25
+        }
+      }
+    },
+    {
+      "id": "se:pieces/bouncy_ball_rebound",
+      "track": "se",
+      "status": "approved",
+      "spec": "P5-CS 탱탱볼 반발 중첩음 v2; sine pitch-sweep boing; OGG mono 44100Hz -16 LUFS",
+      "requested_by": [
+        {
+          "kind": "doc",
+          "path": "docs/specs/p5_combat_sound_effects.md"
+        },
+        {
+          "kind": "code_event",
+          "path": "src/ui/battle/p2_content_graybox.gd::_resolve_content_transition"
+        }
+      ],
+      "file": "assets/audio/se/bouncy_ball_rebound.ogg",
+      "history": [
+        {
+          "at": "2026-08-26T08:39:48.262602+00:00",
+          "action": "generated"
+        },
+        {
+          "at": "2026-08-26T08:44:11.457858+00:00",
+          "action": "rejected",
+          "feedback": "2026-08-26 청음 반려: 쨍함. 명확한 보잉 피치 움직임 필요"
+        },
+        {
+          "at": "2026-08-26T08:47:07.435917+00:00",
+          "action": "generated",
+          "feedback": "v2 청음 후보: 사인파 피치 하강·비브라토로 보잉 질감 재생성"
+        },
+        {
+          "at": "2026-08-26T08:52:58.060706+00:00",
+          "action": "generated"
+        },
+        {
+          "at": "2026-08-26T08:53:05.407522+00:00",
+          "action": "approved"
+        }
+      ],
+      "params": {
+        "backend": "jsfxr",
+        "signal": "bouncy_ball_rebound_requested",
+        "jsfxr": {
+          "seed": 5102,
+          "preset": "tone",
+          "params": {
+            "wave_type": 2,
+            "p_env_attack": 0.02,
+            "p_env_sustain": 0.34,
+            "p_env_decay": 0.42,
+            "p_env_punch": 0.2,
+            "p_base_freq": 0.3,
+            "p_freq_ramp": -0.2,
+            "p_freq_dramp": 0.08,
+            "p_vib_strength": 0.38,
+            "p_vib_speed": 0.46,
+            "p_arp_mod": 0.18,
+            "p_arp_speed": 0.62,
+            "p_lpf_freq": 0.48,
+            "p_hpf_freq": 0.0
+          },
+          "sound_vol": 0.25
+        }
+      }
+    },
+    {
+      "id": "se:pieces/caveman_clean_hit",
+      "track": "se",
+      "status": "approved",
+      "spec": "P5-CS 원시인 2배 클린 히트 중첩음 v2; deep muted heavy hit; OGG mono 44100Hz -16 LUFS",
+      "requested_by": [
+        {
+          "kind": "doc",
+          "path": "docs/specs/p5_combat_sound_effects.md"
+        },
+        {
+          "kind": "code_event",
+          "path": "src/ui/battle/p2_content_graybox.gd::_resolve_content_transition"
+        }
+      ],
+      "file": "assets/audio/se/caveman_clean_hit.ogg",
+      "history": [
+        {
+          "at": "2026-08-26T08:39:48.383701+00:00",
+          "action": "generated"
+        },
+        {
+          "at": "2026-08-26T08:44:11.581863+00:00",
+          "action": "rejected",
+          "feedback": "2026-08-26 청음 반려: 쨍함. 더 낮고 둔탁한 클린 히트 필요"
+        },
+        {
+          "at": "2026-08-26T08:47:07.552283+00:00",
+          "action": "generated",
+          "feedback": "v2 청음 후보: 초저역 로우패스와 긴 감쇠로 둔탁하게 재생성"
+        },
+        {
+          "at": "2026-08-26T08:52:58.180099+00:00",
+          "action": "generated"
+        },
+        {
+          "at": "2026-08-26T08:53:05.560335+00:00",
+          "action": "approved"
+        }
+      ],
+      "params": {
+        "backend": "jsfxr",
+        "signal": "caveman_clean_hit_requested",
+        "jsfxr": {
+          "seed": 5103,
+          "preset": "explosion",
+          "params": {
+            "p_env_sustain": 0.32,
+            "p_env_decay": 0.48,
+            "p_env_punch": 0.52,
+            "p_base_freq": 0.11,
+            "p_freq_ramp": -0.08,
+            "p_vib_strength": 0.04,
+            "p_vib_speed": 0.08,
+            "p_arp_mod": 0.0,
+            "p_arp_speed": 0.0,
+            "p_repeat_speed": 0.0,
+            "p_lpf_freq": 0.14,
+            "p_lpf_resonance": 0.2,
+            "p_hpf_freq": 0.0
+          },
+          "sound_vol": 0.25
+        }
+      }
     }
   ]
 }
