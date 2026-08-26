@@ -10,7 +10,7 @@
 
 ## 목표
 
-마법 구슬로 오인되던 기존 후보 대신 고무 장난감으로 읽히는 새 탱탱볼 이미지를 정식 런타임 에셋으로 승격한다. 플레이스홀더에 임시 별칭을 붙이지 않고 append-only 콘텐츠 ID `bouncy_ball`을 추가하며, 기물별 코드 분기 없이 데이터가 런타임 이미지를 선택하게 한다. 탱탱볼의 핵심 차별점인 2배 탄성도 결정론 물리에 함께 연결한다.
+마법 구슬로 오인되던 기존 후보 대신 고무 장난감으로 읽히는 새 탱탱볼 이미지를 정식 런타임 에셋으로 승격한다. 플레이스홀더에 임시 별칭을 붙이지 않고 append-only 콘텐츠 ID `bouncy_ball`을 추가하며, 기물별 코드 분기 없이 데이터가 런타임 이미지를 선택하게 한다. 탱탱볼의 핵심 차별점인 탄성 배율도 결정론 물리에 함께 연결한다. 최초 2배 값은 P5-BR15 플레이 검수에서 4배로 재승인됐다.
 
 ## 범위
 
@@ -50,6 +50,7 @@
 | P5-BR12 | `src/ui/battle/piece_visuals.json`이 numeric/string ID 쌍, texture 경로, pixel size, scale을 strict하게 매핑하고 UI는 이를 범용 로드한다 | P2-G10의 콘텐츠 ID별 컨트롤러 분기 금지 | ✅ 승인 · 2026-08-25 |
 | P5-BR13 | visual record가 없는 기존 기물은 현재 진영 placeholder로 fallback하며, 등록됐지만 파일/규격이 틀리면 조용히 fallback하지 않고 로드 오류로 정지한다 | 점진적 reskin과 엄격한 데이터 오류 검출을 함께 만족 | ✅ 승인 · 2026-08-25 |
 | P5-BR14 | 본체에는 진영색을 굽지 않고 청록 원+돌기/주황 원+쐐기 링을 코드 오버레이로 표시하며 현재 행동자는 별도 노란 화살표로 표시한다 | P5-ART06을 충족하고 현재 노란 sprite tint로 재질이 사라지는 문제 방지 | ✅ 승인 · 2026-08-25 |
+| P5-BR15 | 제출 플레이 검수에서 탄성 배율을 전 레벨 2.0에서 허용 상한 4.0으로 올린다. 유효 반발은 39/40에서 79/80이 된다 | 2배는 기본 19/20 대비 손실 차이가 2.5%p뿐이라 고유 특성이 체감되지 않음 | ✅ 승인 · 2026-08-26 |
 
 ## 데이터 계약
 
@@ -65,7 +66,7 @@
 
 - 허용 범위: `1.0 <= value <= 4.0`
 - 기존 정식·graybox 기물: `65536` (1.0)
-- `bouncy_ball`: `131072` (2.0)
+- `bouncy_ball`: `262144` (4.0, P5-BR15 재승인)
 - canonical field order는 `friction_multiplier_raw` 다음, `critical_basis_points` 앞이다.
 
 탱탱볼은 `numeric_id=4`, `id=bouncy_ball`, 일반 로스터 기물 flags, 비spawnable, `trickery` tag, 빈 `ability_refs`를 사용한다. 탄성은 이번 범위에서 별도 trigger/effect record가 아니라 물리 스탯이다.
@@ -102,7 +103,7 @@ effective_e = 1 - (1 - e) / m
 - wall: `m = body.elasticity_multiplier`
 - circle pair: `m = max(body_a.elasticity_multiplier, body_b.elasticity_multiplier)`
 - 위치 보정, 질량 impulse, 접촉 pass, 이벤트 순서는 기존 P0 계약을 유지한다.
-- 2배 탄성도 저속 `vmax <= 20` 즉시 settle 규칙의 예외가 아니다.
+- 4배 탄성도 저속 `vmax <= 20` 즉시 settle 규칙의 예외가 아니다.
 - prediction clone, runtime spawn, transform, snapshot restore는 탄성 값을 잃지 않는다.
 
 ## 런타임 노출
@@ -138,8 +139,8 @@ effective_e = 1 - (1 - e) / m
 
 1. strict JSON/schema/KAT와 독립 canonical fingerprint 계산이 통과한다.
 2. 기존 기물의 1.0 탄성 결과가 변경 전 golden과 동일하다.
-3. 기본 19/20에서 탱탱볼 벽 충돌과 일반-탱탱볼 충돌이 39/40을 사용한다.
-4. 탱탱볼-탱탱볼도 39/40이며 배율이 중첩되지 않는다.
+3. 기본 19/20에서 탱탱볼 벽 충돌과 일반-탱탱볼 충돌이 79/80을 사용한다.
+4. 탱탱볼-탱탱볼도 79/80이며 배율이 중첩되지 않는다.
 5. snapshot round-trip, 구버전 restore 기본값, state hash 민감도가 통과한다.
 6. prediction/runtime/transform/spawn 경로가 탄성을 보존한다.
 7. 1,000-repeat 동일 seed 결과와 기존 P0~P4 대표 회귀가 통과한다.
@@ -165,11 +166,11 @@ effective_e = 1 - (1 - e) / m
 
 ## 구현·검증 기록
 
-2026-08-25 구현을 완료했다.
+2026-08-25 구현을 완료했다. 2026-08-26 사람 플레이 검수에서 탄성 체감이 부족하다는 피드백에 따라 P5-BR15로 4.0 상한을 재승인했다.
 
 - PIECE ID 4 `bouncy_ball`, TAG ID 3 `trickery`, L1~L3와 세 reward pool을 등록했다.
 - pieces v4, catalog/fingerprint v11, SimSnapshot v3으로 이관했다. 현재 runtime fingerprint는 `8067a487ceb0ef2d721a3a985d8c5b7c0d8185cd4f52ce30c9d8cb59fd68edca`다.
-- 일반 body는 기존 반발 경로를 그대로 사용하고, 2배 탄성 body에만 39/40 유효 반발을 계산한다. circle pair는 최대 배율만 적용한다.
+- 일반 body는 기존 반발 경로를 그대로 사용하고, P5-BR15 이후 4배 탄성 body에는 79/80 유효 반발을 계산한다. circle pair는 최대 배율만 적용한다.
 - `bouncy_ball.png` 64×64 RGBA를 manifest에 approved로 등록하고 strict `piece_visuals.json`, 진영 링, 현재 행동자 화살표를 연결했다.
 - Godot 4.6.3 import/smoke/manifest, P0 충돌 23그룹(legacy v2 탄성 기본값 포함), P2 콘텐츠 21그룹, P4 snapshot 17그룹, P4 map 8그룹, P4 formation, P5-DZ 및 독립 Python KAT가 통과했다.
 - P0 1,000회·30순열 exhaustive 실행으로 SimSnapshot v3 golden을 승인 문서 경로와 함께 갱신했고, 후속 demo quick P0 13그룹도 통과했다.

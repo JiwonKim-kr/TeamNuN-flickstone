@@ -2,7 +2,7 @@ class_name TrajectoryPredictionQueue
 extends RefCounted
 ## Keeps only the latest aim command and starts prediction after pointer input settles.
 
-const DEFAULT_DEBOUNCE_USEC := 50_000
+const DEFAULT_DEBOUNCE_USEC := 16_000
 
 var _debounce_usec: int = DEFAULT_DEBOUNCE_USEC
 var _session: int = 0

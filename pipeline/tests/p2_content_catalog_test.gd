@@ -1,6 +1,6 @@
 extends SceneTree
 
-const RUNTIME_FINGERPRINT: String = "8067a487ceb0ef2d721a3a985d8c5b7c0d8185cd4f52ce30c9d8cb59fd68edca"
+const RUNTIME_FINGERPRINT: String = "aa7758ad0ccbb5ef73fe66f162b004243b3410a536c559e7ff584139267e7ee1"
 const VALID_A_FINGERPRINT: String = "478ffd101fd28591aa7a52cdc355abb27750a114f153b233822b42c4474a3102"
 const VALID_B_FINGERPRINT: String = "4f1078b14234574f635d76b27e654f381f3f613b976c01bb954ae7c03bb22844"
 const FIXTURE_ROOT: String = "res://pipeline/tests/fixtures/p2_content_catalog"

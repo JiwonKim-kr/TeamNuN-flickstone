@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "pipeline" / "scripts"))
 from content_catalog import ContentError, load_catalog  # noqa: E402
 
 RUNTIME = ROOT / "src" / "core" / "data"
-EXPECTED_FINGERPRINT = "8067a487ceb0ef2d721a3a985d8c5b7c0d8185cd4f52ce30c9d8cb59fd68edca"
+EXPECTED_FINGERPRINT = "aa7758ad0ccbb5ef73fe66f162b004243b3410a536c559e7ff584139267e7ee1"
 
 
 def mutate(file_name: str, callback) -> tuple[bool, str]:
@@ -78,7 +78,10 @@ def main() -> int:
     assert [item.string_id for item in catalog.enemies] == ["enemy_baduk_stone", "enemy_bottle_cap", "enemy_graybox_striker", "graybox_elite_baduk_stone", "graybox_boss_graybox_striker"]
     assert [item.string_id for item in catalog.maps] == ["graybox_pit_arena"]
     assert [len(piece.levels) for piece in catalog.pieces] == [3, 3, 1, 3, 3, 3]
-    assert catalog.pieces[3].levels[0].elasticity_multiplier_raw == 2 * 65_536
+    assert [[level.attack for level in piece.levels] for piece in catalog.pieces] == [
+        [25, 31, 38], [30, 38, 45], [20], [25, 31, 38], [23, 29, 34], [23, 29, 34]
+    ]
+    assert catalog.pieces[3].levels[0].elasticity_multiplier_raw == 4 * 65_536
     assert catalog.pieces[4].levels[0].clean_hit_damage_multiplier_raw == 2 * 65_536
 
     with tempfile.TemporaryDirectory(prefix="flickstone-p2-graybox-order-") as temporary:

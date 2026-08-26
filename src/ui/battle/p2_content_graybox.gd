@@ -19,6 +19,10 @@ const RESOLVE_FRAME_BUDGET_USEC := 12000
 const SEED_HI := 0x12345678
 const SEED_LO := 0x2468ACE0
 const PREVIEW_COUNT := 6
+const TRAJECTORY_DEFAULT_WIDTH := 3.0
+const TRAJECTORY_AI_WIDTH := 6.0
+const TRAJECTORY_DEFAULT_COLOR := Color(1.0, 0.82, 0.2, 0.75)
+const TRAJECTORY_AI_COLOR := Color(0.25, 0.95, 1.0, 0.95)
 
 @onready var _battlefield: Node2D = $Battlefield
 @onready var _map_visuals: Node2D = $Battlefield/MapVisuals
@@ -240,6 +244,7 @@ func _resolve_content_transition() -> void:
 
 func _on_prediction_requested(command: LaunchCommand) -> void:
 	var status := SimStatus.new()
+	_configure_trajectory_style(status)
 	var actor_position := _fix_to_vector(_input.actor_center())
 	var fixed_direction: FixVec2 = FixTrigLut.direction(command.angle(), status)
 	if not status.is_ok():
@@ -268,9 +273,8 @@ func _on_prediction_requested(command: LaunchCommand) -> void:
 	if _prediction_cache.has(cache_key):
 		_prediction_queue.take_pending()
 		_show_prediction(_prediction_cache[cache_key] as TrajectoryPrediction)
-	else:
-		_trajectory.clear()
-		_trajectory_line.clear_points()
+	# Keep the latest completed trajectory visible while the worker computes the
+	# new angle. The immediate aim guide still identifies the current command.
 
 
 func _start_pending_prediction() -> void:
@@ -343,6 +347,12 @@ func _poll_prediction() -> void:
 
 func _prediction_cache_key(command: LaunchCommand) -> int:
 	return (command.angle() << 9) | command.power_step()
+
+
+func _configure_trajectory_style(status: SimStatus) -> void:
+	var ai_detail_active: bool = _actor_aim_detail_mode(status) == 1
+	_trajectory_line.width = TRAJECTORY_AI_WIDTH if ai_detail_active else TRAJECTORY_DEFAULT_WIDTH
+	_trajectory_line.default_color = TRAJECTORY_AI_COLOR if ai_detail_active else TRAJECTORY_DEFAULT_COLOR
 
 
 func _show_prediction(prediction: TrajectoryPrediction) -> void:
@@ -855,6 +865,8 @@ func _sync_view() -> void:
 
 func _clear_piece_nodes() -> void:
 	for holder: Node2D in _piece_nodes.values():
+		if is_instance_valid(holder) and holder.get_parent() == _pieces:
+			_pieces.remove_child(holder)
 		holder.queue_free()
 	_piece_nodes.clear()
 

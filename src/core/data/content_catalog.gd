@@ -313,6 +313,11 @@ func synergy_by_tag_numeric_id(id: int, status: ContentStatus) -> SynergyDefinit
 	if status.is_ok(): status.fail(ContentStatus.Code.MISSING_REFERENCE, ContentStatus.Operation.LOOKUP, ContentIds.DocumentKind.SYNERGIES, id)
 	return SynergyDefinition.new()
 
+func has_synergy_for_tag_numeric_id(id: int) -> bool:
+	for item: SynergyDefinition in _synergies:
+		if item.tag_ref().numeric_id() == id: return true
+	return false
+
 
 func piece_by_string_id(id: String, status: ContentStatus) -> PieceDefinition:
 	for item: PieceDefinition in _pieces:

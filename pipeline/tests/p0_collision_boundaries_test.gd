@@ -731,17 +731,21 @@ func _elastic_pair_target_velocity(elasticity_a: int, elasticity_b: int, status:
 
 func _test_piece_elasticity() -> void:
 	var normal_status := SimStatus.new()
+	var two_x_status := SimStatus.new()
 	var one_bouncy_status := SimStatus.new()
 	var two_bouncy_status := SimStatus.new()
 	var normal_velocity: int = _elastic_pair_target_velocity(FixMath.ONE_RAW, FixMath.ONE_RAW, normal_status)
-	var one_bouncy_velocity: int = _elastic_pair_target_velocity(FixMath.ONE_RAW, 2 * FixMath.ONE_RAW, one_bouncy_status)
-	var two_bouncy_velocity: int = _elastic_pair_target_velocity(2 * FixMath.ONE_RAW, 2 * FixMath.ONE_RAW, two_bouncy_status)
+	var two_x_velocity: int = _elastic_pair_target_velocity(FixMath.ONE_RAW, 2 * FixMath.ONE_RAW, two_x_status)
+	var one_bouncy_velocity: int = _elastic_pair_target_velocity(FixMath.ONE_RAW, 4 * FixMath.ONE_RAW, one_bouncy_status)
+	var two_bouncy_velocity: int = _elastic_pair_target_velocity(4 * FixMath.ONE_RAW, 4 * FixMath.ONE_RAW, two_bouncy_status)
 	_check(
 		"P5-BR-PAIR-MAX-001",
 		normal_status.is_ok()
+		and two_x_status.is_ok()
 		and one_bouncy_status.is_ok()
 		and two_bouncy_status.is_ok()
-		and one_bouncy_velocity > normal_velocity
+		and one_bouncy_velocity > two_x_velocity
+		and two_x_velocity > normal_velocity
 		and two_bouncy_velocity == one_bouncy_velocity
 	)
 
@@ -749,7 +753,7 @@ func _test_piece_elasticity() -> void:
 	var wall_world: SimWorld = SimWorld.create(0, 40, wall_status, 0, 0)
 	wall_world.configure_boundary(_square(100, wall_status), SimWorld.BoundaryType.WALL, wall_status)
 	var wall_keys: Array[int] = [1]
-	var wall_bodies: Array[SimBody] = [_body(91, 0, 240, 0, 8, 64, wall_status, true, 2 * FixMath.ONE_RAW)]
+	var wall_bodies: Array[SimBody] = [_body(91, 0, 240, 0, 8, 64, wall_status, true, 4 * FixMath.ONE_RAW)]
 	wall_world.add_initial_bodies(wall_keys, wall_bodies, wall_status)
 	wall_world.step(wall_status)
 	var bouncy_body: SimBody = wall_world.body_by_id(1, wall_status)
@@ -759,7 +763,7 @@ func _test_piece_elasticity() -> void:
 		"P5-BR-WALL-SNAPSHOT-001",
 		wall_status.is_ok()
 		and bouncy_body.velocity().x_raw() < -14942160
-		and restored.body_by_id(1, wall_status).elasticity_multiplier_raw() == 2 * FixMath.ONE_RAW
+		and restored.body_by_id(1, wall_status).elasticity_multiplier_raw() == 4 * FixMath.ONE_RAW
 	)
 
 	var legacy_status := SimStatus.new()

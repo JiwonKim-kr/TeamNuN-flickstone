@@ -1,7 +1,7 @@
 extends SceneTree
 
 const DATA_DB_SCRIPT: Script = preload("res://src/core/autoload/data_db.gd")
-const EXPECTED_FINGERPRINT: String = "8067a487ceb0ef2d721a3a985d8c5b7c0d8185cd4f52ce30c9d8cb59fd68edca"
+const EXPECTED_FINGERPRINT: String = "aa7758ad0ccbb5ef73fe66f162b004243b3410a536c559e7ff584139267e7ee1"
 const EXPECTED_GRAPH: String = "1:1:0:1:1>2,3|2:2:0:3:1>4|3:2:1:4:1>5|4:3:0:1:1>6|5:3:1:2:3>6|6:4:0:5:0>7|7:5:0:6:4>"
 
 var failures: int = 0

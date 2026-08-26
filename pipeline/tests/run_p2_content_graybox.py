@@ -15,7 +15,7 @@ import godot_test_support
 ROOT = Path(__file__).resolve().parents[2]
 TEST_SCRIPT = "res://pipeline/tests/p2_content_graybox_test.gd"
 GOLDEN = ROOT / "pipeline" / "tests" / "fixtures" / "p2_content_graybox_goldens.json"
-FINGERPRINT = "8067a487ceb0ef2d721a3a985d8c5b7c0d8185cd4f52ce30c9d8cb59fd68edca"
+FINGERPRINT = "aa7758ad0ccbb5ef73fe66f162b004243b3410a536c559e7ff584139267e7ee1"
 
 
 def main(argv: list[str] | None = None) -> int:

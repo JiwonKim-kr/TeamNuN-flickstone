@@ -338,7 +338,8 @@ def _clone_repo(dst: Path) -> None:
     shutil.copytree(
         REPO_ROOT, dst,
         ignore=shutil.ignore_patterns(
-            ".git", ".godot", "__pycache__", "*.pyc", "export", "fixtures"),
+            ".git", ".godot", "__pycache__", "*.pyc", "export", "fixtures",
+            "artifacts"),
     )
 
 

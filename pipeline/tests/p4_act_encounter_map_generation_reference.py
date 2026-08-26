@@ -16,7 +16,7 @@ from content_catalog import ActDefinition, Catalog, load_catalog  # noqa: E402
 from p0_rng_reference import Xoshiro128StarStar, derive_state  # noqa: E402
 
 RUNTIME = ROOT / "src" / "core" / "data"
-EXPECTED_FINGERPRINT = "8067a487ceb0ef2d721a3a985d8c5b7c0d8185cd4f52ce30c9d8cb59fd68edca"
+EXPECTED_FINGERPRINT = "aa7758ad0ccbb5ef73fe66f162b004243b3410a536c559e7ff584139267e7ee1"
 EXPECTED_GRAPH = (
     (1, 1, 0, 1, 1, (2, 3)),
     (2, 2, 0, 3, 1, (4,)),

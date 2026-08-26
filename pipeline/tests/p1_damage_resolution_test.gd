@@ -167,7 +167,8 @@ func _append_collision_event(
 		approach_speed_raw: int,
 		flags: int,
 		valid_payload: bool,
-		status: SimStatus
+		status: SimStatus,
+		target_body_id: int = 2
 ) -> void:
 	var world: SimWorld = state._world
 	var sequence: int = world.next_event_sequence()
@@ -178,13 +179,141 @@ func _append_collision_event(
 		)
 	var event: SimEvent = SimEvent.create(
 		world.tick(), 0, sequence, SimEvent.TypeId.BODY_COLLIDED,
-		1, 2, 0, SimEvent.CauseId.NONE, FixVec2.zero(),
+		1, target_body_id, 0, SimEvent.CauseId.NONE, FixVec2.zero(),
 		FixVec2.from_raw(FixMath.ONE_RAW, 0), approach_speed_raw,
 		packed_masses, flags, status
 	)
 	if status.is_ok():
 		world._events.append(event)
 		world._next_event_sequence = sequence + 1
+
+
+func _append_wall_event(state: BattleState, status: SimStatus) -> void:
+	var world: SimWorld = state._world
+	var sequence: int = world.next_event_sequence()
+	var event: SimEvent = SimEvent.create(
+		world.tick(), 0, sequence, SimEvent.TypeId.BODY_HIT_WALL,
+		1, 0, 0, SimEvent.CauseId.NONE, FixVec2.zero(),
+		FixVec2.from_raw(FixMath.ONE_RAW, 0), 0, 0, 0, status
+	)
+	if status.is_ok():
+		world._events.append(event)
+		world._next_event_sequence = sequence + 1
+
+
+func _clean_hit_battle(status: SimStatus) -> BattleState:
+	var world: SimWorld = SimWorld.create(0xCA, 0x51, status, 0, 0)
+	var keys: Array[int] = [1, 2, 3, 4]
+	var bodies: Array[SimBody] = [
+		_body(0, 0, 64, status),
+		_body(64, 0, 64, status),
+		_body(128, 0, 64, status),
+		_body(192, 0, 64, status),
+	]
+	world.add_initial_bodies(keys, bodies, status)
+	while status.is_ok() and world.event_cursor() < world.event_count():
+		world.consume_next_event(status)
+	var participants: Array[BattleParticipant] = [
+		_participant(1, BattleParticipant.Faction.PLAYER, BattleLimits.CT_THRESHOLD, status),
+		_participant(2, BattleParticipant.Faction.ENEMY, 0, status),
+		_participant(3, BattleParticipant.Faction.PLAYER, 0, status),
+		_participant(4, BattleParticipant.Faction.ENEMY, 0, status),
+	]
+	var combatants: Array[BattleCombatant] = [
+		BattleCombatant.create_with_clean_hit_multiplier(
+			1, BattleParticipant.Faction.PLAYER, 100, 100, 0,
+			2 * FixMath.ONE_RAW, status
+		),
+		_combatant(2, BattleParticipant.Faction.ENEMY, 999, 100, status),
+		BattleCombatant.create_with_clean_hit_multiplier(
+			3, BattleParticipant.Faction.PLAYER, 100, 100, 0,
+			2 * FixMath.ONE_RAW, status
+		),
+		_combatant(4, BattleParticipant.Faction.ENEMY, 999, 100, status),
+	]
+	return BattleState.restore_with_combatants(
+		world, participants, combatants, [], BattleState.Phase.RESOLVE, 1,
+		0, BattleParticipant.Faction.INVALID, 0, 0, false, status
+	)
+
+
+func _test_clean_hit_battle_contract() -> void:
+	var direct_status := SimStatus.new()
+	var direct: BattleState = _clean_hit_battle(direct_status)
+	var actor: BattleCombatant = direct.combatant_by_body_id(1, direct_status)
+	var enemy_a: BattleCombatant = direct.combatant_by_body_id(2, direct_status)
+	var enemy_b: BattleCombatant = direct.combatant_by_body_id(4, direct_status)
+	var direct_a: DamageResult = direct._resolve_damage_direction(
+		actor, enemy_a, 64 * FixMath.SCALE, 64 * FixMath.SCALE,
+		1024 * FixMath.SCALE, 10, direct_status
+	)
+	var direct_b: DamageResult = direct._resolve_damage_direction(
+		actor, enemy_b, 64 * FixMath.SCALE, 64 * FixMath.SCALE,
+		1024 * FixMath.SCALE, 11, direct_status
+	)
+	var transferred: DamageResult = direct._resolve_damage_direction(
+		direct.combatant_by_body_id(3, direct_status), enemy_a,
+		64 * FixMath.SCALE, 64 * FixMath.SCALE, 1024 * FixMath.SCALE,
+		12, direct_status
+	)
+	_check(
+		"P5-CA-CLEAN-HIT-ACTOR-CHAIN-001",
+		direct_status.is_ok()
+		and direct_a.resolved_damage() == 200
+		and direct_b.resolved_damage() == 200
+		and transferred.resolved_damage() == 100
+	)
+
+	var ally_status := SimStatus.new()
+	var ally_contact: BattleState = _clean_hit_battle(ally_status)
+	_append_collision_event(
+		ally_contact, DamageLimits.DAMAGE_THRESHOLD_SPEED_RAW - 1,
+		SimEvent.FLAG_COLLISION_SOURCE_FASTER, true, ally_status, 3
+	)
+	ally_contact._consume_world_events(ally_status)
+	var after_ally: DamageResult = ally_contact._resolve_damage_direction(
+		ally_contact.combatant_by_body_id(1, ally_status),
+		ally_contact.combatant_by_body_id(2, ally_status),
+		64 * FixMath.SCALE, 64 * FixMath.SCALE, 1024 * FixMath.SCALE,
+		20, ally_status
+	)
+	_check(
+		"P5-CA-CLEAN-HIT-ALLY-LOW-SPEED-CLEARS-001",
+		ally_status.is_ok()
+		and ally_contact.launch_contact_mask() == BattleState.CLEAN_CONTACT_ALLY
+		and after_ally.resolved_damage() == 100
+	)
+
+	var wall_status := SimStatus.new()
+	var wall_contact: BattleState = _clean_hit_battle(wall_status)
+	_append_wall_event(wall_contact, wall_status)
+	wall_contact._consume_world_events(wall_status)
+	var after_wall: DamageResult = wall_contact._resolve_damage_direction(
+		wall_contact.combatant_by_body_id(1, wall_status),
+		wall_contact.combatant_by_body_id(2, wall_status),
+		64 * FixMath.SCALE, 64 * FixMath.SCALE, 1024 * FixMath.SCALE,
+		30, wall_status
+	)
+	var snapshot_bytes: PackedByteArray = BattleSnapshot.capture(
+		wall_contact, wall_status
+	).encode(wall_status)
+	var restored: BattleState = BattleSnapshot.decode(
+		snapshot_bytes, wall_status
+	).restore_state(wall_status)
+	var copy_status := SimStatus.new()
+	var copied: BattleState = wall_contact.copy(copy_status)
+	_check(
+		"P5-CA-CLEAN-HIT-WALL-SNAPSHOT-COPY-001",
+		wall_status.is_ok() and copy_status.is_ok()
+		and wall_contact.launch_contact_mask() == BattleState.CLEAN_CONTACT_WALL
+		and after_wall.resolved_damage() == 100
+		and restored.launch_contact_mask() == BattleState.CLEAN_CONTACT_WALL
+		and copied.launch_contact_mask() == BattleState.CLEAN_CONTACT_WALL
+		and restored.combatant_by_body_id(1, wall_status).clean_hit_damage_multiplier_raw()
+			== 2 * FixMath.ONE_RAW
+		and copied.combatant_by_body_id(1, copy_status).clean_hit_damage_multiplier_raw()
+			== 2 * FixMath.ONE_RAW
+	)
 
 
 func _first_collision(world: SimWorld, status: SimStatus) -> SimEvent:
@@ -802,6 +931,7 @@ func _initialize() -> void:
 	)
 	_test_formula()
 	_test_clean_hit_multiplier()
+	_test_clean_hit_battle_contract()
 	_test_collision_payload()
 	_test_destroy_api()
 	_test_battle_damage_and_cooldown()

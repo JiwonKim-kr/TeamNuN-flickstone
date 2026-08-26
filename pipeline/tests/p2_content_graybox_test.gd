@@ -5,7 +5,7 @@ const CONTENT_DRIVER: Script = preload("res://src/ui/battle/p2_content_battle_dr
 const PREDICTION_QUEUE: Script = preload("res://src/ui/battle/trajectory_prediction_queue.gd")
 const ENEMY_ACTION_DELAY: Script = preload("res://src/ui/battle/enemy_action_delay.gd")
 const RUNTIME_ROOT := "res://src/core/data"
-const EXPECTED_FINGERPRINT := "8067a487ceb0ef2d721a3a985d8c5b7c0d8185cd4f52ce30c9d8cb59fd68edca"
+const EXPECTED_FINGERPRINT := "aa7758ad0ccbb5ef73fe66f162b004243b3410a536c559e7ff584139267e7ee1"
 const DEFAULT_PRESET: Array[int] = [0, 1, 2]
 const OFF_PRESET: Array[int] = [0, 0, 2]
 const STACKED_PRESET: Array[int] = [1, 1, 2]
@@ -76,8 +76,8 @@ func test_catalog(catalog: ContentCatalog) -> void:
 	var caveman: PieceDefinition = catalog.piece_by_numeric_id(5, status)
 	var ai_core: PieceDefinition = catalog.piece_by_numeric_id(6, status)
 	var caveman_level: PieceLevelDefinition = caveman.level_definition(1, status)
-	check("P2-6-RUNTIME-PACKAGE-COUNTS-IDS", status.is_ok() and catalog.fingerprint_hex() == EXPECTED_FINGERPRINT and catalog.piece_count() == 6 and catalog.ability_count() == 3 and catalog.status_count() == 2 and catalog.synergy_count() == 2 and catalog.map_count() == 1 and catalog.enemy_count() == 5 and catalog.act_count() == 1 and catalog.encounter_count() == 4 and catalog.relic_count() == 1 and catalog.consumable_count() == 1 and catalog.shop_count() == 1 and catalog.event_count() == 1 and baduk.string_id() == "baduk_stone" and bottle.string_id() == "bottle_cap" and striker.string_id() == "graybox_striker" and bouncy.string_id() == "bouncy_ball" and bouncy_level.elasticity_multiplier_raw() == 2 * FixMath.ONE_RAW and caveman.string_id() == "caveman" and caveman_level.clean_hit_damage_multiplier_raw() == 2 * FixMath.ONE_RAW and ai_core.string_id() == "ai_core")
-	check("P2-6-PIECE-LEVEL1-VALUES", status.is_ok() and baduk.level_count() == 3 and bottle.level_count() == 3 and striker.level_count() == 1 and bottle_level.max_hp() == 90 and bottle_level.attack() == 24 and bottle_level.mass_raw() == 56 * FixMath.SCALE and striker_level.ability_ref_count() == 1)
+	check("P2-6-RUNTIME-PACKAGE-COUNTS-IDS", status.is_ok() and catalog.fingerprint_hex() == EXPECTED_FINGERPRINT and catalog.piece_count() == 6 and catalog.ability_count() == 3 and catalog.status_count() == 2 and catalog.synergy_count() == 2 and catalog.map_count() == 1 and catalog.enemy_count() == 5 and catalog.act_count() == 1 and catalog.encounter_count() == 4 and catalog.relic_count() == 1 and catalog.consumable_count() == 1 and catalog.shop_count() == 1 and catalog.event_count() == 1 and baduk.string_id() == "baduk_stone" and bottle.string_id() == "bottle_cap" and striker.string_id() == "graybox_striker" and bouncy.string_id() == "bouncy_ball" and bouncy_level.elasticity_multiplier_raw() == 4 * FixMath.ONE_RAW and caveman.string_id() == "caveman" and caveman_level.clean_hit_damage_multiplier_raw() == 2 * FixMath.ONE_RAW and ai_core.string_id() == "ai_core")
+	check("P2-6-PIECE-LEVEL1-VALUES", status.is_ok() and baduk.level_count() == 3 and bottle.level_count() == 3 and striker.level_count() == 1 and baduk.level_definition(1, status).attack() == 25 and bottle_level.max_hp() == 90 and bottle_level.attack() == 30 and bottle_level.mass_raw() == 56 * FixMath.SCALE and striker_level.attack() == 20 and bouncy_level.attack() == 25 and caveman_level.attack() == 23 and ai_core.level_definition(1, status).attack() == 23 and striker_level.ability_ref_count() == 1)
 	var reward_bouncy_ok: bool = true
 	for reward_index: int in range(catalog.reward_profile_count()):
 		var reward: RewardProfileDefinition = catalog.reward_profile_at(reward_index, status)

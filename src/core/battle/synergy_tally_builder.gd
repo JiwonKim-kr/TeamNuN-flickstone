@@ -12,7 +12,12 @@ static func build(catalog: ContentCatalog, identities: Array[BattlePieceIdentity
 		var cs := ContentStatus.new(); var piece: PieceDefinition = catalog.piece_by_numeric_id(identity.piece_numeric_id(), cs)
 		if not cs.is_ok(): status.fail(SimStatus.Code.INVALID_PIECE_IDENTITY, SimStatus.Operation.SYNERGY_TALLY_BUILD, identity.body_id(), identity.piece_numeric_id()); return SynergyTally.new()
 		for tag_index: int in range(piece.tag_ref_count()):
-			var tag_id: int = piece.tag_ref_at(tag_index, cs).numeric_id(); var synergy: SynergyDefinition = catalog.synergy_by_tag_numeric_id(tag_id, cs)
+			var tag_id: int = piece.tag_ref_at(tag_index, cs).numeric_id()
+			if not cs.is_ok(): status.fail(SimStatus.Code.INVALID_SYNERGY_TALLY, SimStatus.Operation.SYNERGY_TALLY_BUILD, tag_id, identity.body_id()); return SynergyTally.new()
+			# A tag can be reserved for content identity before its synergy effect is approved.
+			# Such tags contribute nothing until a matching synergy record exists.
+			if not catalog.has_synergy_for_tag_numeric_id(tag_id): continue
+			var synergy: SynergyDefinition = catalog.synergy_by_tag_numeric_id(tag_id, cs)
 			if not cs.is_ok(): status.fail(SimStatus.Code.INVALID_SYNERGY_TALLY, SimStatus.Operation.SYNERGY_TALLY_BUILD, tag_id, identity.body_id()); return SynergyTally.new()
 			var key: String = "%d:%d" % [tag_id, identity.faction()]; var contribution: int = 1 if synergy.tag_kind_id() == SynergyDefinition.TagKind.ROLE else identity.level()
 			counts[key] = int(counts.get(key, 0)) + contribution

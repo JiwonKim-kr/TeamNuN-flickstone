@@ -52,6 +52,7 @@
 | P5-CA16 | 시작 로스터·적·map은 유지하고 세 reward pool에 두 기물을 추가한다. 독립 전투 1/2/3 슬롯 순환으로 즉시 선택할 수 있다 | P4 계약·전투 난도 이관을 최소화 | ✅ 승인 · 2026-08-26 |
 | P5-CA17 | 승인 64px 샘플을 `assets/art/sprites/p5/caveman.png`, `ai_core.png`로 승격하고 기존 진영 링·행동자 화살표를 재사용한다 | 이미 끝난 사람 아트 검수 반영 | ✅ 승인 · 2026-08-26 |
 | P5-CA18 | 이번 단계 검증은 영향 narrow, import/smoke/manifest, 실제 전투 렌더까지 수행하고 알려진 P2/P4 장시간 타임아웃은 별도 부채로 유지한다 | 구현 진행과 장시간 검증을 분리하라는 최신 지시 반영 | ✅ 승인 · 2026-08-26 |
+| P5-CA19 | 궤적 계산 debounce를 50ms에서 16ms로 줄이고 새 계산 중에는 마지막 완성 궤적을 유지한다. AI 계산 모드는 6px 청록색 anti-aliased 선으로 강조한다 | 특정 방향에서만 늦게 나타나거나 계산 중 선이 사라져 끊겨 보이는 플레이 검수 문제 해소 | ✅ 승인 · 2026-08-26 |
 
 ## 원시인 clean-launch 계약
 
@@ -81,6 +82,7 @@ turn end/interrupt -> mask 폐기
 - 각도는 `LaunchCommand.angle_units`를 0~359 정수 도로 표시하고, 힘은 `power_step / 256`을 0~100 정수 퍼센트로 표시한다.
 - 첫 충돌은 기존 `TrajectoryPoint.Marker.COLLISION`의 첫 `target_body_id`를 읽는다. 추가 시뮬레이션이나 RNG를 실행하지 않는다.
 - 표시 데이터는 파생 UI이며 snapshot·state hash·전투 판정에 들어가지 않는다.
+- P5-CA19 이후 AI 계산 선은 같은 권위 prediction 값을 사용하되 6px 청록색으로 표시한다. 입력 직후의 현재 방향은 공용 aim guide가 즉시 표시하며 새 prediction 완료 전에는 직전 완성 경로를 유지한다.
 
 ## 데이터·마이그레이션
 
@@ -149,3 +151,7 @@ assets/art/sprites/p5/ai_core.png
 ## 승인 기록
 
 2026-08-26 사용자가 P5-CA01~18과 본문 전체를 승인했다. P5-CA04는 기획서의 승인 대기 태그 배정을 제출 slice에서 부분 확정하고, P5-CA05~08은 P6 전 임시 수치이며, P5-CA14는 기본 궤적선과 AI 능력의 차이를 확정한다.
+
+## 구현·검증 기록
+
+2026-08-26 P5-CA01~18 구현을 완료했다. 후속 회귀 보강에서 P1 피해 narrow를 31개 그룹으로 확장해 direct/연속 적 적중 2배, 비행동자 1배, 저속 아군 접촉·벽 접촉 뒤 1배, contact mask와 typed 배율의 BattleSnapshot/copy 보존을 Godot 4.6.3으로 확인했다. 기본 import·smoke·manifest 게이트와 orchestration/art/se/placeholder 파이프라인 회귀도 통과한다. P2-6/P4 장시간 종단 러너와 원시인·AI 실제 플레이 감각 판정은 P5-CA18에 따라 별도 후속 항목으로 유지한다.

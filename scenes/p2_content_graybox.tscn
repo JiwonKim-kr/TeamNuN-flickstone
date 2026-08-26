@@ -38,6 +38,7 @@ scale = Vector2(0.78, 0.78)
 [node name="TrajectoryLine" type="Line2D" parent="Battlefield/AimLayer"]
 width = 3.0
 default_color = Color(1, 0.82, 0.2, 0.75)
+antialiased = true
 
 [node name="AimLine" type="Line2D" parent="Battlefield/AimLayer"]
 width = 5.0

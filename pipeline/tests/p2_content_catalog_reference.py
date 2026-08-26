@@ -33,7 +33,7 @@ def main() -> int:
 
     empty_bytes = bytes.fromhex(vectors["empty_runtime"]["canonical_hex"])
     assert hashlib.sha256(empty_bytes).hexdigest() == vectors["empty_runtime"]["fingerprint"]
-    assert runtime.fingerprint.hex() == "8067a487ceb0ef2d721a3a985d8c5b7c0d8185cd4f52ce30c9d8cb59fd68edca"
+    assert runtime.fingerprint.hex() == "aa7758ad0ccbb5ef73fe66f162b004243b3410a536c559e7ff584139267e7ee1"
     assert (
         len(runtime.pieces), len(runtime.abilities), len(runtime.statuses),
         len(runtime.synergies), len(runtime.maps), len(runtime.enemies),
